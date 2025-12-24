@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2025-12-24T04:40:35.246Z",
+  "updatedAt": "2025-12-24T07:00:00.000Z",
   "createdAt": "2025-12-17T17:08:43.420Z",
   "id": "aLxwvqoSTkZAQ3fq",
   "name": "1. Lead Ingestion & ICP Scoring",
@@ -589,18 +589,16 @@
     },
     {
       "parameters": {
-        "mode": "combineBySql",
-        "query": "SELECT n.* FROM input1 n LEFT JOIN input2 m ON TRIM(n.profileUrl) = TRIM(m.profileUrl) WHERE m.profileUrl IS NULL",
-        "options": {}
+        "jsCode": "// Get all items from both inputs\nconst newLeads = $('Read New Leads').all();\nconst masterList = $('Read Master List').all();\n\n// Create a Set of existing profile URLs for fast lookup (trimmed and lowercase)\nconst existingUrls = new Set(\n  masterList.map(item => (item.json.profileUrl || '').trim().toLowerCase())\n);\n\n// Filter new leads to only those not in master list\nconst uniqueLeads = newLeads.filter(lead => {\n  const url = (lead.json.profileUrl || '').trim().toLowerCase();\n  return url && !existingUrls.has(url);\n});\n\n// Return the unique leads\nreturn uniqueLeads;"
       },
-      "type": "n8n-nodes-base.merge",
-      "typeVersion": 3.2,
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
         -27904,
         3104
       ],
       "id": "1b0c3579-90f5-45b6-8881-d1143bf6959f",
-      "name": "Merge"
+      "name": "Filter New Leads"
     },
     {
       "parameters": {
@@ -637,7 +635,7 @@
       "main": [
         [
           {
-            "node": "Merge",
+            "node": "Filter New Leads",
             "type": "main",
             "index": 0
           }
@@ -648,9 +646,9 @@
       "main": [
         [
           {
-            "node": "Merge",
+            "node": "Filter New Leads",
             "type": "main",
-            "index": 1
+            "index": 0
           }
         ]
       ]
@@ -728,7 +726,7 @@
         ]
       ]
     },
-    "Merge": {
+    "Filter New Leads": {
       "main": [
         [
           {
