@@ -327,7 +327,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Get the desired workflow ID\nconst workflowId = $('If n8n before GitHub').first().json.same?.id;\n\n// Get all decoded workflow items\nconst allDecoded = $('Decode to json').all();\n\n// Filter for the matching one\nconst matched = allDecoded.filter(item => item.json?.id === workflowId);\n\n// If there's a match, return it (or empty if none)\nif (matched.length > 0) {\n  return [{ json: { dataset: matched[0].json } }];\n} else {\n  return [];\n}\n"
+        "jsCode": "// Get the desired workflow ID from the CURRENT input item\nconst workflowId = $input.first().json.same?.id;\n\n// Get all decoded workflow items from GitHub\nconst allDecoded = $('Decode to json').all();\n\n// Filter for the matching one\nconst matched = allDecoded.filter(item => item.json?.id === workflowId);\n\n// If there's a match, return it (or empty if none)\nif (matched.length > 0) {\n  return [{ json: { dataset: matched[0].json } }];\n} else {\n  return [];\n}\n"
       },
       "id": "8465509a-ac62-485f-83b3-97d5bfec8300",
       "name": "Code - InputB",
@@ -340,7 +340,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Get the desired workflow ID\nconst workflowId = $('If n8n before GitHub').first().json.same?.id;\n\n// Get all n8n workflow items\nconst allN8n = $('n8n').all();\n\n// Filter for the matching one\nconst matched = allN8n.filter(item => item.json?.id === workflowId);\n\n// If there's a match, return it (or empty if none)\nif (matched.length > 0) {\n  return [{ json: { dataset: matched[0].json } }];\n} else {\n  return [];\n}\n"
+        "jsCode": "// Get the desired workflow ID from the CURRENT input item\nconst workflowId = $input.first().json.same?.id;\n\n// Get all n8n workflow items\nconst allN8n = $('n8n').all();\n\n// Filter for the matching one\nconst matched = allN8n.filter(item => item.json?.id === workflowId);\n\n// If there's a match, return it (or empty if none)\nif (matched.length > 0) {\n  return [{ json: { dataset: matched[0].json } }];\n} else {\n  return [];\n}\n"
       },
       "id": "ea216738-d78a-4063-8874-0ccf06dfb52b",
       "name": "Code - InputA",
