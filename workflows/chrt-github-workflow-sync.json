@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2025-12-24T04:23:59.892Z",
+  "updatedAt": "2025-12-24T04:44:54.204Z",
   "createdAt": "2025-12-24T03:16:41.674Z",
   "id": "r4ICnvhdbQwejSdH",
   "name": "Chrt GitHub Workflow Sync",
@@ -115,7 +115,9 @@
     },
     {
       "parameters": {
-        "filters": {},
+        "filters": {
+          "projectId": "O7lTivDfRl72aS23"
+        },
         "requestOptions": {}
       },
       "id": "3ca40bbf-9f28-4d34-b7d5-a1a6a51b62ea",
@@ -959,7 +961,7 @@
     "templateCredsSetupCompleted": true
   },
   "pinData": {},
-  "versionId": "e185aab3-8fc7-4110-b0d7-52831da5866d",
+  "versionId": "d09c6a5b-baba-4fbe-942d-798f92f640f1",
   "activeVersionId": null,
   "triggerCount": 0,
   "shared": [
@@ -979,5 +981,7 @@
       "id": "DEHTpDES3OilFwB8",
       "name": "github"
     }
-  ]
+  ],
+  "_folderPath": "",
+  "_fileName": "chrt-github-workflow-sync.json"
 }
