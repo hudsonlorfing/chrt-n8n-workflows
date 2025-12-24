@@ -1,0 +1,516 @@
+{
+  "name": "Lead Intake - Gmail & Squarespace",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "squarespace-lead",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-squarespace",
+      "name": "Squarespace Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [240, 300],
+      "webhookId": "squarespace-lead"
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {
+          "searchString": "subject:(home value OR property estimate OR home valuation) is:unread"
+        }
+      },
+      "id": "gmail-trigger",
+      "name": "Gmail Trigger",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1,
+      "position": [240, 520],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "GMAIL_CREDENTIAL_ID",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Normalize data from either Gmail or Squarespace\nconst items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  const data = item.json;\n  let normalized = {};\n  \n  // Check if from Gmail\n  if (data.textPlain || data.snippet || data.from) {\n    normalized = {\n      source: 'gmail',\n      raw_text: data.textPlain || data.snippet || '',\n      from_email: data.from?.emailAddress || '',\n      subject: data.subject || '',\n      received_at: new Date().toISOString()\n    };\n  }\n  // Check if from Squarespace\n  else if (data.formSubmissionId || data.submittedOn) {\n    const fields = data.data || data.formData || data;\n    normalized = {\n      source: 'squarespace',\n      first_name: fields.firstName || fields.first_name || fields['First Name'] || '',\n      last_name: fields.lastName || fields.last_name || fields['Last Name'] || '',\n      email: fields.email || fields.Email || '',\n      phone: fields.phone || fields.Phone || fields.telephone || '',\n      address: fields.address || fields.Address || fields.property_address || '',\n      raw_text: JSON.stringify(fields),\n      received_at: data.submittedOn || new Date().toISOString()\n    };\n  }\n  \n  results.push({ json: normalized });\n}\n\nreturn results;"
+      },
+      "id": "normalize-input",
+      "name": "Normalize Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 400]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "options": {},
+        "messages": {
+          "values": [
+            {
+              "content": "=Extract the following information from this lead inquiry. Return ONLY valid JSON, no other text.\n\nRequired fields:\n- first_name (string)\n- last_name (string)\n- email (string)\n- phone (string, format as +1XXXXXXXXXX if US number)\n- address (full street address if provided)\n- city (string)\n- state (two-letter code)\n- intent (one of: selling, buying, refinancing, curious, unknown)\n\nIf a field cannot be determined, use empty string \"\".\n\nSource: {{ $json.source }}\nRaw text to analyze:\n{{ $json.raw_text }}\n\n{% if $json.from_email %}From email: {{ $json.from_email }}{% endif %}\n{% if $json.first_name %}First name provided: {{ $json.first_name }}{% endif %}\n{% if $json.last_name %}Last name provided: {{ $json.last_name }}{% endif %}\n{% if $json.email %}Email provided: {{ $json.email }}{% endif %}\n{% if $json.phone %}Phone provided: {{ $json.phone }}{% endif %}\n{% if $json.address %}Address provided: {{ $json.address }}{% endif %}"
+            }
+          ]
+        }
+      },
+      "id": "ai-extract",
+      "name": "AI Extract Lead Data",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1,
+      "position": [700, 400],
+      "credentials": {
+        "openAiApi": {
+          "id": "OPENAI_CREDENTIAL_ID",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse AI response and extract JSON\nconst aiResponse = $input.first().json.message?.content || $input.first().json.text || '';\n\ntry {\n  // Try to find JSON in the response\n  let jsonStr = aiResponse;\n  const jsonMatch = aiResponse.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    jsonStr = jsonMatch[0];\n  }\n  \n  const extracted = JSON.parse(jsonStr);\n  \n  // Normalize phone number\n  let phone = (extracted.phone || '').replace(/[^0-9+]/g, '');\n  if (phone && !phone.startsWith('+')) {\n    if (phone.length === 10) {\n      phone = '+1' + phone;\n    } else if (phone.length === 11 && phone.startsWith('1')) {\n      phone = '+' + phone;\n    }\n  }\n  \n  return [{\n    json: {\n      first_name: extracted.first_name || '',\n      last_name: extracted.last_name || '',\n      email: extracted.email || '',\n      phone: phone,\n      address: extracted.address || '',\n      city: extracted.city || '',\n      state: extracted.state || '',\n      intent: extracted.intent || 'unknown',\n      source: $('Normalize Input').first().json.source || 'unknown',\n      received_at: $('Normalize Input').first().json.received_at\n    }\n  }];\n} catch (error) {\n  return [{\n    json: {\n      error: 'Failed to parse AI response',\n      raw_response: aiResponse,\n      source: $('Normalize Input').first().json.source || 'unknown'\n    }\n  }];\n}"
+      },
+      "id": "parse-ai-response",
+      "name": "Parse AI Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [920, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-email-or-phone",
+              "leftValue": "={{ $json.email || $json.phone }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "filter-valid-leads",
+      "name": "Filter Valid Leads",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [1140, 400]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.rentcast.io/v1/avm/value",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "address",
+              "value": "={{ $json.address }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Api-Key",
+              "value": "={{ $credentials.rentcastApiKey }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "rentcast-api",
+      "name": "RentCast Home Value",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1360, 400],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "RENTCAST_CREDENTIAL_ID",
+          "name": "RentCast API"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Calculate priority and merge data\nconst leadData = $('Parse AI Response').first().json;\nconst rentcastData = $input.first().json;\n\n// Get home value (handle various response formats)\nlet homeValue = 0;\nif (rentcastData.price) {\n  homeValue = rentcastData.price;\n} else if (rentcastData.priceRangeLow) {\n  homeValue = rentcastData.priceRangeLow;\n} else if (rentcastData.estimate) {\n  homeValue = rentcastData.estimate;\n}\n\n// Calculate priority tier\nlet priority, tier, sequenceSpeed;\nif (homeValue >= 500000) {\n  priority = 'A';\n  tier = 'High';\n  sequenceSpeed = 'aggressive';\n} else if (homeValue >= 300000) {\n  priority = 'B';\n  tier = 'Medium';\n  sequenceSpeed = 'standard';\n} else {\n  priority = 'C';\n  tier = 'Lower';\n  sequenceSpeed = 'relaxed';\n}\n\n// Format home value for display\nconst homeValueFormatted = homeValue > 0 \n  ? '$' + homeValue.toLocaleString('en-US')\n  : 'Not available';\n\nreturn [{\n  json: {\n    ...leadData,\n    home_value: homeValue,\n    home_value_formatted: homeValueFormatted,\n    home_value_high: rentcastData.priceRangeHigh || null,\n    confidence: rentcastData.confidence || 'unknown',\n    priority: priority,\n    tier: tier,\n    sequence_speed: sequenceSpeed,\n    rentcast_raw: rentcastData\n  }\n}];"
+      },
+      "id": "calculate-priority",
+      "name": "Calculate Priority",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1580, 400]
+    },
+    {
+      "parameters": {
+        "resource": "contact",
+        "operation": "create",
+        "additionalFields": {
+          "firstName": "={{ $json.first_name }}",
+          "lastName": "={{ $json.last_name }}",
+          "phone": "={{ $json.phone }}",
+          "customPropertiesUi": {
+            "customPropertiesValues": [
+              {
+                "property": "hs_lead_status",
+                "value": "NEW"
+              },
+              {
+                "property": "home_value_estimate",
+                "value": "={{ $json.home_value }}"
+              },
+              {
+                "property": "priority_tier",
+                "value": "={{ $json.priority }}"
+              },
+              {
+                "property": "lead_source",
+                "value": "={{ $json.source }}"
+              },
+              {
+                "property": "address",
+                "value": "={{ $json.address }}"
+              },
+              {
+                "property": "city",
+                "value": "={{ $json.city }}"
+              },
+              {
+                "property": "state",
+                "value": "={{ $json.state }}"
+              }
+            ]
+          }
+        }
+      },
+      "id": "hubspot-create-contact",
+      "name": "HubSpot Create Contact",
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2,
+      "position": [1800, 400],
+      "credentials": {
+        "hubspotApi": {
+          "id": "HUBSPOT_CREDENTIAL_ID",
+          "name": "HubSpot account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merge HubSpot response with lead data\nconst leadData = $('Calculate Priority').first().json;\nconst hubspotContact = $input.first().json;\n\nreturn [{\n  json: {\n    ...leadData,\n    hubspot_contact_id: hubspotContact.id,\n    hubspot_url: `https://app.hubspot.com/contacts/${hubspotContact.portalId || 'YOUR_PORTAL_ID'}/contact/${hubspotContact.id}`\n  }\n}];"
+      },
+      "id": "merge-hubspot-data",
+      "name": "Merge HubSpot Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2020, 400]
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "={{ $json.hubspot_contact_id }}_sequence",
+        "value": "active",
+        "expiration": 2592000
+      },
+      "id": "redis-set-active",
+      "name": "Redis Set Active",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [2240, 400],
+      "credentials": {
+        "redis": {
+          "id": "REDIS_CREDENTIAL_ID",
+          "name": "Redis"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "channel": "#leads",
+        "text": "=:house: *New Lead - Priority {{ $json.priority }}*\n\n*Name:* {{ $json.first_name }} {{ $json.last_name }}\n*Email:* {{ $json.email }}\n*Phone:* {{ $json.phone }}\n*Address:* {{ $json.address }}\n*Home Value:* {{ $json.home_value_formatted }}\n*Intent:* {{ $json.intent }}\n*Source:* {{ $json.source }}\n\n<{{ $json.hubspot_url }}|View in HubSpot>",
+        "otherOptions": {}
+      },
+      "id": "slack-notify",
+      "name": "Slack Notification",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.1,
+      "position": [2460, 300],
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "SLACK_CREDENTIAL_ID",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.linqapp.com/api/partner/v2/chats",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-LINQ-INTEGRATION-TOKEN",
+              "value": "={{ $credentials.linqToken }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"from_phone_number\": \"+1YOUR_LINQ_NUMBER\",\n  \"to_phone_numbers\": [\"{{ $json.phone }}\"],\n  \"message\": {\n    \"text\": \"Hi {{ $json.first_name }}, this is [Agent Name] with [Company]. I saw you were interested in property values in {{ $json.city }}. I'd love to help - what's prompting your interest? :house:\"\n  }\n}",
+        "options": {}
+      },
+      "id": "linq-day0-text",
+      "name": "Linq Day 0 Text",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [2460, 500],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "LINQ_CREDENTIAL_ID",
+          "name": "Linq API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.email }}",
+        "subject": "=Your {{ $json.city }} Home Value Estimate",
+        "message": "=Hi {{ $json.first_name }},\n\nThanks for reaching out! I pulled some data on your area...\n\n<strong>Estimated Home Value: {{ $json.home_value_formatted }}</strong>\n\nI specialize in {{ $json.city }} and would love to learn more about your goals. Are you:\n- Thinking of selling?\n- Curious about refinancing?\n- Just keeping tabs on your equity?\n\nHit reply and let me know - I'm here to help either way.\n\n[Agent Name]\n[Phone Number]",
+        "options": {}
+      },
+      "id": "gmail-day0-email",
+      "name": "Gmail Day 0 Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [2460, 700],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "GMAIL_CREDENTIAL_ID",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "workflowId": "={{ $workflow.id.replace('lead-intake', 'nurturing-sequence') }}",
+        "options": {}
+      },
+      "id": "trigger-sequence",
+      "name": "Trigger Nurturing Sequence",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [2680, 400],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={\"success\": true, \"contact_id\": \"{{ $json.hubspot_contact_id }}\"}"
+      },
+      "id": "webhook-response",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [2680, 200]
+    }
+  ],
+  "connections": {
+    "Squarespace Webhook": {
+      "main": [
+        [
+          {
+            "node": "Normalize Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "Normalize Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Input": {
+      "main": [
+        [
+          {
+            "node": "AI Extract Lead Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Extract Lead Data": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Response": {
+      "main": [
+        [
+          {
+            "node": "Filter Valid Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Valid Leads": {
+      "main": [
+        [
+          {
+            "node": "RentCast Home Value",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RentCast Home Value": {
+      "main": [
+        [
+          {
+            "node": "Calculate Priority",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Priority": {
+      "main": [
+        [
+          {
+            "node": "HubSpot Create Contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HubSpot Create Contact": {
+      "main": [
+        [
+          {
+            "node": "Merge HubSpot Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge HubSpot Data": {
+      "main": [
+        [
+          {
+            "node": "Redis Set Active",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis Set Active": {
+      "main": [
+        [
+          {
+            "node": "Slack Notification",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Linq Day 0 Text",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Gmail Day 0 Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack Notification": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Linq Day 0 Text": {
+      "main": [
+        [
+          {
+            "node": "Trigger Nurturing Sequence",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "lead-nurturing"
+    }
+  ],
+  "triggerCount": 2,
+  "meta": {
+    "instanceId": "your-instance-id"
+  }
+}

@@ -1,0 +1,22 @@
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Sensitive files (credentials should never be committed)
+*credentials*.json
+*.env
+.env.*
+
+# Backup files
+*.bak
+*.backup
+
+# Temporary sync files
+.sync-temp/
+

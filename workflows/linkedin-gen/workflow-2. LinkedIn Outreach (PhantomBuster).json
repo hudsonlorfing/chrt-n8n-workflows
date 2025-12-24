@@ -1,0 +1,769 @@
+{
+  "name": "2. LinkedIn Outreach (PhantomBuster)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 8,
+              "triggerAtMinute": 30
+            },
+            {
+              "field": "hours",
+              "hoursInterval": 16,
+              "triggerAtMinute": 10
+            }
+          ]
+        }
+      },
+      "id": "c3c77cfc-1fdc-4c58-86dd-855f56444122",
+      "name": "Twice Daily (9am, 2pm)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        1872,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "=1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Master List",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "ac4c7dd1-c381-4886-8e6d-2d726778a41b",
+      "name": "Get Ready Leads",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2320,
+        192
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "hf9VoWnqYNXhUZsn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sortFieldsUi": {
+          "sortField": [
+            {
+              "fieldName": " Score ",
+              "order": "descending"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "254e1cf2-8d02-4677-8a37-0aac504ff4e7",
+      "name": "Sort by Score (Highest First)",
+      "type": "n8n-nodes-base.sort",
+      "typeVersion": 1,
+      "position": [
+        2768,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "maxItems": "={{ Math.floor(Math.random() * 5) + 1}}"
+      },
+      "id": "f25d40b4-754d-42da-b306-ede874c46532",
+      "name": "Limit to 10/run (20/day)",
+      "type": "n8n-nodes-base.limit",
+      "typeVersion": 1,
+      "position": [
+        2992,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "f5cbb0e2-eda1-4696-8ffa-a9b62101174a",
+      "name": "Process One at a Time",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        3216,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "amount": "={{ Math.floor(Math.random() * 90) + 30}}"
+      },
+      "id": "a365385c-f2da-4c66-a435-7209aca2ebcd",
+      "name": "Random Delay (30-120s)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        3440,
+        192
+      ],
+      "webhookId": "cf5227ae-6b6b-4af6-b694-fdee3769710c"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.phantombuster.com/api/v2/agents/launch",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  id: \"3044757503240384\",\n  bonusArgument: {\n    profileUrl: $json['LinkedIn_Profile_URL ']\n  }\n}) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "a1fcfe6f-890c-4d96-bffb-505817f2e767",
+      "name": "PhantomBuster: Send Connection",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3664,
+        192
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "KWeabljbYSzoLpjI",
+          "name": "Phantom Header Auth"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "amount": 90
+      },
+      "id": "ace642d1-c696-4281-8779-ffe8176de576",
+      "name": "Wait for Execution (90s)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        3888,
+        192
+      ],
+      "webhookId": "e66b1416-4fd0-4893-a988-28cfcd7403f9"
+    },
+    {
+      "parameters": {
+        "url": "={{ 'https://api.phantombuster.com/api/v2/agents/fetch-output?id=' + \"3044757503240384\" + '&containerId=' + $('PhantomBuster: Send Connection').item.json.containerId }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "c76d6c0c-b7bb-4f07-b9a2-e6f9bc58120b",
+      "name": "Fetch Result",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4112,
+        192
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "KWeabljbYSzoLpjI",
+          "name": "Phantom Header Auth"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse PhantomBuster result and determine status\nconst originalData = $('Process One at a Time').item.json;\nconst result = $('Fetch Result').item.json;\n\nlet connectionStatus = 'Request Sent';\nlet resultMessage = '';\n\ntry {\n  // Check resultObject for status\n  if (result.resultObject) {\n    const ro = Array.isArray(result.resultObject) ? result.resultObject[0] : result.resultObject;\n    resultMessage = ro.status || ro.message || '';\n    \n    // Map PhantomBuster statuses to our tracking\n    if (resultMessage.toLowerCase().includes('invitation sent')) {\n      connectionStatus = 'Request Sent';\n    } else if (resultMessage.toLowerCase().includes('already connected')) {\n      connectionStatus = 'Already Connected';\n    } else if (resultMessage.toLowerCase().includes('already invited')) {\n      connectionStatus = 'Already Invited';\n    } else if (resultMessage.toLowerCase().includes('connect button') || resultMessage.toLowerCase().includes('error')) {\n      connectionStatus = 'Cannot Connect';\n    }\n  } else if (result.exitCode && result.exitCode !== 0) {\n    connectionStatus = 'Error';\n    resultMessage = result.output || 'Unknown error';\n  }\n} catch (e) {\n  connectionStatus = 'Error';\n  resultMessage = e.message;\n}\n\nreturn [{\n  json: {\n    'LinkedIn_Profile_URL ': originalData['LinkedIn_Profile_URL '],\n    status: connectionStatus,\n    resultMessage: resultMessage,\n    sentDate: new Date().toISOString().split('T')[0]\n  }\n}];"
+      },
+      "id": "c595128b-c344-4bdd-a993-caeba0fa3639",
+      "name": "Parse Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4336,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "=1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Master List"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "row_number": 0,
+            "LinkedIn_Profile_URL ": "={{ $json['LinkedIn_Profile_URL '] }}",
+            "kyleSentDate": "={{ $('Parse Result').item.json.sentDate }}",
+            "inviteResult": "={{ $('Parse Result').item.json.status }}"
+          },
+          "matchingColumns": [
+            "LinkedIn_Profile_URL "
+          ],
+          "schema": [
+            {
+              "id": "LinkedIn_Profile_URL ",
+              "displayName": "LinkedIn_Profile_URL ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": " FullName ",
+              "displayName": " FullName ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": " FirstName ",
+              "displayName": " FirstName ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": " LastName ",
+              "displayName": " LastName ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": " Company ",
+              "displayName": " Company ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": " Title ",
+              "displayName": " Title ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": " Industry ",
+              "displayName": " Industry ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": " Headline ",
+              "displayName": " Headline ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": " Location ",
+              "displayName": " Location ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": " PreviousRole ",
+              "displayName": " PreviousRole ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": " Score ",
+              "displayName": " Score ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": " Segment ",
+              "displayName": " Segment ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": " Reason ",
+              "displayName": " Reason ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": " Status ",
+              "displayName": " Status ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": " Added ",
+              "displayName": " Added ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "kyleSentDate",
+              "displayName": "kyleSentDate",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": " HubSpotSynced",
+              "displayName": " HubSpotSynced",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Hudson Notes or thoughts",
+              "displayName": "Hudson Notes or thoughts",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "inviteResult",
+              "displayName": "inviteResult",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "cellFormat": "USER_ENTERED"
+        }
+      },
+      "id": "4b8634ec-3355-4cd6-81f8-1c5737e33d1b",
+      "name": "Update Status in Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        4784,
+        264
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "hf9VoWnqYNXhUZsn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "7f1511d4-d6ec-4677-903b-60fe80acc329",
+      "name": "Next Lead",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        3440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8",
+          "mode": "list",
+          "cachedResultName": "LinkedIn Leads",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Master List",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8/edit#gid=0"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "LinkedIn_Profile_URL ",
+              "lookupValue": "={{ $('Process One at a Time').item.json['LinkedIn_Profile_URL '] }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        4560,
+        192
+      ],
+      "id": "97e7f55c-30ea-420d-9ea9-f9e8f32b552c",
+      "name": "Get row(s) in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "hf9VoWnqYNXhUZsn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "id-1",
+              "leftValue": "={{ $json['LinkedIn_Profile_URL '] }}",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            },
+            {
+              "id": "id-3",
+              "leftValue": "={{ $json[' Segment '] }}",
+              "rightValue": "Skip",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            },
+            {
+              "id": "74d0d1bc-23d7-4f86-9973-468943edd504",
+              "leftValue": "={{ $json.kyleSentDate }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "empty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "7f0037ba-4496-46d6-9bbb-c8c748be69c3",
+      "name": "Filter Ready Leads",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.3,
+      "position": [
+        2544,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "amount": "={{ Math.floor( Math.random() * 135) + 5 }}",
+        "unit": "minutes"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2096,
+        192
+      ],
+      "id": "7067c636-295b-49d8-b137-66768e27d862",
+      "name": "Wait",
+      "webhookId": "10738656-08f5-421b-8125-3980acc2fdb7"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Twice Daily (9am, 2pm)": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sort by Score (Highest First)": {
+      "main": [
+        [
+          {
+            "node": "Limit to 10/run (20/day)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limit to 10/run (20/day)": {
+      "main": [
+        [
+          {
+            "node": "Process One at a Time",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process One at a Time": {
+      "main": [
+        [
+          {
+            "node": "Next Lead",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Random Delay (30-120s)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Random Delay (30-120s)": {
+      "main": [
+        [
+          {
+            "node": "PhantomBuster: Send Connection",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PhantomBuster: Send Connection": {
+      "main": [
+        [
+          {
+            "node": "Wait for Execution (90s)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for Execution (90s)": {
+      "main": [
+        [
+          {
+            "node": "Fetch Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Result": {
+      "main": [
+        [
+          {
+            "node": "Parse Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Result": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Status in Sheet": {
+      "main": [
+        [
+          {
+            "node": "Process One at a Time",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "Update Status in Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Ready Leads": {
+      "main": [
+        [
+          {
+            "node": "Filter Ready Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Ready Leads": {
+      "main": [
+        [
+          {
+            "node": "Sort by Score (Highest First)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Get Ready Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "timeSavedMode": "fixed",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "versionId": "034fc2cc-3a81-463f-a0e6-4f13ce7acc35",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "3ce16fc100291804826030d46a0f780f5d6613342b8afd8bb5c84603e7c0436d"
+  },
+  "id": "kjjYKQEXv67Vl5MS",
+  "tags": [
+    {
+      "updatedAt": "2025-12-17T14:25:00.955Z",
+      "createdAt": "2025-12-17T14:25:00.955Z",
+      "id": "ST1cKCxkQ4kcD3uk",
+      "name": "linkedin"
+    },
+    {
+      "updatedAt": "2025-12-17T14:25:00.931Z",
+      "createdAt": "2025-12-17T14:25:00.931Z",
+      "id": "e2xCbORLaMDzd0XM",
+      "name": "phantombuster"
+    },
+    {
+      "updatedAt": "2025-12-17T14:29:31.592Z",
+      "createdAt": "2025-12-17T14:29:31.592Z",
+      "id": "hpe6mqInKkHgaUZr",
+      "name": "outreach"
+    }
+  ]
+}

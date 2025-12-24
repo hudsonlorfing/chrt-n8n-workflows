@@ -1,0 +1,898 @@
+{
+  "name": "Call Intelligence - Transcript Analysis",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "linq-call-completed",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "linq-call-webhook",
+      "name": "Linq Call Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [240, 500],
+      "webhookId": "linq-call-completed"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse Linq call.completed webhook\nconst body = $input.first().json.body || $input.first().json;\nconst data = body.data || body;\nconst recordingData = data.recording_data || {};\n\n// Extract call details\nconst callId = data.id;\nconst fromPhone = data.from;\nconst toPhone = data.to;\nconst duration = data.duration || 0;\nconst direction = data.direction || 'outbound';\nconst callStatus = data.status;\nconst hasRecording = data.has_recording || false;\nconst isVoicemail = data.voicemail || false;\n\n// Recording data\nconst recordingUrl = recordingData.url || null;\nconst hasTranscript = recordingData.transcript_available || false;\nconst linqTranscript = recordingData.transcription || null;\nconst linqSummary = recordingData.summary || null;\n\n// Determine lead phone (opposite of our number based on direction)\nlet leadPhone = direction === 'inbound' ? fromPhone : toPhone;\nleadPhone = (leadPhone || '').replace(/[^0-9+]/g, '');\nif (leadPhone && !leadPhone.startsWith('+')) {\n  leadPhone = leadPhone.length === 10 ? '+1' + leadPhone : '+' + leadPhone;\n}\n\n// Calculate timestamps\nconst startTime = data.start_time;\nconst endTime = data.end_time;\nconst callTimestamp = body.created_at || new Date().toISOString();\n\nreturn [{\n  json: {\n    call_id: callId,\n    phone: leadPhone,\n    from_phone: fromPhone,\n    to_phone: toPhone,\n    duration_seconds: parseInt(duration) || 0,\n    direction: direction,\n    call_status: callStatus,\n    is_voicemail: isVoicemail,\n    call_timestamp: callTimestamp,\n    \n    // Recording info\n    has_recording: hasRecording,\n    recording_url: recordingUrl,\n    \n    // Transcript info (from Linq/AssemblyAI)\n    has_linq_transcript: hasTranscript && !!linqTranscript,\n    linq_transcript: linqTranscript,\n    linq_summary: linqSummary,\n    \n    // For routing\n    needs_assemblyai: hasRecording && !hasTranscript && !!recordingUrl,\n    can_analyze: (hasTranscript && !!linqTranscript) || (hasRecording && !!recordingUrl),\n    \n    raw_payload: body\n  }\n}];"
+      },
+      "id": "parse-call-webhook",
+      "name": "Parse Call Webhook",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 500]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "can-analyze",
+              "leftValue": "={{ $json.can_analyze }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            },
+            {
+              "id": "min-duration",
+              "leftValue": "={{ $json.duration_seconds }}",
+              "rightValue": 30,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            },
+            {
+              "id": "not-voicemail",
+              "leftValue": "={{ $json.is_voicemail }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "false"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "filter-analyzable",
+      "name": "Can Analyze?",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [680, 500]
+    },
+    {
+      "parameters": {
+        "resource": "contact",
+        "operation": "search",
+        "filterGroups": {
+          "values": [
+            {
+              "filters": {
+                "values": [
+                  {
+                    "propertyName": "phone",
+                    "operator": "EQ",
+                    "propertyValue": "={{ $json.phone }}"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "additionalFields": {}
+      },
+      "id": "hubspot-find-contact",
+      "name": "Find Contact",
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2,
+      "position": [900, 500],
+      "credentials": {
+        "hubspotApi": {
+          "id": "HUBSPOT_CREDENTIAL_ID",
+          "name": "HubSpot account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merge call data with contact\nconst callData = $('Parse Call Webhook').first().json;\nconst searchResult = $input.first().json;\n\nconst contact = searchResult.results?.[0] || searchResult[0] || {};\nconst properties = contact.properties || contact;\n\nreturn [{\n  json: {\n    ...callData,\n    contact_id: contact.id || 'unknown-' + callData.phone,\n    hubspot_contact_id: contact.id || null,\n    first_name: properties.firstname || 'Lead',\n    last_name: properties.lastname || '',\n    email: properties.email || '',\n    home_value: parseInt(properties.home_value_estimate) || 0,\n    priority_tier: properties.priority_tier || 'C',\n    current_step: parseInt(properties.current_sequence_step) || 0\n  }\n}];"
+      },
+      "id": "merge-contact-data",
+      "name": "Merge Contact Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 500]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.has_linq_transcript }}",
+                    "rightValue": true,
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Has Transcript"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.needs_assemblyai }}",
+                    "rightValue": true,
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Needs AssemblyAI"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "route-transcript",
+      "name": "Route by Transcript",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [1340, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "// PATH A: Linq already provided transcript\n// Prepare data for Claude analysis\nconst data = $input.first().json;\n\nreturn [{\n  json: {\n    ...data,\n    transcript_text: data.linq_transcript,\n    transcript_source: 'linq',\n    transcript_word_count: (data.linq_transcript || '').split(/\\s+/).length,\n    linq_provided_summary: data.linq_summary,\n    // Estimate talk ratios (not available from Linq)\n    agent_talk_percentage: 50,\n    lead_talk_percentage: 50\n  }\n}];"
+      },
+      "id": "prepare-linq-transcript",
+      "name": "Prepare Linq Transcript",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1560, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.assemblyai.com/v2/transcript",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ $credentials.assemblyAiApiKey }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"audio_url\": \"{{ $json.recording_url }}\",\n  \"speaker_labels\": true,\n  \"speakers_expected\": 2,\n  \"webhook_url\": \"{{ $env.N8N_WEBHOOK_URL }}/webhook/assemblyai-transcript-ready\",\n  \"webhook_auth_header_name\": \"X-Webhook-Secret\",\n  \"webhook_auth_header_value\": \"{{ $env.ASSEMBLYAI_WEBHOOK_SECRET }}\"\n}",
+        "options": {}
+      },
+      "id": "assemblyai-submit",
+      "name": "Submit to AssemblyAI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1560, 600],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "ASSEMBLYAI_CREDENTIAL_ID",
+          "name": "AssemblyAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "=assemblyai_{{ $json.id }}",
+        "value": "={{ JSON.stringify({ contact_id: $('Merge Contact Data').first().json.contact_id, hubspot_contact_id: $('Merge Contact Data').first().json.hubspot_contact_id, call_id: $('Merge Contact Data').first().json.call_id, duration_seconds: $('Merge Contact Data').first().json.duration_seconds, phone: $('Merge Contact Data').first().json.phone, first_name: $('Merge Contact Data').first().json.first_name, home_value: $('Merge Contact Data').first().json.home_value, current_step: $('Merge Contact Data').first().json.current_step, call_timestamp: $('Merge Contact Data').first().json.call_timestamp, direction: $('Merge Contact Data').first().json.direction }) }}",
+        "expiration": 86400
+      },
+      "id": "redis-store-context",
+      "name": "Store Call Context",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [1780, 600],
+      "credentials": {
+        "redis": {
+          "id": "REDIS_CREDENTIAL_ID",
+          "name": "Redis"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{ $credentials.anthropicApiKey }}"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"claude-sonnet-4-20250514\",\n  \"max_tokens\": 2000,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Analyze this real estate sales call transcript.\\n\\nContext:\\n- Lead: {{ $json.first_name }}\\n- Home value: ${{ $json.home_value }}\\n- Sequence step: {{ $json.current_step }}\\n- Call duration: {{ Math.round($json.duration_seconds / 60) }} minutes\\n- Direction: {{ $json.direction }}\\n{{ $json.linq_provided_summary ? '- Linq summary: ' + $json.linq_provided_summary : '' }}\\n\\nTranscript:\\n{{ $json.transcript_text }}\\n\\nExtract the following as JSON only (no markdown, no explanation, just the JSON object):\\n{\\n  \\\"summary\\\": \\\"2-3 sentence summary of the call\\\",\\n  \\\"intent\\\": \\\"selling_soon|selling_later|refinance|buying|curious|not_interested\\\",\\n  \\\"timeline\\\": \\\"immediate|1-3_months|3-6_months|6-12_months|12+_months|unknown\\\",\\n  \\\"temperature\\\": \\\"hot|warm|cold\\\",\\n  \\\"sentiment\\\": \\\"positive|neutral|negative\\\",\\n  \\\"objections\\\": [{\\\"objection\\\": \\\"description\\\", \\\"quote\\\": \\\"exact quote if available\\\", \\\"handled_well\\\": true}],\\n  \\\"questions_asked\\\": [{\\\"question\\\": \\\"what they asked\\\", \\\"answered\\\": true}],\\n  \\\"topics_discussed\\\": [\\\"home_value\\\", \\\"market\\\", \\\"timing\\\"],\\n  \\\"competitor_mentions\\\": [{\\\"competitor\\\": \\\"name\\\", \\\"context\\\": \\\"what was said\\\"}],\\n  \\\"next_steps\\\": \\\"what was agreed for follow-up\\\",\\n  \\\"commitment_level\\\": \\\"none|soft|firm\\\",\\n  \\\"key_quotes\\\": [\\\"up to 3 notable quotes from the lead\\\"],\\n  \\\"coaching\\\": {\\n    \\\"priority\\\": \\\"high|medium|low\\\",\\n    \\\"category\\\": \\\"rapport|discovery|objection_handling|closing|follow_up\\\",\\n    \\\"strengths\\\": [\\\"what went well\\\"],\\n    \\\"improvements\\\": [\\\"specific actionable suggestions\\\"]\\n  }\\n}\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "claude-analysis-linq",
+      "name": "Claude Analysis (Linq)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1780, 400],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "ANTHROPIC_CREDENTIAL_ID",
+          "name": "Anthropic API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse Claude response\nconst callData = $('Prepare Linq Transcript').first().json;\nconst claudeResponse = $input.first().json;\n\nlet analysis = {};\ntry {\n  const content = claudeResponse.content?.[0]?.text || '';\n  const jsonMatch = content.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    analysis = JSON.parse(jsonMatch[0]);\n  }\n} catch (e) {\n  analysis = {\n    summary: callData.linq_provided_summary || 'Analysis failed',\n    intent: 'unknown',\n    temperature: 'unknown',\n    coaching: { priority: 'low', improvements: [] }\n  };\n}\n\nconst needsCoachingAlert = \n  analysis.coaching?.priority === 'high' ||\n  (analysis.objections?.length > 0 && analysis.objections.some(o => !o.handled_well)) ||\n  analysis.temperature === 'cold';\n\nreturn [{\n  json: {\n    contact_id: callData.contact_id,\n    hubspot_contact_id: callData.hubspot_contact_id,\n    call_id: callData.call_id,\n    call_timestamp: callData.call_timestamp,\n    duration_seconds: callData.duration_seconds,\n    phone: callData.phone,\n    first_name: callData.first_name,\n    direction: callData.direction,\n    \n    transcript_source: 'linq',\n    transcript_word_count: callData.transcript_word_count,\n    agent_talk_percentage: callData.agent_talk_percentage,\n    lead_talk_percentage: callData.lead_talk_percentage,\n    \n    summary: analysis.summary || '',\n    intent: analysis.intent || 'unknown',\n    timeline: analysis.timeline || 'unknown',\n    temperature: analysis.temperature || 'unknown',\n    sentiment: analysis.sentiment || 'neutral',\n    objections: analysis.objections || [],\n    questions_asked: analysis.questions_asked || [],\n    topics_discussed: analysis.topics_discussed || [],\n    competitor_mentions: analysis.competitor_mentions || [],\n    next_steps: analysis.next_steps || '',\n    commitment_level: analysis.commitment_level || 'none',\n    key_quotes: analysis.key_quotes || [],\n    \n    coaching_priority: analysis.coaching?.priority || 'low',\n    coaching_category: analysis.coaching?.category || '',\n    coaching_strengths: analysis.coaching?.strengths || [],\n    coaching_improvements: analysis.coaching?.improvements || [],\n    needs_coaching_alert: needsCoachingAlert\n  }\n}];"
+      },
+      "id": "parse-claude-linq",
+      "name": "Parse Claude (Linq Path)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2000, 400]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "assemblyai-transcript-ready",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "assemblyai-webhook",
+      "name": "AssemblyAI Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [240, 800],
+      "webhookId": "assemblyai-transcript-ready"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "is-completed",
+              "leftValue": "={{ $json.body?.status || $json.status }}",
+              "rightValue": "completed",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "filter-completed",
+      "name": "Transcript Ready?",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [460, 800]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "key": "=assemblyai_{{ $json.body?.transcript_id || $json.transcript_id }}"
+      },
+      "id": "redis-get-context",
+      "name": "Get Call Context",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [680, 800],
+      "credentials": {
+        "redis": {
+          "id": "REDIS_CREDENTIAL_ID",
+          "name": "Redis"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merge AssemblyAI transcript with stored context\nconst webhookData = $('AssemblyAI Webhook').first().json.body || $('AssemblyAI Webhook').first().json;\nconst contextStr = $input.first().json.value || '{}';\nconst context = JSON.parse(contextStr);\n\nconst transcript = webhookData.text || '';\nconst words = webhookData.words || [];\nconst utterances = webhookData.utterances || [];\n\n// Calculate talk ratios\nlet agentMs = 0, leadMs = 0;\nutterances.forEach(u => {\n  const duration = u.end - u.start;\n  if (u.speaker === 'A') agentMs += duration;\n  else leadMs += duration;\n});\n\nconst totalMs = agentMs + leadMs;\nconst agentPct = totalMs > 0 ? Math.round((agentMs / totalMs) * 100) : 50;\n\nreturn [{\n  json: {\n    ...context,\n    assemblyai_transcript_id: webhookData.id,\n    transcript_text: transcript,\n    transcript_source: 'assemblyai',\n    transcript_word_count: words.length,\n    agent_talk_percentage: agentPct,\n    lead_talk_percentage: 100 - agentPct,\n    confidence: webhookData.confidence\n  }\n}];"
+      },
+      "id": "prepare-assemblyai-transcript",
+      "name": "Prepare AssemblyAI Transcript",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 800]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{ $credentials.anthropicApiKey }}"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"claude-sonnet-4-20250514\",\n  \"max_tokens\": 2000,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Analyze this real estate sales call transcript.\\n\\nContext:\\n- Lead: {{ $json.first_name }}\\n- Home value: ${{ $json.home_value }}\\n- Sequence step: {{ $json.current_step }}\\n- Call duration: {{ Math.round($json.duration_seconds / 60) }} minutes\\n- Direction: {{ $json.direction }}\\n- Agent talk: {{ $json.agent_talk_percentage }}%\\n- Lead talk: {{ $json.lead_talk_percentage }}%\\n\\nTranscript:\\n{{ $json.transcript_text }}\\n\\nExtract the following as JSON only (no markdown, no explanation, just the JSON object):\\n{\\n  \\\"summary\\\": \\\"2-3 sentence summary of the call\\\",\\n  \\\"intent\\\": \\\"selling_soon|selling_later|refinance|buying|curious|not_interested\\\",\\n  \\\"timeline\\\": \\\"immediate|1-3_months|3-6_months|6-12_months|12+_months|unknown\\\",\\n  \\\"temperature\\\": \\\"hot|warm|cold\\\",\\n  \\\"sentiment\\\": \\\"positive|neutral|negative\\\",\\n  \\\"objections\\\": [{\\\"objection\\\": \\\"description\\\", \\\"quote\\\": \\\"exact quote if available\\\", \\\"handled_well\\\": true}],\\n  \\\"questions_asked\\\": [{\\\"question\\\": \\\"what they asked\\\", \\\"answered\\\": true}],\\n  \\\"topics_discussed\\\": [\\\"home_value\\\", \\\"market\\\", \\\"timing\\\"],\\n  \\\"competitor_mentions\\\": [{\\\"competitor\\\": \\\"name\\\", \\\"context\\\": \\\"what was said\\\"}],\\n  \\\"next_steps\\\": \\\"what was agreed for follow-up\\\",\\n  \\\"commitment_level\\\": \\\"none|soft|firm\\\",\\n  \\\"key_quotes\\\": [\\\"up to 3 notable quotes from the lead\\\"],\\n  \\\"coaching\\\": {\\n    \\\"priority\\\": \\\"high|medium|low\\\",\\n    \\\"category\\\": \\\"rapport|discovery|objection_handling|closing|follow_up\\\",\\n    \\\"strengths\\\": [\\\"what went well\\\"],\\n    \\\"improvements\\\": [\\\"specific actionable suggestions\\\"]\\n  }\\n}\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "claude-analysis-assemblyai",
+      "name": "Claude Analysis (AssemblyAI)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1120, 800],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "ANTHROPIC_CREDENTIAL_ID",
+          "name": "Anthropic API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse Claude response for AssemblyAI path\nconst callData = $('Prepare AssemblyAI Transcript').first().json;\nconst claudeResponse = $input.first().json;\n\nlet analysis = {};\ntry {\n  const content = claudeResponse.content?.[0]?.text || '';\n  const jsonMatch = content.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    analysis = JSON.parse(jsonMatch[0]);\n  }\n} catch (e) {\n  analysis = {\n    summary: 'Analysis failed',\n    intent: 'unknown',\n    temperature: 'unknown',\n    coaching: { priority: 'low', improvements: [] }\n  };\n}\n\nconst needsCoachingAlert = \n  analysis.coaching?.priority === 'high' ||\n  (analysis.objections?.length > 0 && analysis.objections.some(o => !o.handled_well)) ||\n  analysis.temperature === 'cold';\n\nreturn [{\n  json: {\n    contact_id: callData.contact_id,\n    hubspot_contact_id: callData.hubspot_contact_id,\n    call_id: callData.call_id,\n    call_timestamp: callData.call_timestamp,\n    duration_seconds: callData.duration_seconds,\n    phone: callData.phone,\n    first_name: callData.first_name,\n    direction: callData.direction,\n    \n    transcript_source: 'assemblyai',\n    assemblyai_transcript_id: callData.assemblyai_transcript_id,\n    transcript_word_count: callData.transcript_word_count,\n    agent_talk_percentage: callData.agent_talk_percentage,\n    lead_talk_percentage: callData.lead_talk_percentage,\n    \n    summary: analysis.summary || '',\n    intent: analysis.intent || 'unknown',\n    timeline: analysis.timeline || 'unknown',\n    temperature: analysis.temperature || 'unknown',\n    sentiment: analysis.sentiment || 'neutral',\n    objections: analysis.objections || [],\n    questions_asked: analysis.questions_asked || [],\n    topics_discussed: analysis.topics_discussed || [],\n    competitor_mentions: analysis.competitor_mentions || [],\n    next_steps: analysis.next_steps || '',\n    commitment_level: analysis.commitment_level || 'none',\n    key_quotes: analysis.key_quotes || [],\n    \n    coaching_priority: analysis.coaching?.priority || 'low',\n    coaching_category: analysis.coaching?.category || '',\n    coaching_strengths: analysis.coaching?.strengths || [],\n    coaching_improvements: analysis.coaching?.improvements || [],\n    needs_coaching_alert: needsCoachingAlert\n  }\n}];"
+      },
+      "id": "parse-claude-assemblyai",
+      "name": "Parse Claude (AssemblyAI Path)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 800]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/touchpoint_events",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"contact_id\": \"{{ $json.contact_id }}\",\n  \"hubspot_contact_id\": \"{{ $json.hubspot_contact_id }}\",\n  \"event_type\": \"call_completed\",\n  \"direction\": \"{{ $json.direction }}\",\n  \"channel\": \"phone\",\n  \"event_timestamp\": \"{{ $json.call_timestamp }}\",\n  \"call_duration_seconds\": {{ $json.duration_seconds }},\n  \"call_outcome\": \"connected\",\n  \"call_talk_ratio\": {\"agent\": {{ $json.agent_talk_percentage }}, \"lead\": {{ $json.lead_talk_percentage }}},\n  \"ai_analyzed\": true,\n  \"ai_sentiment\": \"{{ $json.sentiment }}\",\n  \"ai_intent\": \"{{ $json.intent }}\",\n  \"ai_temperature\": \"{{ $json.temperature }}\",\n  \"ai_summary\": {{ JSON.stringify($json.summary) }},\n  \"ai_objections\": {{ JSON.stringify($json.objections) }},\n  \"ai_key_quotes\": {{ JSON.stringify($json.key_quotes) }},\n  \"ai_coaching_notes\": {{ JSON.stringify('Priority: ' + $json.coaching_priority + '. ' + ($json.coaching_improvements || []).join('. ')) }}\n}",
+        "options": {}
+      },
+      "id": "supabase-log-event",
+      "name": "Log to Supabase",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [2220, 500]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/call_insights",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"contact_id\": \"{{ $json.contact_id }}\",\n  \"hubspot_contact_id\": \"{{ $json.hubspot_contact_id }}\",\n  \"call_id\": \"{{ $json.call_id }}\",\n  \"call_timestamp\": \"{{ $json.call_timestamp }}\",\n  \"duration_seconds\": {{ $json.duration_seconds }},\n  \"transcript_source\": \"{{ $json.transcript_source }}\",\n  \"assemblyai_transcript_id\": {{ $json.assemblyai_transcript_id ? '\"' + $json.assemblyai_transcript_id + '\"' : 'null' }},\n  \"transcript_word_count\": {{ $json.transcript_word_count || 0 }},\n  \"agent_talk_percentage\": {{ $json.agent_talk_percentage }},\n  \"lead_talk_percentage\": {{ $json.lead_talk_percentage }},\n  \"summary\": {{ JSON.stringify($json.summary) }},\n  \"intent\": \"{{ $json.intent }}\",\n  \"timeline\": \"{{ $json.timeline }}\",\n  \"temperature\": \"{{ $json.temperature }}\",\n  \"sentiment\": \"{{ $json.sentiment }}\",\n  \"objections\": {{ JSON.stringify($json.objections) }},\n  \"questions_asked\": {{ JSON.stringify($json.questions_asked) }},\n  \"topics_discussed\": {{ JSON.stringify($json.topics_discussed) }},\n  \"competitor_mentions\": {{ JSON.stringify($json.competitor_mentions) }},\n  \"next_steps\": {{ JSON.stringify($json.next_steps) }},\n  \"commitment_level\": \"{{ $json.commitment_level }}\",\n  \"key_quotes\": {{ JSON.stringify($json.key_quotes) }},\n  \"coaching_notes\": {{ JSON.stringify(($json.coaching_improvements || []).join('. ')) }},\n  \"coaching_category\": \"{{ $json.coaching_category }}\",\n  \"coaching_priority\": \"{{ $json.coaching_priority }}\",\n  \"ai_model_used\": \"claude-sonnet-4\"\n}",
+        "options": {}
+      },
+      "id": "supabase-call-insights",
+      "name": "Store Call Insights",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [2220, 700]
+    },
+    {
+      "parameters": {
+        "resource": "contact",
+        "operation": "update",
+        "contactId": "={{ $json.hubspot_contact_id }}",
+        "updateFields": {
+          "customPropertiesUi": {
+            "customPropertiesValues": [
+              {
+                "property": "detected_intent",
+                "value": "={{ $json.intent }}"
+              },
+              {
+                "property": "detected_timeline",
+                "value": "={{ $json.timeline }}"
+              },
+              {
+                "property": "lead_temperature",
+                "value": "={{ $json.temperature }}"
+              }
+            ]
+          }
+        }
+      },
+      "id": "hubspot-update-contact",
+      "name": "Update HubSpot",
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2,
+      "position": [2440, 500],
+      "credentials": {
+        "hubspotApi": {
+          "id": "HUBSPOT_CREDENTIAL_ID",
+          "name": "HubSpot account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "needs-alert",
+              "leftValue": "={{ $json.needs_coaching_alert }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-coaching-alert",
+      "name": "Needs Coaching?",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [2660, 400]
+    },
+    {
+      "parameters": {
+        "channel": "#sales-coaching",
+        "text": "=:rotating_light: *Coaching Alert - {{ $json.coaching_priority }} Priority*\n\n*Lead:* {{ $json.first_name }} ({{ $json.phone }})\n*Call Duration:* {{ Math.round($json.duration_seconds / 60) }} min\n*Temperature:* {{ $json.temperature }} {{ $json.temperature === 'hot' ? ':fire:' : ($json.temperature === 'warm' ? ':sunny:' : ':snowflake:') }}\n*Category:* {{ $json.coaching_category }}\n\n*Summary:*\n{{ $json.summary }}\n\n*What Went Well:*\n{{ ($json.coaching_strengths || []).map(s => ':white_check_mark: ' + s).join('\\n') || 'N/A' }}\n\n*Areas to Improve:*\n{{ ($json.coaching_improvements || []).map(i => ':point_right: ' + i).join('\\n') || 'N/A' }}\n\n*Unhandled Objections:*\n{{ ($json.objections || []).filter(o => !o.handled_well).map(o => ':warning: ' + o.objection + ': \"' + (o.quote || 'no quote') + '\"').join('\\n') || 'None' }}\n\n*Key Quote:*\n_\"{{ ($json.key_quotes || [])[0] || 'N/A' }}\"_",
+        "otherOptions": {}
+      },
+      "id": "slack-coaching-alert",
+      "name": "Coaching Alert",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.1,
+      "position": [2880, 400],
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "SLACK_CREDENTIAL_ID",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "channel": "#leads",
+        "text": "=:phone: *Call Completed*\n\n*Lead:* {{ $json.first_name }} ({{ $json.phone }})\n*Duration:* {{ Math.round($json.duration_seconds / 60) }} min | *Direction:* {{ $json.direction }}\n*Temperature:* {{ $json.temperature }} {{ $json.temperature === 'hot' ? ':fire:' : ($json.temperature === 'warm' ? ':sunny:' : ':snowflake:') }}\n*Intent:* {{ $json.intent }} | *Timeline:* {{ $json.timeline }}\n\n*Summary:*\n{{ $json.summary }}\n\n*Next Steps:* {{ $json.next_steps || 'None specified' }}\n*Commitment:* {{ $json.commitment_level }}",
+        "otherOptions": {}
+      },
+      "id": "slack-call-summary",
+      "name": "Post Call Summary",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.1,
+      "position": [2660, 600],
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "SLACK_CREDENTIAL_ID",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"success\": true, \"path\": \"linq_transcript\", \"analyzed\": true}"
+      },
+      "id": "respond-linq-success",
+      "name": "Respond Success (Linq)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [2880, 600]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"success\": true, \"path\": \"assemblyai\", \"status\": \"processing\"}"
+      },
+      "id": "respond-assemblyai-queued",
+      "name": "Respond Queued",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [2000, 600]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"success\": true, \"analyzed\": true}"
+      },
+      "id": "respond-assemblyai-success",
+      "name": "Respond Success (AssemblyAI)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1560, 800]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"success\": true, \"skipped\": true, \"reason\": \"No recording, too short, or voicemail\"}"
+      },
+      "id": "respond-skipped",
+      "name": "Respond Skipped",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [680, 360]
+    }
+  ],
+  "connections": {
+    "Linq Call Webhook": {
+      "main": [
+        [
+          {
+            "node": "Parse Call Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Call Webhook": {
+      "main": [
+        [
+          {
+            "node": "Can Analyze?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Can Analyze?": {
+      "main": [
+        [
+          {
+            "node": "Find Contact",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Skipped",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Contact": {
+      "main": [
+        [
+          {
+            "node": "Merge Contact Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Contact Data": {
+      "main": [
+        [
+          {
+            "node": "Route by Transcript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Transcript": {
+      "main": [
+        [
+          {
+            "node": "Prepare Linq Transcript",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Submit to AssemblyAI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Linq Transcript": {
+      "main": [
+        [
+          {
+            "node": "Claude Analysis (Linq)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude Analysis (Linq)": {
+      "main": [
+        [
+          {
+            "node": "Parse Claude (Linq Path)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Claude (Linq Path)": {
+      "main": [
+        [
+          {
+            "node": "Log to Supabase",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Store Call Insights",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Update HubSpot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Submit to AssemblyAI": {
+      "main": [
+        [
+          {
+            "node": "Store Call Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Call Context": {
+      "main": [
+        [
+          {
+            "node": "Respond Queued",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AssemblyAI Webhook": {
+      "main": [
+        [
+          {
+            "node": "Transcript Ready?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcript Ready?": {
+      "main": [
+        [
+          {
+            "node": "Get Call Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Call Context": {
+      "main": [
+        [
+          {
+            "node": "Prepare AssemblyAI Transcript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare AssemblyAI Transcript": {
+      "main": [
+        [
+          {
+            "node": "Claude Analysis (AssemblyAI)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude Analysis (AssemblyAI)": {
+      "main": [
+        [
+          {
+            "node": "Parse Claude (AssemblyAI Path)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Claude (AssemblyAI Path)": {
+      "main": [
+        [
+          {
+            "node": "Log to Supabase",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Store Call Insights",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Update HubSpot",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Respond AssemblyAI Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update HubSpot": {
+      "main": [
+        [
+          {
+            "node": "Needs Coaching?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Post Call Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Needs Coaching?": {
+      "main": [
+        [
+          {
+            "node": "Coaching Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post Call Summary": {
+      "main": [
+        [
+          {
+            "node": "Respond Success (Linq)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "call-intelligence"
+    }
+  ],
+  "triggerCount": 2,
+  "meta": {
+    "instanceId": "your-instance-id"
+  }
+}

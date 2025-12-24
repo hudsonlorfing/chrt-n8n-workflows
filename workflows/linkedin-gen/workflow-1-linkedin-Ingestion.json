@@ -1,0 +1,286 @@
+{
+  "name": "1. Lead Ingestion & ICP Scoring",
+  "nodes": [
+    {
+      "parameters": {
+        "notice": "Processes 50 leads per run. Run multiple times until 'Remaining' shows 0, then clear New Leads sheet."
+      },
+      "id": "manual-trigger",
+      "name": "Run Manually",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $vars.GOOGLE_SHEET_ID }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "New Leads",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "read-new-leads",
+      "name": "Read New Leads",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [400, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "{{ GOOGLE_SHEETS_CREDENTIAL_ID }}",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $vars.GOOGLE_SHEET_ID }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Master List",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "read-master-list",
+      "name": "Read Master List",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [400, 500],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "{{ GOOGLE_SHEETS_CREDENTIAL_ID }}",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combineBySql",
+        "query": "SELECT n.* FROM input1 n LEFT JOIN input2 m ON n.profileUrl = m.profileUrl WHERE m.profileUrl IS NULL"
+      },
+      "id": "dedupe-leads",
+      "name": "Remove Duplicates",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [620, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": ""
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.profileUrl }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "isNotEmpty"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "filter-empty",
+      "name": "Filter Empty URLs",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [820, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Count total remaining items before limiting\nconst items = $input.all();\nconst total = items.length;\n\n// Pass through all items with count attached\nreturn items.map((item, index) => ({\n  json: {\n    ...item.json,\n    _batchInfo: {\n      totalRemaining: total,\n      batchSize: Math.min(50, total),\n      itemIndex: index + 1\n    }\n  }\n}));"
+      },
+      "id": "count-remaining",
+      "name": "Count Remaining",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1000, 400]
+    },
+    {
+      "parameters": {
+        "maxItems": 50
+      },
+      "id": "limit-batch",
+      "name": "Limit to 50/run",
+      "type": "n8n-nodes-base.limit",
+      "typeVersion": 1,
+      "position": [1180, 400]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "={{ `Score this LinkedIn profile 0-10 for Chrt, a B2B SaaS for time-critical logistics. Return JSON only:\n{\"score\": <0-10>, \"segment\": \"<Shipper-Healthcare|Shipper-Aerospace|Courier|Forwarder|Skip>\", \"reason\": \"<one sentence>\"}\n\n## ICP CRITERIA\n\n### SHIPPER-HEALTHCARE (7-10)\nTitles: CSCO, VP Supply Chain, VP Lab Ops, Director Logistics/Transportation/Courier Ops, Supply Chain Manager, Director Field Ops, Case Logistics Manager\nCompanies: Regional health systems, genetics/specialty labs, pharma/biotech, OPOs, tissue/blood banks, med device (surgical kits)\nSignals: \"logistics\" \"supply chain\" \"courier\" \"specimen\" in headline | 200-10K employees | Regional focus\n\n### SHIPPER-AEROSPACE (7-10)\nTitles: VP/SVP Supply Chain, Director AOG Ops, VP Aftermarket/Customer Support, Materials Manager, CPO\nCompanies: MRO facilities, aircraft component mfg, engine MROs (StandardAero, MTU), airline maintenance\nSignals: \"AOG\" \"MRO\" \"aviation\" \"aerospace\" | Aftermarket focus | Emergency parts\n\n### COURIER (6-10)\nTitles: Owner/CEO/Founder, Operations Manager, Dispatch Manager, Fleet Manager, GM\nCompanies: Medical couriers, same-day/time-critical, cold chain specialists, regional networks\nSignals: \"medical courier\" \"same-day\" \"cold chain\" | 10-500 employees | Owner/operator\nAvoid: FedEx/UPS employees, DoorDash/Uber Eats, Amazon DSPs, Sales/marketing roles at courier\n\n### FORWARDER/AGENT (5-8)\nTitles: Operations Manager, Station Manager, Logistics Manager, Network Manager\nCompanies: Freight forwarders, 3PLs with last-mile, same-day logistics specialists\n\n## SCORING: 10=Perfect fit, 8-9=Excellent, 6-7=Good, 4-5=Marginal, 1-3=Poor, 0=Skip\n\n## LEAD DATA\nName: ${$json.fullName || 'Unknown'}\nTitle: ${$json.jobTitle || 'Unknown'}\nCompany: ${$json.company || 'Unknown'}\nIndustry: ${$json.industry || 'Unknown'}\nHeadline: ${$json.headline || 'N/A'}\nLocation: ${$json.location || 'N/A'}\nPrevious: ${$json.jobTitle2 || 'N/A'} @ ${$json.company2 || 'N/A'}` }}"
+            }
+          ]
+        },
+        "options": {
+          "maxTokens": 200,
+          "temperature": 0.2
+        }
+      },
+      "id": "ai-score-lead",
+      "name": "AI Score Lead (ICP)",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [1360, 400],
+      "credentials": {
+        "openAiApi": {
+          "id": "{{ OPENAI_CREDENTIAL_ID }}",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get original PhantomBuster data and AI scoring result\nconst pb = $('Limit to 50/run').item.json;\nlet aiResult = { score: 5, segment: 'Unknown', reason: 'Could not parse AI response' };\n\ntry {\n  const content = $('AI Score Lead (ICP)').item.json.message?.content || '{}';\n  const parsed = JSON.parse(content.replace(/```json?|```/g, '').trim());\n  aiResult = {\n    score: parsed.score ?? 5,\n    segment: parsed.segment || 'Unknown',\n    reason: parsed.reason || 'No reason provided'\n  };\n} catch (e) {}\n\n// Map PhantomBuster fields to Master List format\nreturn [{\n  json: {\n    profileUrl: pb.profileUrl || pb.linkedinProfileUrl || '',\n    fullName: pb.fullName || `${pb.firstName || ''} ${pb.lastName || ''}`.trim(),\n    jobTitle: pb.jobTitle || '',\n    company: pb.company || pb.companyName || '',\n    industry: pb.industry || '',\n    headline: pb.headline || '',\n    location: pb.location || '',\n    connectionDegree: pb.connectionDegree || '',\n    previousRole: pb.jobTitle2 ? `${pb.jobTitle2} @ ${pb.company2 || ''}` : '',\n    score: aiResult.score,\n    segment: aiResult.segment,\n    reason: aiResult.reason,\n    status: aiResult.score >= 6 ? 'Ready' : 'Low Priority',\n    added: new Date().toISOString().split('T')[0],\n    _batchInfo: pb._batchInfo\n  }\n}];"
+      },
+      "id": "format-data",
+      "name": "Format for Master List",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1560, 400]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $vars.GOOGLE_SHEET_ID }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Master List",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "profileUrl": "={{ $json.profileUrl }}",
+            "fullName": "={{ $json.fullName }}",
+            "jobTitle": "={{ $json.jobTitle }}",
+            "company": "={{ $json.company }}",
+            "industry": "={{ $json.industry }}",
+            "headline": "={{ $json.headline }}",
+            "location": "={{ $json.location }}",
+            "connectionDegree": "={{ $json.connectionDegree }}",
+            "previousRole": "={{ $json.previousRole }}",
+            "score": "={{ $json.score }}",
+            "segment": "={{ $json.segment }}",
+            "reason": "={{ $json.reason }}",
+            "status": "={{ $json.status }}",
+            "added": "={{ $json.added }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "append-master",
+      "name": "Add to Master List",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1760, 400],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "{{ GOOGLE_SHEETS_CREDENTIAL_ID }}",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Summarize batch results\nconst items = $input.all();\nconst firstItem = items[0]?.json || {};\nconst batchInfo = firstItem._batchInfo || { totalRemaining: 0, batchSize: 0 };\n\nconst processed = items.length;\nconst remaining = batchInfo.totalRemaining - processed;\n\n// Count by status\nconst ready = items.filter(i => i.json.status === 'Ready').length;\nconst lowPriority = items.filter(i => i.json.status === 'Low Priority').length;\n\nreturn [{\n  json: {\n    message: remaining > 0 \n      ? `Batch complete. Run again to process remaining ${remaining} leads.`\n      : `All done! No more leads to process. Clear 'New Leads' sheet when ready.`,\n    processed: processed,\n    remaining: remaining,\n    ready: ready,\n    lowPriority: lowPriority,\n    runsNeeded: Math.ceil(remaining / 50)\n  }\n}];"
+      },
+      "id": "batch-summary",
+      "name": "Batch Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1960, 400]
+    }
+  ],
+  "connections": {
+    "Run Manually": {
+      "main": [
+        [
+          { "node": "Read New Leads", "type": "main", "index": 0 },
+          { "node": "Read Master List", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Read New Leads": {
+      "main": [
+        [{ "node": "Remove Duplicates", "type": "main", "index": 0 }]
+      ]
+    },
+    "Read Master List": {
+      "main": [
+        [{ "node": "Remove Duplicates", "type": "main", "index": 1 }]
+      ]
+    },
+    "Remove Duplicates": {
+      "main": [
+        [{ "node": "Filter Empty URLs", "type": "main", "index": 0 }]
+      ]
+    },
+    "Filter Empty URLs": {
+      "main": [
+        [{ "node": "Count Remaining", "type": "main", "index": 0 }]
+      ]
+    },
+    "Count Remaining": {
+      "main": [
+        [{ "node": "Limit to 50/run", "type": "main", "index": 0 }]
+      ]
+    },
+    "Limit to 50/run": {
+      "main": [
+        [{ "node": "AI Score Lead (ICP)", "type": "main", "index": 0 }]
+      ]
+    },
+    "AI Score Lead (ICP)": {
+      "main": [
+        [{ "node": "Format for Master List", "type": "main", "index": 0 }]
+      ]
+    },
+    "Format for Master List": {
+      "main": [
+        [{ "node": "Add to Master List", "type": "main", "index": 0 }]
+      ]
+    },
+    "Add to Master List": {
+      "main": [
+        [{ "node": "Batch Summary", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [
+    { "name": "linkedin" },
+    { "name": "leads" },
+    { "name": "phantombuster" },
+    { "name": "icp-scoring" }
+  ]
+}
