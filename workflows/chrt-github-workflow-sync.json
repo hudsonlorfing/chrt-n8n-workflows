@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2025-12-24T04:44:54.204Z",
+  "updatedAt": "2025-12-24T05:02:07.360Z",
   "createdAt": "2025-12-24T03:16:41.674Z",
   "id": "r4ICnvhdbQwejSdH",
   "name": "Chrt GitHub Workflow Sync",
@@ -12,12 +12,12 @@
         "workflowObject": "={{ $json.toJsonString()  }}",
         "requestOptions": {}
       },
-      "id": "fce2749a-cd88-4648-8ab4-f8c16e7ba980",
+      "id": "38ee5cd8-e79d-41d2-85d8-8ce72a33d363",
       "name": "Create new workflow in n8n",
       "type": "n8n-nodes-base.n8n",
       "position": [
-        2256,
-        5888
+        1392,
+        10288
       ],
       "typeVersion": 1,
       "credentials": {
@@ -37,12 +37,12 @@
           ]
         }
       },
-      "id": "a52ab426-8d91-4205-b1a8-cda91702c4ec",
+      "id": "0c7ad3a9-c512-402b-9597-80f593e2f218",
       "name": "Schedule Trigger",
       "type": "n8n-nodes-base.scheduleTrigger",
       "position": [
-        240,
-        5376
+        -624,
+        9776
       ],
       "typeVersion": 1.2
     },
@@ -62,12 +62,12 @@
         },
         "filePath": "=/{{ $json.repo_workflows_path }}"
       },
-      "id": "79c659ab-7468-457c-93e3-4a9abe1afde3",
+      "id": "ecb3f32b-f985-4fde-8801-b54580d8119e",
       "name": "List files from repo",
       "type": "n8n-nodes-base.github",
       "position": [
-        864,
-        5504
+        0,
+        9904
       ],
       "webhookId": "0614066f-212d-4f9e-9da2-fa4a80b44baf",
       "typeVersion": 1,
@@ -97,12 +97,12 @@
         "asBinaryProperty": false,
         "additionalParameters": {}
       },
-      "id": "d4e9d9c1-1d6d-4e22-a614-cb69937347d6",
+      "id": "a94f2623-c3a0-40df-9868-34f26e4a6b4c",
       "name": "GitHub",
       "type": "n8n-nodes-base.github",
       "position": [
-        1312,
-        5504
+        448,
+        9904
       ],
       "webhookId": "71ad7d84-99cd-4fbd-a365-52537e69525b",
       "typeVersion": 1.1,
@@ -115,17 +115,15 @@
     },
     {
       "parameters": {
-        "filters": {
-          "projectId": "O7lTivDfRl72aS23"
-        },
+        "filters": {},
         "requestOptions": {}
       },
-      "id": "3ca40bbf-9f28-4d34-b7d5-a1a6a51b62ea",
+      "id": "862afdd0-b1b4-4ab4-bf88-53291816d1af",
       "name": "n8n",
       "type": "n8n-nodes-base.n8n",
       "position": [
-        928,
-        5296
+        64,
+        9696
       ],
       "typeVersion": 1,
       "credentials": {
@@ -153,18 +151,18 @@
                 "operation": "equals"
               },
               "leftValue": "={{ $json.shared?.[0]?.projectId }}",
-              "rightValue": "O7lTivDfRl72aS23"
+              "rightValue": "={{ $('Set GitHub Details').item.json.chrt_project_id }}"
             }
           ]
         },
         "options": {}
       },
-      "id": "7b5e0946-3b4b-4731-887c-7499854340de",
+      "id": "1783888a-1246-4315-b697-93c1da66ad4b",
       "name": "Filter Chrt Project",
       "type": "n8n-nodes-base.filter",
       "position": [
-        1088,
-        5296
+        224,
+        9696
       ],
       "typeVersion": 2.2
     },
@@ -181,7 +179,7 @@
           "mode": "name",
           "value": "={{ $('Set GitHub Details').item.json.github_repo_name }}"
         },
-        "filePath": "={{ $('Set GitHub Details').item.json.repo_workflows_path }}/{{ $node['Edit for Upload'].json.fileName }}",
+        "filePath": "={{ $('Set GitHub Details').item.json.repo_workflows_path }}{{ $node['Edit for Upload'].json.folderPath ? '/' + $node['Edit for Upload'].json.folderPath : '' }}/{{ $node['Edit for Upload'].json.fileName }}",
         "fileContent": "={{ $('To base64').item.json.data }}",
         "commitMessage": "=n8n_backup_sync-{{ $node['Edit for Upload'].json.commitDate }}",
         "additionalParameters": {
@@ -190,12 +188,12 @@
           }
         }
       },
-      "id": "6dd4e38d-14c6-4ab2-b11b-d71e2660e1cc",
+      "id": "5947bfbb-74b1-4f88-bdca-b404a023bd90",
       "name": "Upload file",
       "type": "n8n-nodes-base.github",
       "position": [
-        2912,
-        5024
+        2048,
+        9424
       ],
       "webhookId": "ce4b561b-acb9-4cd8-b76f-4928dada9674",
       "typeVersion": 1,
@@ -214,12 +212,12 @@
           "format": true
         }
       },
-      "id": "6d4c3c0d-74d0-450d-8253-40170252f705",
+      "id": "1e9147e9-e768-4f50-a281-e45ac80dcc36",
       "name": "Json file",
       "type": "n8n-nodes-base.convertToFile",
       "position": [
-        2256,
-        5024
+        1392,
+        9424
       ],
       "typeVersion": 1.1
     },
@@ -228,12 +226,12 @@
         "operation": "binaryToPropery",
         "options": {}
       },
-      "id": "50140acd-664a-4b44-891a-53bb75a9a4a6",
+      "id": "7f9f311f-1a28-4b5d-a985-8c0f43799b14",
       "name": "To base64",
       "type": "n8n-nodes-base.extractFromFile",
       "position": [
-        2480,
-        5024
+        1616,
+        9424
       ],
       "typeVersion": 1
     },
@@ -244,12 +242,12 @@
         "width": 340,
         "color": 3
       },
-      "id": "5929ab4d-9720-44f6-a311-83aa5c8ba59e",
+      "id": "8bc06f07-6764-4cbd-9791-00f288fa1805",
       "name": "Sticky Note",
       "type": "n8n-nodes-base.stickyNote",
       "position": [
-        2128,
-        5280
+        1264,
+        9680
       ],
       "typeVersion": 1
     },
@@ -267,16 +265,16 @@
           "mode": "name",
           "value": "={{ $('Set GitHub Details').item.json.github_repo_name }}"
         },
-        "filePath": "={{ $('Set GitHub Details').item.json.repo_workflows_path }}/{{ $node['Edit for Update'].json.fileName }}",
+        "filePath": "={{ $('Set GitHub Details').item.json.repo_workflows_path }}{{ $node['Edit for Update'].json.folderPath ? '/' + $node['Edit for Update'].json.folderPath : '' }}/{{ $node['Edit for Update'].json.fileName }}",
         "fileContent": "={{ $('To base').item.json.data }}",
         "commitMessage": "=n8n_backup_sync-{{ $('Edit for Update').item.json.commitDate }}"
       },
-      "id": "e5702e62-5971-4009-936f-12c0a60004d8",
+      "id": "0bd19a42-6fe1-48c5-9718-cea2855997f9",
       "name": "Update file",
       "type": "n8n-nodes-base.github",
       "position": [
-        3728,
-        5664
+        3104,
+        10176
       ],
       "webhookId": "27218087-8df7-474d-a39f-70cfa9c34ec8",
       "typeVersion": 1,
@@ -295,12 +293,12 @@
           "format": true
         }
       },
-      "id": "976bd3ad-a806-4467-a005-21fd250bae6f",
+      "id": "02575fe6-a75b-4b16-8279-2119fa23e810",
       "name": "Json file1",
       "type": "n8n-nodes-base.convertToFile",
       "position": [
-        3072,
-        5664
+        2432,
+        10176
       ],
       "typeVersion": 1.1
     },
@@ -309,12 +307,12 @@
         "operation": "binaryToPropery",
         "options": {}
       },
-      "id": "e8238ef2-692a-489b-bea8-fffb25a1ab08",
+      "id": "b6e415a1-54bf-4204-863a-dfe4834e7c28",
       "name": "To base",
       "type": "n8n-nodes-base.extractFromFile",
       "position": [
-        3296,
-        5664
+        2656,
+        10176
       ],
       "typeVersion": 1
     },
@@ -330,12 +328,12 @@
         },
         "options": {}
       },
-      "id": "763695a8-41e2-423b-ad9b-d5459a5788f9",
+      "id": "97176713-9bf4-451b-845c-39fd535931e1",
       "name": "n8n vs GitHub",
       "type": "n8n-nodes-base.compareDatasets",
       "position": [
-        1760,
-        5376
+        896,
+        9776
       ],
       "typeVersion": 2.3
     },
@@ -350,12 +348,12 @@
         "workflowObject": "={{ $json.dataset.toJsonString() }}",
         "requestOptions": {}
       },
-      "id": "14f68d4f-18b7-4291-a03c-68ebeda21d4d",
+      "id": "1777d9a2-6c10-4aec-a90f-267d05f263b4",
       "name": "Update workflow in n8n",
       "type": "n8n-nodes-base.n8n",
       "position": [
-        2848,
-        5408
+        1984,
+        9808
       ],
       "typeVersion": 1,
       "credentials": {
@@ -369,27 +367,59 @@
       "parameters": {
         "jsCode": "// Process ALL input items, not just the first one\nconst allInputs = $input.all();\nconst allDecoded = $('Decode to json').all();\n\n// For each comparison result, find the matching GitHub workflow\nconst results = [];\nfor (const input of allInputs) {\n  const workflowId = input.json.same?.id;\n  const matched = allDecoded.find(item => item.json?.id === workflowId);\n  if (matched) {\n    results.push({ json: { dataset: matched.json } });\n  }\n}\n\nreturn results;\n"
       },
-      "id": "83cb7591-b6ec-40d1-888e-f0fb62808efe",
+      "id": "fdd8b806-bdcc-4cf9-9cdf-a9c9cfd588d5",
       "name": "Code - InputB",
       "type": "n8n-nodes-base.code",
       "position": [
-        2640,
-        5408
+        1776,
+        9808
       ],
       "typeVersion": 2
     },
     {
       "parameters": {
-        "jsCode": "// Process ALL input items, not just the first one\nconst allInputs = $input.all();\nconst allN8n = $('n8n').all();\n\n// For each comparison result, find the matching n8n workflow\nconst results = [];\nfor (const input of allInputs) {\n  const workflowId = input.json.same?.id;\n  const matched = allN8n.find(item => item.json?.id === workflowId);\n  if (matched) {\n    results.push({ json: { dataset: matched.json } });\n  }\n}\n\nreturn results;\n"
+        "jsCode": "// Process ALL input items, not just the first one\nconst allInputs = $input.all();\nconst allN8n = $('Build Folder Paths1').all();\nconst allDecoded = $('Decode to json').all();\nconst repoPath = $('Set GitHub Details').first().json.repo_workflows_path;\n\n// For each comparison result, find the matching n8n workflow (with folder paths)\nconst results = [];\nfor (const input of allInputs) {\n  const workflowId = input.json.same?.id;\n  const matched = allN8n.find(item => item.json?.id === workflowId);\n  const githubFile = allDecoded.find(item => item.json?.id === workflowId);\n  \n  if (matched) {\n    // Calculate expected path based on folder\n    const folderPath = matched.json._folderPath || '';\n    const fileName = matched.json.name.trim().replace(/\\s+/g, '-').toLowerCase() + '.json';\n    const expectedPath = folderPath ? `${repoPath}/${folderPath}/${fileName}` : `${repoPath}/${fileName}`;\n    const currentGithubPath = githubFile?.json?._githubPath || '';\n    const pathChanged = expectedPath !== currentGithubPath;\n    \n    results.push({ \n      json: { \n        dataset: matched.json,\n        _currentGithubPath: currentGithubPath,\n        _expectedPath: expectedPath,\n        _pathChanged: pathChanged\n      } \n    });\n  }\n}\n\nreturn results;\n"
       },
-      "id": "f8cb2bd4-145a-42ab-9aa5-1e08bc11d1e9",
+      "id": "5fd86dcf-6842-4588-b4a6-cb8f9c96b338",
       "name": "Code - InputA",
       "type": "n8n-nodes-base.code",
       "position": [
-        2640,
-        5664
+        1776,
+        10064
       ],
       "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "check-path-changed",
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              },
+              "leftValue": "={{ $json._pathChanged }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "bade60a7-c13e-46bb-b9c2-2482e57ddae2",
+      "name": "If Path Changed",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        1984,
+        10064
+      ],
+      "typeVersion": 2.2
     },
     {
       "parameters": {
@@ -397,14 +427,133 @@
         "jsonOutput": "={{ $json.dataset }}",
         "options": {}
       },
-      "id": "9c645c8c-b826-47dd-8762-09642c1c7321",
+      "id": "faac390b-1522-4c4b-883a-a8b8f06a01f5",
       "name": "Edit Fields",
       "type": "n8n-nodes-base.set",
       "position": [
-        2848,
-        5664
+        2208,
+        10176
       ],
       "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={{ $json.dataset }}",
+        "options": {}
+      },
+      "id": "61fd311d-ce2d-4a34-97e6-436dc1aa1e05",
+      "name": "Edit Fields (Move)",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        2208,
+        9968
+      ],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "operation": "toJson",
+        "mode": "each",
+        "options": {
+          "format": true
+        }
+      },
+      "id": "b9c4589b-2b7f-4afd-9450-1a35f236b947",
+      "name": "Json file (Move)",
+      "type": "n8n-nodes-base.convertToFile",
+      "position": [
+        2432,
+        9968
+      ],
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "binaryToPropery",
+        "options": {}
+      },
+      "id": "005e4b55-4855-49cc-9a38-a9d40c8bb84e",
+      "name": "To base (Move)",
+      "type": "n8n-nodes-base.extractFromFile",
+      "position": [
+        2656,
+        9968
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "commit-date-move",
+              "name": "commitDate",
+              "type": "string",
+              "value": "={{ $now.format('dd-MM-yyyy/H:mm') }}"
+            },
+            {
+              "id": "file-name-move",
+              "name": "fileName",
+              "type": "string",
+              "value": "={{ $('Code - InputA').item.json.dataset.name.trim().replace(/\\s+/g, '-').toLowerCase() }}.json"
+            },
+            {
+              "id": "folder-path-move",
+              "name": "folderPath",
+              "type": "string",
+              "value": "={{ $('Code - InputA').item.json.dataset._folderPath || '' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "63d750e1-0a5f-40fc-9c0d-3b0c71c1d076",
+      "name": "Edit for Move",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        2880,
+        9968
+      ],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "owner": {
+          "__rl": true,
+          "mode": "name",
+          "value": "={{ $('Set GitHub Details').item.json.github_account_name }}"
+        },
+        "repository": {
+          "__rl": true,
+          "mode": "name",
+          "value": "={{ $('Set GitHub Details').item.json.github_repo_name }}"
+        },
+        "filePath": "={{ $('Set GitHub Details').item.json.repo_workflows_path }}{{ $node['Edit for Move'].json.folderPath ? '/' + $node['Edit for Move'].json.folderPath : '' }}/{{ $node['Edit for Move'].json.fileName }}",
+        "fileContent": "={{ $('To base (Move)').item.json.data }}",
+        "commitMessage": "=n8n_sync_move-{{ $node['Edit for Move'].json.commitDate }}",
+        "additionalParameters": {
+          "branch": {
+            "branch": "main"
+          }
+        }
+      },
+      "id": "427b9617-0f12-41fa-b16d-295fdef19c23",
+      "name": "Create at New Path",
+      "type": "n8n-nodes-base.github",
+      "position": [
+        3104,
+        9968
+      ],
+      "typeVersion": 1,
+      "webhookId": "7c19519e-8d0f-499b-a18b-894c48e21901",
+      "credentials": {
+        "githubApi": {
+          "id": "QO1GzHuZN8K3xHku",
+          "name": "GitHub account"
+        }
+      }
     },
     {
       "parameters": {
@@ -420,18 +569,24 @@
               "id": "b0fe1bcc-e79c-4a6b-b8b4-44222c8bf4e8",
               "name": "fileName",
               "type": "string",
-              "value": "={{$('n8n vs GitHub').item.json.name\n.trim().replace(/\\s+/g, '-').toLowerCase()\n}}.json"
+              "value": "={{$('n8n vs GitHub').item.json.name.trim().replace(/\\s+/g, '-').toLowerCase()}}.json"
+            },
+            {
+              "id": "folder-path-upload",
+              "name": "folderPath",
+              "type": "string",
+              "value": "={{ $('n8n vs GitHub').item.json._folderPath || '' }}"
             }
           ]
         },
         "options": {}
       },
-      "id": "a0b4e37f-7184-46ee-ae21-9860a723dd74",
+      "id": "dcfdd1d5-b0e3-4e83-91d0-06a832f58540",
       "name": "Edit for Upload",
       "type": "n8n-nodes-base.set",
       "position": [
-        2688,
-        5024
+        1824,
+        9424
       ],
       "typeVersion": 3.4
     },
@@ -449,18 +604,24 @@
               "id": "b0fe1bcc-e79c-4a6b-b8b4-44222c8bf4e8",
               "name": "fileName",
               "type": "string",
-              "value": "={{\n$('Code - InputA').item.json.dataset.name.trim().replace(/\\s+/g, '-').toLowerCase()\n}}.json"
+              "value": "={{ $('Code - InputA').item.json.dataset.name.trim().replace(/\\s+/g, '-').toLowerCase() }}.json"
+            },
+            {
+              "id": "folder-path-update",
+              "name": "folderPath",
+              "type": "string",
+              "value": "={{ $('Code - InputA').item.json.dataset._folderPath || '' }}"
             }
           ]
         },
         "options": {}
       },
-      "id": "d71afa04-ad60-4058-a388-7125da624e0d",
+      "id": "a09a669c-b09e-45d4-a33c-e8d5da789604",
       "name": "Edit for Update",
       "type": "n8n-nodes-base.set",
       "position": [
-        3520,
-        5664
+        2880,
+        10176
       ],
       "typeVersion": 3.4
     },
@@ -470,12 +631,12 @@
         "height": 320,
         "width": 1000
       },
-      "id": "22dfcb6f-e473-46c5-8010-8ec6afb1fcdf",
+      "id": "d1b8cc65-e24e-4b92-bcf2-f3bf83e06ff4",
       "name": "Sticky Note1",
       "type": "n8n-nodes-base.stickyNote",
       "position": [
-        2128,
-        4896
+        1264,
+        9296
       ],
       "typeVersion": 1
     },
@@ -486,12 +647,12 @@
         "width": 340,
         "color": 6
       },
-      "id": "f6543490-4327-4398-a5ba-0640f1ae8f57",
+      "id": "f3015245-40bd-403c-9833-5d318f4e89ce",
       "name": "Sticky Note2",
       "type": "n8n-nodes-base.stickyNote",
       "position": [
-        2128,
-        5744
+        1264,
+        10144
       ],
       "typeVersion": 1
     },
@@ -519,27 +680,27 @@
         },
         "options": {}
       },
-      "id": "43ad75c7-4c50-46b3-952f-da682c64905b",
+      "id": "e500b696-def8-4546-bc78-b9fd93370dc5",
       "name": "If n8n before GitHub",
       "type": "n8n-nodes-base.if",
       "position": [
-        2256,
-        5504
+        1392,
+        9904
       ],
       "typeVersion": 2.2
     },
     {
       "parameters": {
         "mode": "raw",
-        "jsonOutput": "={{ $json.content?.base64Decode() ?? {} }}",
+        "jsonOutput": "={{ (() => { try { const decoded = $json.content ? JSON.parse($json.content.base64Decode()) : {}; return { ...decoded, _githubPath: $json.path }; } catch(e) { return { _githubPath: $json.path }; } })() }}",
         "options": {}
       },
-      "id": "ed3c12a1-0e14-45eb-b8c2-24362430c453",
+      "id": "dee613ff-9e57-4f73-895b-a23f8c0d5ce4",
       "name": "Decode to json",
       "type": "n8n-nodes-base.set",
       "position": [
-        1520,
-        5504
+        656,
+        9904
       ],
       "typeVersion": 3.4
     },
@@ -567,12 +728,12 @@
         },
         "options": {}
       },
-      "id": "edab19fd-99e2-4a58-9b3f-8db48bdef56a",
+      "id": "bda1dd4e-00b0-4476-8e18-d42d8895bc44",
       "name": "Filter Placeholder",
       "type": "n8n-nodes-base.filter",
       "position": [
-        1088,
-        5504
+        224,
+        9904
       ],
       "typeVersion": 2.2
     },
@@ -609,12 +770,12 @@
         },
         "options": {}
       },
-      "id": "4eb25c8d-6498-40ac-9be7-a3b3261e9490",
+      "id": "bf578442-6380-43c7-98a5-4521f9eace96",
       "name": "Is JSON File?",
       "type": "n8n-nodes-base.if",
       "position": [
-        1248,
-        5504
+        384,
+        9904
       ],
       "typeVersion": 2.2
     },
@@ -634,15 +795,15 @@
         },
         "filePath": "={{ $json.path }}"
       },
-      "id": "6d00025a-ece9-426e-a577-a2f4aa45c5a9",
+      "id": "8dc74393-6592-4fec-9a14-5345cfb73837",
       "name": "List Subdirectory",
       "type": "n8n-nodes-base.github",
       "position": [
-        1248,
-        5712
+        384,
+        10112
       ],
       "typeVersion": 1,
-      "webhookId": "046f3018-4a5b-4e05-a95d-af8b59890fd7",
+      "webhookId": "808f1902-3b5f-48fe-8ec2-6baeefb3631e",
       "credentials": {
         "githubApi": {
           "id": "QO1GzHuZN8K3xHku",
@@ -671,19 +832,44 @@
               "name": "repo_workflows_path",
               "type": "string",
               "value": "workflows"
+            },
+            {
+              "id": "n8n-base-url",
+              "name": "n8n_base_url",
+              "type": "string",
+              "value": "https://chrt.app.n8n.cloud"
+            },
+            {
+              "id": "chrt-project-id",
+              "name": "chrt_project_id",
+              "type": "string",
+              "value": "O7lTivDfRl72aS23"
             }
           ]
         },
         "options": {}
       },
-      "id": "baa1b78a-3c70-49bb-8586-ee1e87148771",
+      "id": "4916f362-61e9-4cb2-b03f-c78e191b7044",
       "name": "Set GitHub Details",
       "type": "n8n-nodes-base.set",
       "position": [
-        464,
-        5376
+        -400,
+        9776
       ],
       "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build folder path from workflow tags\n// Priority order for folder: linkedin, hubspot, or root\nconst folderTags = ['linkedin', 'hubspot', 'connections'];\n\nreturn $input.all().map(item => {\n  const workflow = item.json;\n  const tags = workflow.tags || [];\n  \n  // Find the first tag that matches our folder structure\n  let folderName = '';\n  for (const tag of tags) {\n    const tagName = tag.name?.toLowerCase();\n    if (folderTags.includes(tagName)) {\n      folderName = tagName;\n      break;\n    }\n  }\n  \n  // Build the folder path\n  const folderPath = folderName ? folderName : '';\n  \n  return {\n    json: {\n      ...workflow,\n      _folderPath: folderPath,\n      _fileName: workflow.name.trim().replace(/\\s+/g, '-').toLowerCase() + '.json'\n    }\n  };\n});\n"
+      },
+      "id": "6298234a-2192-4ca7-8e0b-8d0a73b93582",
+      "name": "Build Folder Paths1",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        384,
+        9696
+      ],
+      "typeVersion": 2
     }
   ],
   "connections": {
@@ -702,7 +888,7 @@
       "main": [
         [
           {
-            "node": "n8n vs GitHub",
+            "node": "Build Folder Paths1",
             "type": "main",
             "index": 0
           }
@@ -819,7 +1005,69 @@
       "main": [
         [
           {
+            "node": "If Path Changed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Path Changed": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields (Move)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
             "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields (Move)": {
+      "main": [
+        [
+          {
+            "node": "Json file (Move)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Json file (Move)": {
+      "main": [
+        [
+          {
+            "node": "To base (Move)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "To base (Move)": {
+      "main": [
+        [
+          {
+            "node": "Edit for Move",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit for Move": {
+      "main": [
+        [
+          {
+            "node": "Create at New Path",
             "type": "main",
             "index": 0
           }
@@ -951,6 +1199,17 @@
           }
         ]
       ]
+    },
+    "Build Folder Paths1": {
+      "main": [
+        [
+          {
+            "node": "n8n vs GitHub",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
@@ -961,7 +1220,7 @@
     "templateCredsSetupCompleted": true
   },
   "pinData": {},
-  "versionId": "d09c6a5b-baba-4fbe-942d-798f92f640f1",
+  "versionId": "8b1bac18-82e9-4f9e-b39d-a0c990e3a3e2",
   "activeVersionId": null,
   "triggerCount": 0,
   "shared": [
