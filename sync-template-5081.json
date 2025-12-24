@@ -146,7 +146,7 @@
                 "operation": "equals"
               },
               "leftValue": "={{ $json.shared?.[0]?.projectId }}",
-              "rightValue": "O7lTivDfRl72aS23"
+              "rightValue": "={{ $('Set GitHub Details').item.json.chrt_project_id }}"
             }
           ]
         },
@@ -163,6 +163,19 @@
     },
     {
       "parameters": {
+        "jsCode": "// Build folder path from workflow tags\n// Priority order for folder: linkedin, hubspot, or root\nconst folderTags = ['linkedin', 'hubspot', 'connections'];\n\nreturn $input.all().map(item => {\n  const workflow = item.json;\n  const tags = workflow.tags || [];\n  \n  // Find the first tag that matches our folder structure\n  let folderName = '';\n  for (const tag of tags) {\n    const tagName = tag.name?.toLowerCase();\n    if (folderTags.includes(tagName)) {\n      folderName = tagName;\n      break;\n    }\n  }\n  \n  // Build the folder path\n  const folderPath = folderName ? folderName : '';\n  \n  return {\n    json: {\n      ...workflow,\n      _folderPath: folderPath,\n      _fileName: workflow.name.trim().replace(/\\s+/g, '-').toLowerCase() + '.json'\n    }\n  };\n});\n"
+      },
+      "id": "build-folder-paths",
+      "name": "Build Folder Paths",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -880,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
         "resource": "file",
         "owner": {
           "__rl": true,
@@ -174,7 +187,7 @@
           "mode": "name",
           "value": "={{ $('Set GitHub Details').item.json.github_repo_name }}"
         },
-        "filePath": "={{ $('Set GitHub Details').item.json.repo_workflows_path }}/{{ $node['Edit for Upload'].json.fileName }}",
+        "filePath": "={{ $('Set GitHub Details').item.json.repo_workflows_path }}{{ $node['Edit for Upload'].json.folderPath ? '/' + $node['Edit for Upload'].json.folderPath : '' }}/{{ $node['Edit for Upload'].json.fileName }}",
         "fileContent": "={{ $('To base64').item.json.data }}",
         "commitMessage": "=n8n_backup_sync-{{ $node['Edit for Upload'].json.commitDate }}",
         "additionalParameters": {
@@ -260,7 +273,7 @@
           "mode": "name",
           "value": "={{ $('Set GitHub Details').item.json.github_repo_name }}"
         },
-        "filePath": "={{ $('Set GitHub Details').item.json.repo_workflows_path }}/{{ $node['Edit for Update'].json.fileName }}",
+        "filePath": "={{ $('Set GitHub Details').item.json.repo_workflows_path }}{{ $node['Edit for Update'].json.folderPath ? '/' + $node['Edit for Update'].json.folderPath : '' }}/{{ $node['Edit for Update'].json.fileName }}",
         "fileContent": "={{ $('To base').item.json.data }}",
         "commitMessage": "=n8n_backup_sync-{{ $('Edit for Update').item.json.commitDate }}"
       },
@@ -373,7 +386,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Process ALL input items, not just the first one\nconst allInputs = $input.all();\nconst allN8n = $('n8n').all();\n\n// For each comparison result, find the matching n8n workflow\nconst results = [];\nfor (const input of allInputs) {\n  const workflowId = input.json.same?.id;\n  const matched = allN8n.find(item => item.json?.id === workflowId);\n  if (matched) {\n    results.push({ json: { dataset: matched.json } });\n  }\n}\n\nreturn results;\n"
+        "jsCode": "// Process ALL input items, not just the first one\nconst allInputs = $input.all();\nconst allN8n = $('Build Folder Paths').all();\n\n// For each comparison result, find the matching n8n workflow (with folder paths)\nconst results = [];\nfor (const input of allInputs) {\n  const workflowId = input.json.same?.id;\n  const matched = allN8n.find(item => item.json?.id === workflowId);\n  if (matched) {\n    results.push({ json: { dataset: matched.json } });\n  }\n}\n\nreturn results;\n"
       },
       "id": "ea216738-d78a-4063-8874-0ccf06dfb52b",
       "name": "Code - InputA",
@@ -413,7 +426,13 @@
               "id": "b0fe1bcc-e79c-4a6b-b8b4-44222c8bf4e8",
               "name": "fileName",
               "type": "string",
-              "value": "={{$('n8n vs GitHub').item.json.name\n.trim().replace(/\\s+/g, '-').toLowerCase()\n}}.json"
+              "value": "={{$('n8n vs GitHub').item.json.name.trim().replace(/\\s+/g, '-').toLowerCase()}}.json"
+            },
+            {
+              "id": "folder-path-upload",
+              "name": "folderPath",
+              "type": "string",
+              "value": "={{ $('n8n vs GitHub').item.json._folderPath || '' }}"
             }
           ]
         },
@@ -442,7 +461,13 @@
               "id": "b0fe1bcc-e79c-4a6b-b8b4-44222c8bf4e8",
               "name": "fileName",
               "type": "string",
-              "value": "={{\n$('Code - InputA').item.json.dataset.name.trim().replace(/\\s+/g, '-').toLowerCase()\n}}.json"
+              "value": "={{ $('Code - InputA').item.json.dataset.name.trim().replace(/\\s+/g, '-').toLowerCase() }}.json"
+            },
+            {
+              "id": "folder-path-update",
+              "name": "folderPath",
+              "type": "string",
+              "value": "={{ $('Code - InputA').item.json.dataset._folderPath || '' }}"
             }
           ]
         },
@@ -663,6 +688,18 @@
               "name": "repo_workflows_path",
               "type": "string",
               "value": "workflows"
+            },
+            {
+              "id": "n8n-base-url",
+              "name": "n8n_base_url",
+              "type": "string",
+              "value": "https://chrt.app.n8n.cloud"
+            },
+            {
+              "id": "chrt-project-id",
+              "name": "chrt_project_id",
+              "type": "string",
+              "value": "O7lTivDfRl72aS23"
             }
           ]
         },
@@ -692,6 +729,17 @@
       ]
     },
     "Filter Chrt Project": {
+      "main": [
+        [
+          {
+            "node": "Build Folder Paths",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Folder Paths": {
       "main": [
         [
           {
