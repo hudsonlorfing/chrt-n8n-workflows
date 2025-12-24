@@ -81,22 +81,35 @@ After sync is working:
 
 ### Priority 4: Improve Debugging Workflow
 
-**Goal**: Access n8n executions programmatically for faster debugging
+**Goal**: Full test/debug loop from Cursor without manual intervention
 
-**Ideas to explore**:
-- Use n8n API to fetch execution data: `GET /executions/{id}`
-- Create a debug workflow that pulls recent execution errors
-- Use MCP n8n tools in Cursor to query executions directly
-- Check if n8n Cloud has webhook/notification for failed executions
-- Consider adding error logging node that posts to a debug endpoint
+**Vision**: 
+1. Edit workflow JSON in Cursor
+2. Push to n8n via API
+3. Trigger execution from Cursor
+4. Fetch execution results/errors directly
+5. Iterate on fix without leaving Cursor
 
-**n8n API Endpoints**:
+**n8n API Endpoints to use**:
 ```
-GET /api/v1/executions          # List executions
-GET /api/v1/executions/{id}     # Get specific execution with data
+POST /api/v1/workflows/{id}/activate     # Activate workflow
+POST /api/v1/workflows/{id}/deactivate   # Deactivate workflow
+POST /api/v1/workflows/{id}/run          # Execute workflow manually
+GET  /api/v1/executions                  # List executions
+GET  /api/v1/executions/{id}             # Get execution with full data
+PUT  /api/v1/workflows/{id}              # Update workflow
 ```
 
-This would allow seeing real input/output data and error details without switching to n8n UI.
+**Implementation ideas**:
+- Create a Cursor task/script that: updates workflow → runs it → fetches execution → shows results
+- Use MCP n8n tools already available in this workspace
+- Could even parse execution data to pinpoint which node failed and what data it received
+
+**Benefits**:
+- No context switching to n8n UI
+- Real data visible in Cursor for each node
+- Faster iteration cycles
+- AI can analyze execution data and suggest fixes directly
 
 ---
 
