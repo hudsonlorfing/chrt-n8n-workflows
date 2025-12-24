@@ -79,6 +79,25 @@ After sync is working:
 - Delete any duplicate files created in GitHub
 - Ensure one canonical location for each workflow
 
+### Priority 4: Improve Debugging Workflow
+
+**Goal**: Access n8n executions programmatically for faster debugging
+
+**Ideas to explore**:
+- Use n8n API to fetch execution data: `GET /executions/{id}`
+- Create a debug workflow that pulls recent execution errors
+- Use MCP n8n tools in Cursor to query executions directly
+- Check if n8n Cloud has webhook/notification for failed executions
+- Consider adding error logging node that posts to a debug endpoint
+
+**n8n API Endpoints**:
+```
+GET /api/v1/executions          # List executions
+GET /api/v1/executions/{id}     # Get specific execution with data
+```
+
+This would allow seeing real input/output data and error details without switching to n8n UI.
+
 ---
 
 ## Files to Review
