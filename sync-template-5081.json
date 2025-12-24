@@ -328,7 +328,7 @@
     {
       "parameters": {
         "language": "python",
-        "pythonCode": "# Get the desired workflow name\nworkflow_id = _('If n8n before GitHub').first().json['same']['id']\n\n# Get all decoded workflow items\nall_decoded = _('Decode to json').all()\n\n# Filter for the matching one\nmatched = [\n    item.json \n    for item in all_decoded \n    if item.json.get('id') == workflow_id\n]\n\n# If there's a match, return it (or empty if none)\nif matched:\n    return [{'json': {'dataset': matched[0]}}]\nelse:\n    return []\n"
+        "pythonCode": "# Get the desired workflow name\nworkflow_id = $('If n8n before GitHub').first().json['same']['id']\n\n# Get all decoded workflow items\nall_decoded = $('Decode to json').all()\n\n# Filter for the matching one\nmatched = [\n    item.json \n    for item in all_decoded \n    if item.json.get('id') == workflow_id\n]\n\n# If there's a match, return it (or empty if none)\nif matched:\n    return [{'json': {'dataset': matched[0]}}]\nelse:\n    return []\n"
       },
       "id": "8465509a-ac62-485f-83b3-97d5bfec8300",
       "name": "Code - InputB",
@@ -342,7 +342,7 @@
     {
       "parameters": {
         "language": "python",
-        "pythonCode": "# Get the desired workflow name\nworkflow_id = _('If n8n before GitHub').first().json['same']['id']\n\n# Get all decoded workflow items\nall_decoded = _('n8n').all()\n\n# Filter for the matching one\nmatched = [\n    item.json \n    for item in all_decoded \n    if item.json.get('id') == workflow_id\n]\n\n# If there's a match, return it (or empty if none)\nif matched:\n    return [{'json': {'dataset': matched[0]}}]\nelse:\n    return []\n"
+        "pythonCode": "# Get the desired workflow name\nworkflow_id = $('If n8n before GitHub').first().json['same']['id']\n\n# Get all decoded workflow items\nall_decoded = $('n8n').all()\n\n# Filter for the matching one\nmatched = [\n    item.json \n    for item in all_decoded \n    if item.json.get('id') == workflow_id\n]\n\n# If there's a match, return it (or empty if none)\nif matched:\n    return [{'json': {'dataset': matched[0]}}]\nelse:\n    return []\n"
       },
       "id": "ea216738-d78a-4063-8874-0ccf06dfb52b",
       "name": "Code - InputA",
