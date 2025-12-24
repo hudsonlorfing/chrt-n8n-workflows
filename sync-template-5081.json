@@ -524,9 +524,33 @@
               },
               "leftValue": "={{ $json.name }}",
               "rightValue": "placeholder"
-            },
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "da2fcf95-50ad-4c22-a2da-91af4b769709",
+      "name": "Filter Placeholder",
+      "type": "n8n-nodes-base.filter",
+      "position": [
+        -1040,
+        608
+      ],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
             {
-              "id": "filter-json-only",
+              "id": "is-json-file",
               "operator": {
                 "type": "string",
                 "operation": "endsWith"
@@ -535,7 +559,7 @@
               "rightValue": ".json"
             },
             {
-              "id": "filter-files-only",
+              "id": "is-file-type",
               "operator": {
                 "type": "string",
                 "operation": "equals"
@@ -547,14 +571,45 @@
         },
         "options": {}
       },
-      "id": "da2fcf95-50ad-4c22-a2da-91af4b769709",
-      "name": "Filter",
-      "type": "n8n-nodes-base.filter",
+      "id": "check-is-json-file",
+      "name": "Is JSON File?",
+      "type": "n8n-nodes-base.if",
       "position": [
-        -1040,
+        -880,
         608
       ],
       "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "operation": "list",
+        "owner": {
+          "__rl": true,
+          "mode": "name",
+          "value": "={{ $('Set GitHub Details').item.json.github_account_name }}"
+        },
+        "repository": {
+          "__rl": true,
+          "mode": "name",
+          "value": "={{ $('Set GitHub Details').item.json.github_repo_name }}"
+        },
+        "filePath": "={{ $json.path }}"
+      },
+      "id": "list-subdirectory",
+      "name": "List Subdirectory",
+      "type": "n8n-nodes-base.github",
+      "position": [
+        -880,
+        808
+      ],
+      "typeVersion": 1,
+      "credentials": {
+        "githubApi": {
+          "id": "QO1GzHuZN8K3xHku",
+          "name": "GitHub account"
+        }
+      }
     },
     {
       "parameters": {
@@ -605,11 +660,40 @@
         ]
       ]
     },
-    "Filter": {
+    "Filter Placeholder": {
+      "main": [
+        [
+          {
+            "node": "Is JSON File?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is JSON File?": {
       "main": [
         [
           {
             "node": "GitHub",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "List Subdirectory",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List Subdirectory": {
+      "main": [
+        [
+          {
+            "node": "Filter Placeholder",
             "type": "main",
             "index": 0
           }
@@ -812,7 +896,7 @@
       "main": [
         [
           {
-            "node": "Filter",
+            "node": "Filter Placeholder",
             "type": "main",
             "index": 0
           }
