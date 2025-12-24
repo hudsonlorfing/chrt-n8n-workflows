@@ -117,7 +117,7 @@
       "name": "n8n",
       "type": "n8n-nodes-base.n8n",
       "position": [
-        -1040,
+        -1200,
         400
       ],
       "typeVersion": 1,
@@ -127,6 +127,39 @@
           "name": "n8n account"
         }
       }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "filter-by-project",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "leftValue": "={{ $json.shared?.[0]?.projectId }}",
+              "rightValue": "O7lTivDfRl72aS23"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "filter-chrt-project",
+      "name": "Filter Chrt Project",
+      "type": "n8n-nodes-base.filter",
+      "position": [
+        -1040,
+        400
+      ],
+      "typeVersion": 2.2
     },
     {
       "parameters": {
@@ -648,6 +681,17 @@
   "pinData": {},
   "connections": {
     "n8n": {
+      "main": [
+        [
+          {
+            "node": "Filter Chrt Project",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Chrt Project": {
       "main": [
         [
           {
