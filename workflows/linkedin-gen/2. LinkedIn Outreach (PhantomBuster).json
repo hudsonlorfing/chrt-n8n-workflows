@@ -6,14 +6,12 @@
         "rule": {
           "interval": [
             {
-              "field": "hours",
-              "hoursInterval": 8,
-              "triggerAtMinute": 30
+              "field": "=cronExpression",
+              "expression": "30 8 * * 1-6"
             },
             {
-              "field": "hours",
-              "hoursInterval": 16,
-              "triggerAtMinute": 10
+              "field": "cronExpression",
+              "expression": "10 16 * * 1-6"
             }
           ]
         }
@@ -23,8 +21,8 @@
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
       "position": [
-        1872,
-        192
+        3200,
+        720
       ]
     },
     {
@@ -46,8 +44,8 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        2320,
-        192
+        3632,
+        720
       ],
       "credentials": {
         "googleSheetsOAuth2Api": {
@@ -61,7 +59,7 @@
         "sortFieldsUi": {
           "sortField": [
             {
-              "fieldName": " Score ",
+              "fieldName": "score",
               "order": "descending"
             }
           ]
@@ -73,21 +71,21 @@
       "type": "n8n-nodes-base.sort",
       "typeVersion": 1,
       "position": [
-        2768,
-        192
+        4080,
+        720
       ]
     },
     {
       "parameters": {
-        "maxItems": "={{ Math.floor(Math.random() * 5) + 1}}"
+        "maxItems": "={{ Math.floor(Math.random()*3)+3 }}"
       },
       "id": "f25d40b4-754d-42da-b306-ede874c46532",
       "name": "Limit to 10/run (20/day)",
       "type": "n8n-nodes-base.limit",
       "typeVersion": 1,
       "position": [
-        2992,
-        192
+        4304,
+        720
       ]
     },
     {
@@ -99,8 +97,8 @@
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
       "position": [
-        3216,
-        192
+        4528,
+        720
       ]
     },
     {
@@ -112,8 +110,8 @@
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        3440,
-        192
+        4752,
+        720
       ],
       "webhookId": "cf5227ae-6b6b-4af6-b694-fdee3769710c"
     },
@@ -125,7 +123,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({\n  id: \"3044757503240384\",\n  bonusArgument: {\n    profileUrl: $json['LinkedIn_Profile_URL ']\n  }\n}) }}",
+        "jsonBody": "={{ JSON.stringify({\n  id: \"3044757503240384\",\n  bonusArgument: {\n    profileUrl: $json['profileUrl']\n  }\n}) }}",
         "options": {
           "timeout": 120000
         }
@@ -135,8 +133,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        3664,
-        192
+        4976,
+        720
       ],
       "retryOnFail": true,
       "maxTries": 2,
@@ -147,20 +145,6 @@
         }
       },
       "onError": "continueRegularOutput"
-    },
-    {
-      "parameters": {
-        "amount": 90
-      },
-      "id": "ace642d1-c696-4281-8779-ffe8176de576",
-      "name": "Wait for Execution (90s)",
-      "type": "n8n-nodes-base.wait",
-      "typeVersion": 1.1,
-      "position": [
-        3888,
-        192
-      ],
-      "webhookId": "e66b1416-4fd0-4893-a988-28cfcd7403f9"
     },
     {
       "parameters": {
@@ -176,8 +160,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        4112,
-        192
+        5424,
+        720
       ],
       "credentials": {
         "httpHeaderAuth": {
@@ -189,15 +173,15 @@
     },
     {
       "parameters": {
-        "jsCode": "// Parse PhantomBuster result and determine status\nconst originalData = $('Process One at a Time').item.json;\nconst result = $('Fetch Result').item.json;\n\nlet connectionStatus = 'Request Sent';\nlet resultMessage = '';\n\ntry {\n  // Check resultObject for status\n  if (result.resultObject) {\n    const ro = Array.isArray(result.resultObject) ? result.resultObject[0] : result.resultObject;\n    resultMessage = ro.status || ro.message || '';\n    \n    // Map PhantomBuster statuses to our tracking\n    if (resultMessage.toLowerCase().includes('invitation sent')) {\n      connectionStatus = 'Request Sent';\n    } else if (resultMessage.toLowerCase().includes('already connected')) {\n      connectionStatus = 'Already Connected';\n    } else if (resultMessage.toLowerCase().includes('already invited')) {\n      connectionStatus = 'Already Invited';\n    } else if (resultMessage.toLowerCase().includes('connect button') || resultMessage.toLowerCase().includes('error')) {\n      connectionStatus = 'Cannot Connect';\n    }\n  } else if (result.exitCode && result.exitCode !== 0) {\n    connectionStatus = 'Error';\n    resultMessage = result.output || 'Unknown error';\n  }\n} catch (e) {\n  connectionStatus = 'Error';\n  resultMessage = e.message;\n}\n\nreturn [{\n  json: {\n    'LinkedIn_Profile_URL ': originalData['LinkedIn_Profile_URL '],\n    status: connectionStatus,\n    resultMessage: resultMessage,\n    sentDate: new Date().toISOString().split('T')[0]\n  }\n}];"
+        "jsCode": "// Parse PhantomBuster result and determine connection status\n  const originalData = $('Process One at a Time').item.json;\n  const result = $('Fetch Result').item.json;\n\n  let connectionStatus = 'Unknown';\n  let resultMessage = '';\n\n  // First check: Did the phantom finish successfully?\n  const phantomFinished = result.status === 'finished';\n  const output = result.output || '';\n\n  // Check for exit code in output\n  const exitCodeMatch = output.match(/exit code: (\\d+)/);\n  const exitCode = exitCodeMatch ? parseInt(exitCodeMatch[1]) : null;\n\n  // Extract the processed profile URL from output to confirm it's the right one\n  const profileMatch = output.match(/Processing (https:\\/\\/(?:www\\.)?linkedin\\.com\\/in\\/[^\\s.]+)/i);\n  const processedProfile = profileMatch ? profileMatch[1] : null;\n\n  if (!phantomFinished) {\n    // Phantom didn't finish - check if still running or errored\n    connectionStatus = result.status === 'running' ? 'Still Running' : 'Error';\n    resultMessage = `Phantom status: ${result.status}`;\n  } else if (exitCode !== 0 && exitCode !== null) {\n    // Non-zero exit code = error\n    connectionStatus = 'Error';\n    resultMessage = `Exit code: ${exitCode}`;\n  } else {\n    // Phantom finished with exit code 0 - parse the output for result\n\n    // Look for specific status messages in output (case insensitive)\n    const outputLower = output.toLowerCase();\n\n    if (outputLower.includes('invitation sent') || outputLower.includes('invite sent')) {\n      connectionStatus = 'Request Sent';\n      resultMessage = 'Invitation sent successfully';\n    } else if (outputLower.includes('already connected')) {\n      connectionStatus = 'Already Connected';\n      resultMessage = 'Already a 1st degree connection';\n    } else if (outputLower.includes('already invited') || outputLower.includes('pending invitation')) {\n      connectionStatus = 'Already Invited';\n      resultMessage = 'Invitation already pending';\n    } else if (outputLower.includes(\"couldn't find connect button\") || outputLower.includes(\"could not find connect\")) {\n      connectionStatus = 'Cannot Connect';\n      resultMessage = 'Connect button not available';\n    } else if (outputLower.includes('profile is not available') || outputLower.includes('page not found')) {\n      connectionStatus = 'Profile Not Found';\n      resultMessage = 'LinkedIn profile not accessible';\n    } else if (outputLower.includes('rate limit') || outputLower.includes('too many requests')) {\n      connectionStatus = 'Rate Limited';\n      resultMessage = 'LinkedIn rate limit reached';\n    } else if (outputLower.includes('session expired') || outputLower.includes('not logged in')) {\n      connectionStatus = 'Session Error';\n      resultMessage = 'LinkedIn session expired';\n    } else if (output.includes('profiles have been processed') && exitCode === 0) {\n      // Finished processing but no explicit status - likely success\n      connectionStatus = 'Request Sent';\n      resultMessage = 'Processed successfully';\n    } else {\n      // Finished but couldn't determine specific outcome\n      connectionStatus = 'Completed';\n      resultMessage = 'Phantom completed - check manually';\n    }\n  }\n\n  // Also check resultObject if available (some phantoms return structured data)\n  if (result.resultObject) {\n    const ro = Array.isArray(result.resultObject) ? result.resultObject[0] : result.resultObject;\n    if (ro && ro.status) {\n      resultMessage = ro.status;\n    }\n  }\n\n  return [{\n    json: {\n      profileUrl: originalData['profileUrl'],\n      status: connectionStatus,\n      resultMessage: resultMessage,\n      sentDate: new Date().toISOString().split('T')[0],\n      // Debug fields (remove in production)\n      _debug: {\n        phantomStatus: result.status,\n        exitCode: exitCode,\n        processedProfile: processedProfile\n      }\n    }\n  }];"
       },
       "id": "c595128b-c344-4bdd-a993-caeba0fa3639",
       "name": "Parse Result",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4336,
-        192
+        5648,
+        720
       ]
     },
     {
@@ -216,18 +200,17 @@
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
-            "row_number": 0,
-            "LinkedIn_Profile_URL ": "={{ $json['LinkedIn_Profile_URL '] }}",
             "kyleSentDate": "={{ $('Parse Result').item.json.sentDate }}",
-            "inviteResult": "={{ $('Parse Result').item.json.status }}"
+            "profileUrl": "={{ $('Process One at a Time').item.json.profileUrl }}",
+            "inviteResults": "={{ $('Parse Result').item.json.status }}"
           },
           "matchingColumns": [
-            "LinkedIn_Profile_URL "
+            "profileUrl"
           ],
           "schema": [
             {
-              "id": "LinkedIn_Profile_URL ",
-              "displayName": "LinkedIn_Profile_URL ",
+              "id": "profileUrl",
+              "displayName": "profileUrl",
               "required": false,
               "defaultMatch": false,
               "display": true,
@@ -236,8 +219,8 @@
               "removed": false
             },
             {
-              "id": " FullName ",
-              "displayName": " FullName ",
+              "id": "fullName",
+              "displayName": "fullName",
               "required": false,
               "defaultMatch": false,
               "display": true,
@@ -246,8 +229,8 @@
               "removed": false
             },
             {
-              "id": " FirstName ",
-              "displayName": " FirstName ",
+              "id": "firstName",
+              "displayName": "firstName",
               "required": false,
               "defaultMatch": false,
               "display": true,
@@ -256,8 +239,8 @@
               "removed": false
             },
             {
-              "id": " LastName ",
-              "displayName": " LastName ",
+              "id": "lastName",
+              "displayName": "lastName",
               "required": false,
               "defaultMatch": false,
               "display": true,
@@ -266,8 +249,8 @@
               "removed": false
             },
             {
-              "id": " Company ",
-              "displayName": " Company ",
+              "id": "school",
+              "displayName": "school",
               "required": false,
               "defaultMatch": false,
               "display": true,
@@ -276,8 +259,8 @@
               "removed": false
             },
             {
-              "id": " Title ",
-              "displayName": " Title ",
+              "id": "schoolDegree",
+              "displayName": "schoolDegree",
               "required": false,
               "defaultMatch": false,
               "display": true,
@@ -286,8 +269,8 @@
               "removed": false
             },
             {
-              "id": " Industry ",
-              "displayName": " Industry ",
+              "id": "company",
+              "displayName": "company",
               "required": false,
               "defaultMatch": false,
               "display": true,
@@ -296,8 +279,8 @@
               "removed": false
             },
             {
-              "id": " Headline ",
-              "displayName": " Headline ",
+              "id": "companyUrl",
+              "displayName": "companyUrl",
               "required": false,
               "defaultMatch": false,
               "display": true,
@@ -306,8 +289,8 @@
               "removed": false
             },
             {
-              "id": " Location ",
-              "displayName": " Location ",
+              "id": "companyId",
+              "displayName": "companyId",
               "required": false,
               "defaultMatch": false,
               "display": true,
@@ -316,8 +299,8 @@
               "removed": false
             },
             {
-              "id": " PreviousRole ",
-              "displayName": " PreviousRole ",
+              "id": "jobTitle",
+              "displayName": "jobTitle",
               "required": false,
               "defaultMatch": false,
               "display": true,
@@ -326,8 +309,8 @@
               "removed": false
             },
             {
-              "id": " Score ",
-              "displayName": " Score ",
+              "id": "jobDateRange",
+              "displayName": "jobDateRange",
               "required": false,
               "defaultMatch": false,
               "display": true,
@@ -336,8 +319,8 @@
               "removed": false
             },
             {
-              "id": " Segment ",
-              "displayName": " Segment ",
+              "id": "adj industry",
+              "displayName": "adj industry",
               "required": false,
               "defaultMatch": false,
               "display": true,
@@ -346,8 +329,8 @@
               "removed": false
             },
             {
-              "id": " Reason ",
-              "displayName": " Reason ",
+              "id": "headline",
+              "displayName": "headline",
               "required": false,
               "defaultMatch": false,
               "display": true,
@@ -356,8 +339,8 @@
               "removed": false
             },
             {
-              "id": " Status ",
-              "displayName": " Status ",
+              "id": "location",
+              "displayName": "location",
               "required": false,
               "defaultMatch": false,
               "display": true,
@@ -366,8 +349,98 @@
               "removed": false
             },
             {
-              "id": " Added ",
-              "displayName": " Added ",
+              "id": "company2",
+              "displayName": "company2",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "companyUrl2",
+              "displayName": "companyUrl2",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "companyId2",
+              "displayName": "companyId2",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "jobTitle2",
+              "displayName": "jobTitle2",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "jobDateRange2",
+              "displayName": "jobDateRange2",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "score",
+              "displayName": "score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "segment",
+              "displayName": "segment",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "reason",
+              "displayName": "reason",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "added",
+              "displayName": "added",
               "required": false,
               "defaultMatch": false,
               "display": true,
@@ -386,8 +459,8 @@
               "removed": false
             },
             {
-              "id": " HubSpotSynced",
-              "displayName": " HubSpotSynced",
+              "id": "kyleConnectDate",
+              "displayName": "kyleConnectDate",
               "required": false,
               "defaultMatch": false,
               "display": true,
@@ -396,8 +469,8 @@
               "removed": false
             },
             {
-              "id": "Hudson Notes or thoughts",
-              "displayName": "Hudson Notes or thoughts",
+              "id": "hudsonSentDate",
+              "displayName": "hudsonSentDate",
               "required": false,
               "defaultMatch": false,
               "display": true,
@@ -406,8 +479,58 @@
               "removed": false
             },
             {
-              "id": "inviteResult",
-              "displayName": "inviteResult",
+              "id": "hudsonConnectDate",
+              "displayName": "hudsonConnectDate",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "hubspotSync",
+              "displayName": "hubspotSync",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "hudsonNotes",
+              "displayName": "hudsonNotes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "inviteResults",
+              "displayName": "inviteResults",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "connectionDegree",
+              "displayName": "connectionDegree",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "previousRole",
+              "displayName": "previousRole",
               "required": false,
               "defaultMatch": false,
               "display": true,
@@ -424,7 +547,7 @@
               "type": "number",
               "canBeUsedToMatch": true,
               "readOnly": true,
-              "removed": false
+              "removed": true
             }
           ],
           "attemptToConvertTypes": false,
@@ -439,8 +562,8 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        4784,
-        264
+        6096,
+        800
       ],
       "credentials": {
         "googleSheetsOAuth2Api": {
@@ -456,8 +579,8 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        3440,
-        0
+        4752,
+        528
       ]
     },
     {
@@ -479,8 +602,8 @@
         "filtersUI": {
           "values": [
             {
-              "lookupColumn": "LinkedIn_Profile_URL ",
-              "lookupValue": "={{ $('Process One at a Time').item.json['LinkedIn_Profile_URL '] }}"
+              "lookupColumn": "profileUrl",
+              "lookupValue": "={{ $('Process One at a Time').item.json['profileUrl'] }}"
             }
           ]
         },
@@ -489,8 +612,8 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.7,
       "position": [
-        4560,
-        192
+        5872,
+        720
       ],
       "id": "97e7f55c-30ea-420d-9ea9-f9e8f32b552c",
       "name": "Get row(s) in sheet",
@@ -513,7 +636,7 @@
           "conditions": [
             {
               "id": "id-1",
-              "leftValue": "={{ $json['LinkedIn_Profile_URL '] }}",
+              "leftValue": "={{ $json['profileUrl'] }}",
               "operator": {
                 "type": "string",
                 "operation": "notEmpty"
@@ -521,7 +644,7 @@
             },
             {
               "id": "id-3",
-              "leftValue": "={{ $json[' Segment '] }}",
+              "leftValue": "={{ $json['segment'] }}",
               "rightValue": "Skip",
               "operator": {
                 "type": "string",
@@ -549,8 +672,8 @@
       "type": "n8n-nodes-base.filter",
       "typeVersion": 2.3,
       "position": [
-        2544,
-        192
+        3856,
+        720
       ]
     },
     {
@@ -561,12 +684,26 @@
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        2096,
-        192
+        3408,
+        720
       ],
       "id": "7067c636-295b-49d8-b137-66768e27d862",
       "name": "Wait",
       "webhookId": "10738656-08f5-421b-8125-3980acc2fdb7"
+    },
+    {
+      "parameters": {
+        "amount": 120
+      },
+      "id": "ace642d1-c696-4281-8779-ffe8176de576",
+      "name": "Wait for Execution (120s)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        5200,
+        720
+      ],
+      "webhookId": "e66b1416-4fd0-4893-a988-28cfcd7403f9"
     }
   ],
   "pinData": {},
@@ -637,18 +774,7 @@
       "main": [
         [
           {
-            "node": "Wait for Execution (90s)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Wait for Execution (90s)": {
-      "main": [
-        [
-          {
-            "node": "Fetch Result",
+            "node": "Wait for Execution (120s)",
             "type": "main",
             "index": 0
           }
@@ -731,6 +857,17 @@
           }
         ]
       ]
+    },
+    "Wait for Execution (120s)": {
+      "main": [
+        [
+          {
+            "node": "Fetch Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": true,
@@ -740,7 +877,7 @@
     "callerPolicy": "workflowsFromSameOwner",
     "availableInMCP": false
   },
-  "versionId": "034fc2cc-3a81-463f-a0e6-4f13ce7acc35",
+  "versionId": "c7afb79f-5cf5-4881-b8da-d0aaa3a8cc6c",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "3ce16fc100291804826030d46a0f780f5d6613342b8afd8bb5c84603e7c0436d"
