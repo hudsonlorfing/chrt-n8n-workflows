@@ -29,7 +29,8 @@ This repo is synced bidirectionally with our n8n Cloud instance using the **Bidi
 
 1. Pull latest changes:
    ```bash
-   git pull origin main
+   cd /Users/hudsonlorfing/Documents/Business/Chrt/workflows/chrt-n8n-workflows
+   git pull
    ```
 
 2. Open workflow JSON in Cursor and edit
