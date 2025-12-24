@@ -699,7 +699,7 @@
     {
       "parameters": {
         "mode": "raw",
-        "jsonOutput": "={{ Object.assign($json.content?.base64Decode() ?? {}, { _githubPath: $json.path }) }}",
+        "jsonOutput": "={{ (() => { try { const decoded = $json.content ? JSON.parse($json.content.base64Decode()) : {}; return { ...decoded, _githubPath: $json.path }; } catch(e) { return { _githubPath: $json.path }; } })() }}",
         "options": {}
       },
       "id": "fdc0d398-80d6-45e9-9086-bbeae7822c64",
