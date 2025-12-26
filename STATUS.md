@@ -1,6 +1,6 @@
 # Sync Workflow Status
 
-**Last Updated**: December 23, 2025 11:15 PM PST
+**Last Updated**: December 26, 2025
 
 ## Current Issues
 
@@ -79,31 +79,49 @@ After sync is working:
 - Delete any duplicate files created in GitHub
 - Ensure one canonical location for each workflow
 
-### Priority 4: Improve Debugging Workflow
+### Priority 4: ✅ Debugging Workflow (IMPLEMENTED)
 
 **Goal**: Full test/debug loop from Cursor without manual intervention
 
-**Vision**: 
+**Status**: IMPLEMENTED via `scripts/n8n-debug.sh`
+
+**What's Available**:
+1. ✅ Debug Webhook trigger added to sync workflow (`/sync-debug`)
+2. ✅ Shell script for full debug loop (`scripts/n8n-debug.sh`)
+
+**How to Use**:
+```bash
+# Set your API key (one-time)
+export N8N_API_KEY='your-n8n-api-key'
+
+# Update workflow in n8n from local file
+./scripts/n8n-debug.sh update
+
+# Run workflow
+./scripts/n8n-debug.sh run
+
+# List recent executions
+./scripts/n8n-debug.sh list
+
+# Get execution details
+./scripts/n8n-debug.sh execution <execution-id>
+
+# Get specific node data
+./scripts/n8n-debug.sh node <execution-id> "Decode to json"
+
+# Save full execution to file for analysis
+./scripts/n8n-debug.sh full <execution-id>
+```
+
+**Debug Loop Flow**:
+```
 1. Edit workflow JSON in Cursor
-2. Push to n8n via API
-3. Trigger execution from Cursor
-4. Fetch execution results/errors directly
-5. Iterate on fix without leaving Cursor
-
-**n8n API Endpoints to use**:
+2. ./n8n-debug.sh update      # Push to n8n
+3. ./n8n-debug.sh run         # Execute workflow
+4. ./n8n-debug.sh list        # Get execution ID
+5. ./n8n-debug.sh full <id>   # Get all node I/O
+6. Analyze output in Cursor, iterate on fix
 ```
-POST /api/v1/workflows/{id}/activate     # Activate workflow
-POST /api/v1/workflows/{id}/deactivate   # Deactivate workflow
-POST /api/v1/workflows/{id}/run          # Execute workflow manually
-GET  /api/v1/executions                  # List executions
-GET  /api/v1/executions/{id}             # Get execution with full data
-PUT  /api/v1/workflows/{id}              # Update workflow
-```
-
-**Implementation ideas**:
-- Create a Cursor task/script that: updates workflow → runs it → fetches execution → shows results
-- Use MCP n8n tools already available in this workspace
-- Could even parse execution data to pinpoint which node failed and what data it received
 
 **Benefits**:
 - No context switching to n8n UI
