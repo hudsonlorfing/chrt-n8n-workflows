@@ -15,21 +15,21 @@
 
 **Root Cause**: The recursive directory listing flow may not be waiting for all subdirectory files before running the comparison.
 
-### 2. ❌ Creating Duplicate Files
+### 2. ✅ Creating Duplicate Files (FIXED)
 
-**Problem**: The sync tried to create 3 new files in GitHub that shouldn't exist.
+**Problem**: The sync was creating duplicate files in GitHub.
 
-**Symptoms**:
-- n8n workflows being treated as "only in n8n" when they already exist in GitHub
-- This triggers the "Upload file" path instead of "Update file"
+**Root Cause**: Same as #1 - subdirectory files weren't collected before comparison.
 
-**Root Cause**: Same as #1 - if GitHub files from subdirectories aren't collected, comparison thinks they don't exist.
+**Solution**: Fixed with Aggregate pattern (Priority 1). Now all GitHub files are collected before comparison runs, so workflows are correctly identified as "same" instead of "only in n8n".
 
-### 3. ⚠️ SHA Error on File Creation (Partially Fixed)
+### 3. ✅ SHA Error on File Creation (FIXED)
 
 **Problem**: When trying to create a file that already exists, GitHub returns 422 "sha wasn't supplied".
 
-**Status**: Added fallback with `onError: continueErrorOutput` that routes to "Update Existing File" node. This is a workaround, not a fix for the root cause.
+**Solution**: 
+1. Root cause fixed by #1 and #2 - proper file collection prevents incorrect "create" attempts
+2. Fallback added with `onError: continueErrorOutput` → "Update Existing File" node as safety net
 
 ---
 
