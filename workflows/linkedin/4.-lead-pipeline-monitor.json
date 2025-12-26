@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2025-12-26T19:26:32.000Z",
+  "updatedAt": "2025-12-26T20:04:15.241Z",
   "createdAt": "2025-12-26T18:55:11.571Z",
   "id": "dWFsEXELFTJU0W01",
   "name": "4. Lead Pipeline Monitor",
@@ -234,28 +234,17 @@
       ]
     },
     {
-      "parameters": {
-        "fromEmail": "noreply@chrt.com",
-        "toEmail": "hudson@chrt.com",
-        "subject": "⚠️ Low URL Alert: Only {{ $json.uncrawledCount }} uncrawled URLs remaining",
-        "emailType": "text",
-        "message": "Lead Pipeline Monitor Alert\n\nOnly {{ $json.uncrawledCount }} uncrawled URL(s) remaining in the 'People to crawl' sheet.\n\nPlease add more LinkedIn search URLs to continue lead generation.\n\nCurrent Status:\n- Uncrawled URLs: {{ $json.uncrawledCount }}\n- Previously crawled: {{ $json.crawledCount }}\n- Total URLs: {{ $json.totalURLs }}\n\nThe pipeline will continue running with the remaining URLs.\n\n--\nChrt Lead Pipeline Monitor"
-      },
+      "parameters": {},
       "id": "send-warning-email",
       "name": "Send Warning Email",
-      "type": "n8n-nodes-base.emailSend",
-      "typeVersion": 2.1,
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
       "position": [
         1600,
         300
       ],
-      "credentials": {
-        "smtp": {
-          "id": "smtp-credential",
-          "name": "SMTP"
-        }
-      },
-      "onError": "continueRegularOutput"
+      "notesInFlow": true,
+      "notes": "TODO: Configure SMTP - Low URL Alert"
     },
     {
       "parameters": {
@@ -291,28 +280,17 @@
       ]
     },
     {
-      "parameters": {
-        "fromEmail": "noreply@chrt.com",
-        "toEmail": "hudson@chrt.com",
-        "subject": "🔄 No New URLs: Falling back to oldest crawled URL",
-        "emailType": "text",
-        "message": "Lead Pipeline Monitor - Fallback Mode\n\nAll URLs have been crawled. Falling back to re-crawl the oldest URL.\n\nFallback URL: {{ $json.selectedURL }}\nContact: {{ $json.selectedName }}\nLast Crawled: {{ $json.oldestCrawledDate }}\n\nPlease add new LinkedIn search URLs to the 'People to crawl' sheet.\n\nCurrent Status:\n- Uncrawled URLs: 0\n- Previously crawled: {{ $json.crawledCount }}\n\n--\nChrt Lead Pipeline Monitor"
-      },
+      "parameters": {},
       "id": "send-fallback-email",
       "name": "Send Fallback Email",
-      "type": "n8n-nodes-base.emailSend",
-      "typeVersion": 2.1,
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
       "position": [
         1600,
         500
       ],
-      "credentials": {
-        "smtp": {
-          "id": "smtp-credential",
-          "name": "SMTP"
-        }
-      },
-      "onError": "continueRegularOutput"
+      "notesInFlow": true,
+      "notes": "TODO: Configure SMTP - Fallback Mode Alert"
     },
     {
       "parameters": {
@@ -348,28 +326,17 @@
       ]
     },
     {
-      "parameters": {
-        "fromEmail": "noreply@chrt.com",
-        "toEmail": "hudson@chrt.com",
-        "subject": "🚨 CRITICAL: No URLs available for lead scraping!",
-        "emailType": "text",
-        "message": "Lead Pipeline Monitor - CRITICAL ALERT\n\nNo URLs are available in the 'People to crawl' sheet!\n\nThe lead generation pipeline cannot continue until you add new LinkedIn search URLs.\n\nAction Required:\n1. Go to the LinkedIn Leads Google Sheet\n2. Navigate to 'People to crawl' tab\n3. Add new LinkedIn search URLs in Column C\n\nThe pipeline will automatically resume once URLs are added.\n\n--\nChrt Lead Pipeline Monitor"
-      },
+      "parameters": {},
       "id": "send-critical-email",
       "name": "Send Critical Email",
-      "type": "n8n-nodes-base.emailSend",
-      "typeVersion": 2.1,
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
       "position": [
         1600,
         800
       ],
-      "credentials": {
-        "smtp": {
-          "id": "smtp-credential",
-          "name": "SMTP"
-        }
-      },
-      "onError": "continueRegularOutput"
+      "notesInFlow": true,
+      "notes": "TODO: Configure SMTP - Critical Alert"
     },
     {
       "parameters": {
@@ -1288,9 +1255,9 @@
   },
   "meta": null,
   "pinData": null,
-  "versionId": "ff4c5528-6f0f-4fbf-92da-95b944a186fe",
+  "versionId": "e54e4a20-2f96-4001-951c-b0ac0a9ff70d",
   "activeVersionId": null,
-  "versionCounter": 10,
+  "versionCounter": 19,
   "triggerCount": 2,
   "shared": [
     {
