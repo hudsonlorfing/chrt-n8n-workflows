@@ -1,0 +1,69 @@
+{
+  "updatedAt": "2025-12-26T17:54:02.000Z",
+  "createdAt": "2025-12-26T17:54:01.993Z",
+  "id": "T4eBu6lnQLze8n1l",
+  "name": "TEST-SyncPath-OnlyInN8n",
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "test-manual-trigger",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "test-noop",
+      "name": "Test Node",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        200,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Test Node",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": null,
+  "versionId": "a04b4799-f493-489a-8a1a-601ea20570e4",
+  "activeVersionId": null,
+  "triggerCount": 0,
+  "shared": [
+    {
+      "updatedAt": "2025-12-26T17:54:02.563Z",
+      "createdAt": "2025-12-26T17:54:02.563Z",
+      "role": "workflow:owner",
+      "workflowId": "T4eBu6lnQLze8n1l",
+      "projectId": "O7lTivDfRl72aS23"
+    }
+  ],
+  "activeVersion": null,
+  "tags": [],
+  "_folderPath": "",
+  "_fileName": "test-syncpath-onlyinn8n.json"
+}
