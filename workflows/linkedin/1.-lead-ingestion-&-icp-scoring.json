@@ -21,6 +21,36 @@
     },
     {
       "parameters": {
+        "httpMethod": "POST",
+        "path": "lead-ingestion",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger-ingestion",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -28448,
+        2920
+      ],
+      "webhookId": "lead-ingestion-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Determine batch size based on trigger source\n// Default: 10 for manual, 240 for webhook (pipeline monitor)\nlet batchSize = 10;\n\ntry {\n  // Check if triggered via webhook with batchSize parameter\n  const webhookData = $('Webhook Trigger').first()?.json;\n  if (webhookData && webhookData.batchSize) {\n    batchSize = parseInt(webhookData.batchSize) || 240;\n  }\n} catch (e) {\n  // Manual trigger - use default\n  batchSize = 10;\n}\n\nreturn [{ json: { batchSize, source: batchSize > 10 ? 'pipeline-monitor' : 'manual' } }];"
+      },
+      "id": "determine-batch-size",
+      "name": "Determine Batch Size",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -28224,
+        2920
+      ]
+    },
+    {
+      "parameters": {
         "documentId": {
           "__rl": true,
           "mode": "id",
@@ -602,7 +632,7 @@
     },
     {
       "parameters": {
-        "maxItems": 10
+        "maxItems": "={{ $('Determine Batch Size').first()?.json?.batchSize || 10 }}"
       },
       "type": "n8n-nodes-base.limit",
       "typeVersion": 1,
@@ -612,10 +642,46 @@
       ],
       "id": "6cc0c946-726b-454e-955f-db87dd179c71",
       "name": "Limit"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, processed: $('Loop Over Leads1').context.noItemsLeft ? 0 : $input.all().length, timestamp: new Date().toISOString() }) }}"
+      },
+      "id": "webhook-response-ingestion",
+      "name": "Webhook Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        -26416,
+        2928
+      ]
     }
   ],
   "connections": {
     "Run Manually": {
+      "main": [
+        [
+          {
+            "node": "Determine Batch Size",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Determine Batch Size",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Determine Batch Size": {
       "main": [
         [
           {
@@ -665,6 +731,17 @@
         [
           {
             "node": "AI ICP Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Done": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
             "type": "main",
             "index": 0
           }
