@@ -20,6 +20,10 @@ Thumbs.db
 # Temporary sync files
 .sync-temp/
 
+# Test execution files (keep docs, ignore logs)
+execution-*.json
+test-results/*.log
+
 # Debug execution output files
 execution-*.json
 

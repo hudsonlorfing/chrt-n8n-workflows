@@ -16,6 +16,10 @@ N8N_BASE_URL="${N8N_BASE_URL:-https://chrt.app.n8n.cloud}"
 N8N_API_KEY="${N8N_API_KEY:-}"
 WORKFLOW_ID="${WORKFLOW_ID:-r4ICnvhdbQwejSdH}"
 
+# Workflow IDs
+SYNC_WORKFLOW_ID="r4ICnvhdbQwejSdH"
+LINKEDIN_LEAD_WORKFLOW_ID="aLxwvqoSTkZAQ3fq"
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -235,6 +239,53 @@ get_full_execution() {
     echo "$response" | jq -r '.data.resultData.runData | to_entries[] | select(.value[0].error != null) | "\(.key): \(.value[0].error.message)"' 2>/dev/null || echo "No errors found"
 }
 
+# Update and run LinkedIn Lead workflow
+run_linkedin() {
+    check_api_key
+    local json_file="workflows/linkedin/1.-lead-ingestion-&-icp-scoring.json"
+    
+    echo -e "${BLUE}Updating LinkedIn Lead Ingestion workflow...${NC}"
+    
+    # Filter out read-only properties
+    filtered_json=$(cat "$json_file" | jq '{
+        name: .name,
+        nodes: .nodes,
+        connections: .connections,
+        settings: .settings,
+        staticData: .staticData
+    }')
+    
+    response=$(curl -s -X PUT "$N8N_BASE_URL/api/v1/workflows/$LINKEDIN_LEAD_WORKFLOW_ID" \
+        -H "accept: application/json" \
+        -H "Content-Type: application/json" \
+        -H "X-N8N-API-KEY: $N8N_API_KEY" \
+        -d "$filtered_json")
+    
+    if echo "$response" | grep -q '"id"'; then
+        echo -e "${GREEN}✓ LinkedIn workflow updated${NC}"
+        
+        # Try to execute via test endpoint
+        echo -e "${BLUE}Executing workflow...${NC}"
+        exec_response=$(curl -s -X POST "$N8N_BASE_URL/api/v1/workflows/$LINKEDIN_LEAD_WORKFLOW_ID/run" \
+            -H "accept: application/json" \
+            -H "X-N8N-API-KEY: $N8N_API_KEY")
+        
+        # Check for execution ID
+        exec_id=$(echo "$exec_response" | jq -r '.id // .executionId // empty' 2>/dev/null)
+        if [ -n "$exec_id" ]; then
+            echo -e "${GREEN}✓ Execution started: $exec_id${NC}"
+            echo "Run: $0 full $exec_id (with WORKFLOW_ID=$LINKEDIN_LEAD_WORKFLOW_ID)"
+        else
+            echo -e "${YELLOW}Note: Manual execution may not be available via API${NC}"
+            echo "Run the workflow manually in n8n UI or activate it"
+            echo "$exec_response" | jq '.' 2>/dev/null || echo "$exec_response"
+        fi
+    else
+        echo -e "${RED}✗ Failed to update workflow${NC}"
+        echo "$response" | jq '.' 2>/dev/null || echo "$response"
+    fi
+}
+
 # Show usage
 usage() {
     echo "n8n Debug Helper - Full test/debug loop from Cursor"
@@ -242,7 +293,7 @@ usage() {
     echo "Usage: $0 <command> [options]"
     echo ""
     echo "Commands:"
-    echo "  update [file]     Update workflow in n8n from local JSON file"
+    echo "  update [file]     Update sync workflow in n8n from local JSON file"
     echo "  activate          Activate the workflow"
     echo "  deactivate        Deactivate the workflow"
     echo "  trigger           Trigger the debug webhook"
@@ -251,6 +302,7 @@ usage() {
     echo "  execution <id>    Get execution details"
     echo "  node <id> <name>  Get specific node data from execution"
     echo "  full <id>         Get full execution with all I/O (saves to file)"
+    echo "  linkedin          Update and run LinkedIn Lead Ingestion workflow"
     echo ""
     echo "Environment variables:"
     echo "  N8N_API_KEY       Required - Your n8n API key"
@@ -265,6 +317,7 @@ usage() {
     echo "  $0 execution abc123                # Get execution summary"
     echo "  $0 node abc123 'Decode to json'    # Get specific node data"
     echo "  $0 full abc123                     # Save full execution to file"
+    echo "  $0 linkedin                        # Update and run LinkedIn workflow"
 }
 
 # Main command handler
@@ -295,6 +348,9 @@ case "$1" in
         ;;
     full)
         get_full_execution "$2"
+        ;;
+    linkedin)
+        run_linkedin
         ;;
     *)
         usage
