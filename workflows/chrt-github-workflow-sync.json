@@ -48,6 +48,23 @@
     },
     {
       "parameters": {
+        "path": "sync-debug",
+        "httpMethod": "GET",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "debug-webhook-trigger",
+      "name": "Debug Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        -624,
+        9976
+      ],
+      "webhookId": "sync-debug-webhook",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
         "resource": "file",
         "operation": "list",
         "owner": {
@@ -1145,6 +1162,17 @@
       ]
     },
     "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set GitHub Details",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Debug Webhook": {
       "main": [
         [
           {
