@@ -4,16 +4,19 @@
 
 ## Current Issues
 
-### 1. ❌ Directory Traversal Not Working Correctly
+### 1. ✅ Directory Traversal (FIXED)
 
-**Problem**: The sync workflow is not properly reading files from the `linkedin/` subdirectory. It only processes the file in the root `workflows/` directory.
+**Problem**: The sync workflow was only processing root-level files, missing subdirectory files.
 
-**Symptoms**:
-- Sync only updated `chrt-github-workflow-sync.json` (in root)
-- Did not detect/process the 3 files in `workflows/linkedin/`
-- GitHub side shows files exist, but comparison fails
+**Root Cause**: n8n's Aggregate node completed before the recursive subdirectory listing ran.
 
-**Root Cause**: The recursive directory listing flow may not be waiting for all subdirectory files before running the comparison.
+**Solution**: Replaced recursive loop with GitHub Trees API:
+```
+Get GitHub Tree (recursive=1) → Filter Workflow Files → GitHub → Decode → Aggregate
+```
+
+**Result**: All 4 files (1 root + 3 in linkedin/) now correctly processed.
+Tested on execution #360 - successful sync with no duplicates.
 
 ### 2. ✅ Creating Duplicate Files (FIXED)
 
@@ -170,12 +173,12 @@ git push origin main
 
 | Node | Purpose |
 |------|---------|
-| `List files from repo` | Lists GitHub repo contents |
-| `Process GitHub Listing` | Separates files from directories |
-| `Is Directory?` | Routes directories to subdirectory listing |
-| `List Subdirectory` | Lists subdirectory contents |
+| `Get GitHub Tree` | Lists ALL files recursively via Trees API |
+| `Filter Workflow Files` | Extracts JSON files from workflows/ directory |
 | `GitHub` | Gets file content |
 | `Decode to json` | Parses workflow JSON |
+| `Aggregate GitHub Files` | Collects all files before comparison |
+| `Split for Comparison` | Splits aggregated items for comparison |
 | `n8n vs GitHub` | Compares by workflow ID |
 | `Upload file` | Creates new files |
 | `Update file` | Updates existing files |
