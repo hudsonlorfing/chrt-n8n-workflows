@@ -1,10 +1,21 @@
 # Chrt GitHub Workflow Sync - Path Documentation
 
 Generated: 2025-12-26
+Last Full Test: 2025-12-26 (Executions #362, #363)
 
 ## Workflow Overview
 
 The sync workflow handles bidirectional synchronization between n8n Cloud and GitHub.
+
+## Test Results Summary
+
+| Path | Status | Execution | Verified |
+|------|--------|-----------|----------|
+| n8n → GitHub (new) | ✅ WORKING | #362 | Upload file |
+| n8n → GitHub (update) | ✅ WORKING | #362, #363 | Update file |
+| GitHub → n8n (update) | ✅ WORKING | #362, #363 | Update workflow in n8n |
+| GitHub → n8n (new) | ✅ WORKING | #362, #363 | Create new workflow in n8n |
+| Path Change (tag) | ✅ WORKING | #363 | Create at New Path |
 
 ## Tested Paths
 
@@ -31,7 +42,7 @@ n8n vs GitHub (output 2: same in both, n8n newer)
 - Edit for Update
 - Update file
 
-### Path 2: GitHub Newer than n8n (Update n8n) ○ NOT TESTED
+### Path 2: GitHub Newer than n8n (Update n8n) ✅ WORKING
 
 **Trigger**: When a workflow in GitHub has a more recent `updatedAt` timestamp than the same workflow in n8n.
 
@@ -43,9 +54,9 @@ n8n vs GitHub (output 2: same in both, GitHub newer)
     → Update workflow in n8n
 ```
 
-**Notes**: This path requires manually editing a workflow JSON in GitHub and pushing it without syncing from n8n first.
+**Test**: Created workflow in n8n, then pushed a modified version to GitHub with future `updatedAt` timestamp. Sync correctly updated n8n workflow from GitHub.
 
-### Path 3: Only in n8n (Create in GitHub) ✅ PARTIALLY WORKING
+### Path 3: Only in n8n (Create in GitHub) ✅ WORKING
 
 **Trigger**: When a workflow exists in n8n but not in GitHub.
 
@@ -58,9 +69,9 @@ n8n vs GitHub (output 0: only in n8n)
     → Upload file
 ```
 
-**Notes**: Json file node executed during test, but Upload file wasn't needed as all workflows already exist in both places.
+**Test**: Created `TEST-SyncPath-OnlyInN8n` workflow in n8n. Sync correctly created `test-syncpath-onlyinn8n.json` in GitHub.
 
-### Path 4: Only in GitHub (Create in n8n) ○ NOT TESTED
+### Path 4: Only in GitHub (Create in n8n) ✅ WORKING
 
 **Trigger**: When a workflow JSON exists in GitHub but not in n8n.
 
@@ -70,9 +81,9 @@ n8n vs GitHub (output 3: only in GitHub)
     → Create new workflow in n8n
 ```
 
-**Notes**: This path requires manually creating a workflow JSON in GitHub that doesn't exist in n8n.
+**Test**: Created `test-syncpath-onlyingithub.json` in GitHub (no n8n ID). Sync correctly created `TEST-SyncPath-OnlyInGitHub` workflow in n8n.
 
-### Path 5: File Move (Tag Changed) ○ NOT TESTED
+### Path 5: File Move (Tag Changed) ✅ WORKING
 
 **Trigger**: When a workflow's tag changes (e.g., from untagged to "linkedin"), causing its expected GitHub path to change.
 
@@ -86,6 +97,10 @@ Code - InputA (detects _pathChanged = true)
     → Edit for Move
     → Create at New Path
 ```
+
+**Test**: Created `TEST-SyncPath-NewTag` workflow without tag (synced to root). Added "linkedin" tag. Sync correctly created `workflows/linkedin/test-syncpath-newtag.json`.
+
+**Note**: The old file at root remains (sync creates at new path but doesn't delete old). Manual cleanup may be needed.
 
 ## Core Pipeline (Always Executed)
 
