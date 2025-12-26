@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2025-12-26T17:32:34.161Z",
+  "updatedAt": "2025-12-26T17:44:23.444Z",
   "createdAt": "2025-12-24T03:16:41.674Z",
   "id": "r4ICnvhdbQwejSdH",
   "name": "Chrt GitHub Workflow Sync",
@@ -753,113 +753,6 @@
     },
     {
       "parameters": {
-        "conditions": {
-          "options": {
-            "version": 2,
-            "leftValue": "",
-            "caseSensitive": true,
-            "typeValidation": "strict"
-          },
-          "combinator": "and",
-          "conditions": [
-            {
-              "id": "b9ed0bad-4ebe-4378-807e-1a6082c4461d",
-              "operator": {
-                "type": "string",
-                "operation": "notContains"
-              },
-              "leftValue": "={{ $json.name }}",
-              "rightValue": "placeholder"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "id": "bda1dd4e-00b0-4476-8e18-d42d8895bc44",
-      "name": "Filter Placeholder",
-      "type": "n8n-nodes-base.filter",
-      "position": [
-        224,
-        9904
-      ],
-      "typeVersion": 2.2
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "version": 2,
-            "leftValue": "",
-            "caseSensitive": true,
-            "typeValidation": "strict"
-          },
-          "combinator": "and",
-          "conditions": [
-            {
-              "id": "is-json-file",
-              "operator": {
-                "type": "string",
-                "operation": "endsWith"
-              },
-              "leftValue": "={{ $json.name }}",
-              "rightValue": ".json"
-            },
-            {
-              "id": "is-file-type",
-              "operator": {
-                "type": "string",
-                "operation": "equals"
-              },
-              "leftValue": "={{ $json.type }}",
-              "rightValue": "file"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "id": "bf578442-6380-43c7-98a5-4521f9eace96",
-      "name": "Is JSON File?",
-      "type": "n8n-nodes-base.if",
-      "position": [
-        384,
-        9904
-      ],
-      "typeVersion": 2.2
-    },
-    {
-      "parameters": {
-        "resource": "file",
-        "operation": "list",
-        "owner": {
-          "__rl": true,
-          "mode": "name",
-          "value": "={{ $('Set GitHub Details').item.json.github_account_name }}"
-        },
-        "repository": {
-          "__rl": true,
-          "mode": "name",
-          "value": "={{ $('Set GitHub Details').item.json.github_repo_name }}"
-        },
-        "filePath": "={{ $json.path }}"
-      },
-      "id": "8dc74393-6592-4fec-9a14-5345cfb73837",
-      "name": "List Subdirectory",
-      "type": "n8n-nodes-base.github",
-      "position": [
-        384,
-        10112
-      ],
-      "typeVersion": 1,
-      "webhookId": "808f1902-3b5f-48fe-8ec2-6baeefb3631e",
-      "credentials": {
-        "githubApi": {
-          "id": "QO1GzHuZN8K3xHku",
-          "name": "GitHub account"
-        }
-      }
-    },
-    {
-      "parameters": {
         "assignments": {
           "assignments": [
             {
@@ -1277,8 +1170,8 @@
     "templateCredsSetupCompleted": true
   },
   "pinData": {},
-  "versionId": "e89b815a-6c18-4df3-beed-8282616f9c18",
-  "activeVersionId": "e89b815a-6c18-4df3-beed-8282616f9c18",
+  "versionId": "bfb1b871-7fc9-476c-9f2a-22abcd3ae5b2",
+  "activeVersionId": "bfb1b871-7fc9-476c-9f2a-22abcd3ae5b2",
   "triggerCount": 2,
   "shared": [
     {
@@ -1290,9 +1183,9 @@
     }
   ],
   "activeVersion": {
-    "updatedAt": "2025-12-26T17:32:34.162Z",
-    "createdAt": "2025-12-26T17:32:34.162Z",
-    "versionId": "e89b815a-6c18-4df3-beed-8282616f9c18",
+    "updatedAt": "2025-12-26T17:44:23.445Z",
+    "createdAt": "2025-12-26T17:44:23.445Z",
+    "versionId": "bfb1b871-7fc9-476c-9f2a-22abcd3ae5b2",
     "workflowId": "r4ICnvhdbQwejSdH",
     "nodes": [
       {
@@ -2039,113 +1932,6 @@
           9904
         ],
         "typeVersion": 2
-      },
-      {
-        "parameters": {
-          "conditions": {
-            "options": {
-              "version": 2,
-              "leftValue": "",
-              "caseSensitive": true,
-              "typeValidation": "strict"
-            },
-            "combinator": "and",
-            "conditions": [
-              {
-                "id": "b9ed0bad-4ebe-4378-807e-1a6082c4461d",
-                "operator": {
-                  "type": "string",
-                  "operation": "notContains"
-                },
-                "leftValue": "={{ $json.name }}",
-                "rightValue": "placeholder"
-              }
-            ]
-          },
-          "options": {}
-        },
-        "id": "bda1dd4e-00b0-4476-8e18-d42d8895bc44",
-        "name": "Filter Placeholder",
-        "type": "n8n-nodes-base.filter",
-        "position": [
-          224,
-          9904
-        ],
-        "typeVersion": 2.2
-      },
-      {
-        "parameters": {
-          "conditions": {
-            "options": {
-              "version": 2,
-              "leftValue": "",
-              "caseSensitive": true,
-              "typeValidation": "strict"
-            },
-            "combinator": "and",
-            "conditions": [
-              {
-                "id": "is-json-file",
-                "operator": {
-                  "type": "string",
-                  "operation": "endsWith"
-                },
-                "leftValue": "={{ $json.name }}",
-                "rightValue": ".json"
-              },
-              {
-                "id": "is-file-type",
-                "operator": {
-                  "type": "string",
-                  "operation": "equals"
-                },
-                "leftValue": "={{ $json.type }}",
-                "rightValue": "file"
-              }
-            ]
-          },
-          "options": {}
-        },
-        "id": "bf578442-6380-43c7-98a5-4521f9eace96",
-        "name": "Is JSON File?",
-        "type": "n8n-nodes-base.if",
-        "position": [
-          384,
-          9904
-        ],
-        "typeVersion": 2.2
-      },
-      {
-        "parameters": {
-          "resource": "file",
-          "operation": "list",
-          "owner": {
-            "__rl": true,
-            "mode": "name",
-            "value": "={{ $('Set GitHub Details').item.json.github_account_name }}"
-          },
-          "repository": {
-            "__rl": true,
-            "mode": "name",
-            "value": "={{ $('Set GitHub Details').item.json.github_repo_name }}"
-          },
-          "filePath": "={{ $json.path }}"
-        },
-        "id": "8dc74393-6592-4fec-9a14-5345cfb73837",
-        "name": "List Subdirectory",
-        "type": "n8n-nodes-base.github",
-        "position": [
-          384,
-          10112
-        ],
-        "typeVersion": 1,
-        "webhookId": "808f1902-3b5f-48fe-8ec2-6baeefb3631e",
-        "credentials": {
-          "githubApi": {
-            "id": "QO1GzHuZN8K3xHku",
-            "name": "GitHub account"
-          }
-        }
       },
       {
         "parameters": {
