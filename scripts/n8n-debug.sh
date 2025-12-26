@@ -2,7 +2,16 @@
 # n8n Debug Helper Script
 # Enables full debug loop from Cursor without switching to n8n UI
 
-# Configuration
+# Get script directory to find .env file
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+
+# Load .env file if it exists (for Cursor/IDE usage)
+if [ -f "$PROJECT_DIR/.env" ]; then
+    source "$PROJECT_DIR/.env"
+fi
+
+# Configuration (env vars take precedence)
 N8N_BASE_URL="${N8N_BASE_URL:-https://chrt.app.n8n.cloud}"
 N8N_API_KEY="${N8N_API_KEY:-}"
 WORKFLOW_ID="${WORKFLOW_ID:-r4ICnvhdbQwejSdH}"
@@ -166,7 +175,7 @@ get_execution() {
     echo -e "${BLUE}Getting execution details for $execution_id...${NC}"
     echo ""
     
-    response=$(curl -s "$N8N_BASE_URL/api/v1/executions/$execution_id" \
+    response=$(curl -s "$N8N_BASE_URL/api/v1/executions/$execution_id?includeData=true" \
         -H "accept: application/json" \
         -H "X-N8N-API-KEY: $N8N_API_KEY")
     
@@ -201,7 +210,7 @@ get_full_execution() {
     
     echo -e "${BLUE}Getting full execution data for $execution_id...${NC}"
     
-    response=$(curl -s "$N8N_BASE_URL/api/v1/executions/$execution_id" \
+    response=$(curl -s "$N8N_BASE_URL/api/v1/executions/$execution_id?includeData=true" \
         -H "accept: application/json" \
         -H "X-N8N-API-KEY: $N8N_API_KEY")
     

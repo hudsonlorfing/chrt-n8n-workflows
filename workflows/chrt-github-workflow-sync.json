@@ -65,36 +65,39 @@
     },
     {
       "parameters": {
-        "resource": "file",
-        "operation": "list",
-        "owner": {
-          "__rl": true,
-          "mode": "name",
-          "value": "={{ $json.github_account_name }}"
-        },
-        "repository": {
-          "__rl": true,
-          "mode": "name",
-          "value": "={{ $json.github_repo_name }}"
-        },
-        "filePath": "=/{{ $json.repo_workflows_path }}"
+        "method": "GET",
+        "url": "=https://api.github.com/repos/{{ $json.github_account_name }}/{{ $json.github_repo_name }}/git/trees/main?recursive=1",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "githubApi",
+        "options": {}
       },
-      "id": "ecb3f32b-f985-4fde-8801-b54580d8119e",
-      "name": "List files from repo",
-      "type": "n8n-nodes-base.github",
+      "id": "get-github-tree",
+      "name": "Get GitHub Tree",
+      "type": "n8n-nodes-base.httpRequest",
       "position": [
         0,
         9904
       ],
-      "webhookId": "0614066f-212d-4f9e-9da2-fa4a80b44baf",
-      "typeVersion": 1,
-      "alwaysOutputData": true,
+      "typeVersion": 4.2,
       "credentials": {
         "githubApi": {
           "id": "QO1GzHuZN8K3xHku",
           "name": "GitHub account"
         }
       }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract all JSON files from the workflows/ directory\nconst tree = $input.first().json.tree || [];\nconst workflowsPath = $('Set GitHub Details').first().json.repo_workflows_path;\n\n// Filter to only JSON files within the workflows directory\nconst jsonFiles = tree.filter(item => {\n  return item.type === 'blob' && \n         item.path.startsWith(workflowsPath + '/') && \n         item.path.endsWith('.json');\n});\n\n// Return each file as a separate item\nreturn jsonFiles.map(file => ({\n  json: {\n    path: file.path,\n    sha: file.sha,\n    name: file.path.split('/').pop()\n  }\n}));\n"
+      },
+      "id": "filter-workflow-files",
+      "name": "Filter Workflow Files",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        208,
+        9904
+      ],
+      "typeVersion": 2
     },
     {
       "parameters": {
@@ -939,46 +942,6 @@
         ]
       ]
     },
-    "Filter Placeholder": {
-      "main": [
-        [
-          {
-            "node": "Is JSON File?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Is JSON File?": {
-      "main": [
-        [
-          {
-            "node": "GitHub",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "List Subdirectory",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "List Subdirectory": {
-      "main": [
-        [
-          {
-            "node": "Filter Placeholder",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "GitHub": {
       "main": [
         [
@@ -1241,7 +1204,29 @@
             "index": 0
           },
           {
-            "node": "List files from repo",
+            "node": "Get GitHub Tree",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get GitHub Tree": {
+      "main": [
+        [
+          {
+            "node": "Filter Workflow Files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Workflow Files": {
+      "main": [
+        [
+          {
+            "node": "GitHub",
             "type": "main",
             "index": 0
           }
@@ -1260,17 +1245,6 @@
         [
           {
             "node": "Code - InputA",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "List files from repo": {
-      "main": [
-        [
-          {
-            "node": "Filter Placeholder",
             "type": "main",
             "index": 0
           }
