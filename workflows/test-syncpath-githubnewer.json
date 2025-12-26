@@ -1,0 +1,54 @@
+{
+  "name": "TEST-SyncPath-GitHubNewer",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "test-manual",
+      "name": "Manual",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "test",
+              "value": "from-github-UPDATED"
+            }
+          ]
+        }
+      },
+      "id": "test-set",
+      "name": "Set Test Value",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        200,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Manual": {
+      "main": [
+        [
+          {
+            "node": "Set Test Value",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "updatedAt": "2099-12-31T23:59:59.999Z",
+  "id": "NTWiyNZ7p3oxh8SE"
+}

@@ -1,0 +1,25 @@
+{
+  "name": "TEST-SyncPath-OnlyInGitHub",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "github-only-trigger",
+      "name": "From GitHub",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {"values": {"string": [{"name": "source", "value": "Created from GitHub!"}]}},
+      "id": "github-only-set",
+      "name": "Mark Source",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [200, 0]
+    }
+  ],
+  "connections": {
+    "From GitHub": {"main": [[{"node": "Mark Source", "type": "main", "index": 0}]]}
+  },
+  "settings": {"executionOrder": "v1"}
+}
