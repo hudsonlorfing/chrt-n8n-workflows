@@ -40,11 +40,21 @@ update_workflow() {
     
     echo -e "${BLUE}Updating workflow from $json_file...${NC}"
     
+    # Filter out read-only properties that the API doesn't accept
+    # Keep only: name, nodes, connections, settings, staticData
+    filtered_json=$(cat "$json_file" | jq '{
+        name: .name,
+        nodes: .nodes,
+        connections: .connections,
+        settings: .settings,
+        staticData: .staticData
+    }')
+    
     response=$(curl -s -X PUT "$N8N_BASE_URL/api/v1/workflows/$WORKFLOW_ID" \
         -H "accept: application/json" \
         -H "Content-Type: application/json" \
         -H "X-N8N-API-KEY: $N8N_API_KEY" \
-        -d @"$json_file")
+        -d "$filtered_json")
     
     if echo "$response" | grep -q '"id"'; then
         echo -e "${GREEN}✓ Workflow updated successfully${NC}"
