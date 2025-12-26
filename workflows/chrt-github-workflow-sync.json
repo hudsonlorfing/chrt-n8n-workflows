@@ -349,7 +349,7 @@
       "name": "n8n vs GitHub",
       "type": "n8n-nodes-base.compareDatasets",
       "position": [
-        896,
+        1056,
         9776
       ],
       "typeVersion": 2.3
@@ -720,6 +720,33 @@
         9904
       ],
       "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "options": {}
+      },
+      "id": "aggregate-github-files",
+      "name": "Aggregate GitHub Files",
+      "type": "n8n-nodes-base.aggregate",
+      "position": [
+        760,
+        9904
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "jsCode": "// Split aggregated items back into individual items for comparison\nconst aggregated = $input.first().json.data || [];\n\n// Return each workflow as a separate item\nreturn aggregated.map(item => ({ json: item }));\n"
+      },
+      "id": "split-github-files",
+      "name": "Split for Comparison",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        856,
+        9904
+      ],
+      "typeVersion": 2
     },
     {
       "parameters": {
@@ -1129,6 +1156,28 @@
       ]
     },
     "Decode to json": {
+      "main": [
+        [
+          {
+            "node": "Aggregate GitHub Files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate GitHub Files": {
+      "main": [
+        [
+          {
+            "node": "Split for Comparison",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split for Comparison": {
       "main": [
         [
           {

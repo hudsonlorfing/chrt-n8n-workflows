@@ -47,24 +47,19 @@
 
 ## Next Steps
 
-### Priority 1: Fix Directory Traversal
+### Priority 1: ✅ Fix Directory Traversal (IMPLEMENTED)
 
-The core issue is that subdirectory files aren't being collected before the comparison runs.
+**Root Cause**: Items were flowing to comparison immediately without waiting for subdirectory processing to complete.
 
-**Options to investigate**:
+**Solution Applied**: Added Aggregate → Split pattern:
+```
+Decode to json → Aggregate GitHub Files → Split for Comparison → n8n vs GitHub
+```
 
-1. **Use a single Code node** that makes HTTP requests to GitHub API recursively
-   - More control over when data is ready
-   - Can collect ALL files before outputting
-
-2. **Add a "Wait" or aggregation step**
-   - Ensure all branches (root files + subdirectory files) complete before comparison
-   - Use n8n's "Merge" node to combine results from both paths
-
-3. **Simplify to flat structure**
-   - Remove subdirectory support
-   - Keep all workflows in `workflows/` root
-   - Tag-based organization only in n8n, not reflected in GitHub
+This ensures:
+1. ALL GitHub files (root + subdirectories) are collected first
+2. Then split back into individual items for comparison
+3. Comparison runs only after complete file collection
 
 ### Priority 2: Fix Comparison Logic
 
