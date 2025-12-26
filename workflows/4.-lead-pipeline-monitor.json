@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2025-12-26T20:04:15.241Z",
+  "updatedAt": "2025-12-26T20:46:06.090Z",
   "createdAt": "2025-12-26T18:55:11.571Z",
   "id": "dWFsEXELFTJU0W01",
   "name": "4. Lead Pipeline Monitor",
@@ -22,7 +22,7 @@
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
       "position": [
-        -200,
+        -208,
         400
       ]
     },
@@ -38,16 +38,14 @@
           "mode": "name",
           "value": "Dashboard"
         },
-        "options": {
-          "range": "B5:D5"
-        }
+        "options": {}
       },
       "id": "read-dashboard",
       "name": "Read Dashboard Metrics",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        20,
+        32,
         400
       ],
       "credentials": {
@@ -99,7 +97,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        460,
+        464,
         400
       ]
     },
@@ -107,20 +105,20 @@
       "parameters": {
         "method": "POST",
         "url": "={{ $env.N8N_WEBHOOK_URL || 'https://chrt.app.n8n.cloud' }}/webhook/lead-ingestion",
-        "options": {
-          "timeout": 300000
-        },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ batchSize: 240, source: 'pipeline-monitor' }) }}"
+        "jsonBody": "={{ JSON.stringify({ batchSize: 240, source: 'pipeline-monitor' }) }}",
+        "options": {
+          "timeout": 300000
+        }
       },
       "id": "trigger-ingestion",
       "name": "Trigger Lead Ingestion",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        700,
-        300
+        704,
+        304
       ],
       "onError": "continueRegularOutput"
     },
@@ -153,8 +151,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        700,
-        500
+        704,
+        512
       ]
     },
     {
@@ -176,8 +174,8 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        940,
-        500
+        944,
+        512
       ],
       "credentials": {
         "googleSheetsOAuth2Api": {
@@ -195,8 +193,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1160,
-        500
+        1168,
+        512
       ]
     },
     {
@@ -228,7 +226,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        1380,
+        1392,
         400
       ]
     },
@@ -240,7 +238,7 @@
       "typeVersion": 1,
       "position": [
         1600,
-        300
+        304
       ],
       "notesInFlow": true,
       "notes": "TODO: Configure SMTP - Low URL Alert"
@@ -274,8 +272,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        1380,
-        600
+        1392,
+        608
       ]
     },
     {
@@ -286,7 +284,7 @@
       "typeVersion": 1,
       "position": [
         1600,
-        500
+        512
       ],
       "notesInFlow": true,
       "notes": "TODO: Configure SMTP - Fallback Mode Alert"
@@ -320,7 +318,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        1380,
+        1392,
         800
       ]
     },
@@ -366,8 +364,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        1820,
-        500
+        1824,
+        512
       ]
     },
     {
@@ -388,7 +386,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2040,
+        2048,
         400
       ],
       "credentials": {
@@ -407,7 +405,7 @@
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        2260,
+        2272,
         400
       ],
       "webhookId": "phantom-wait"
@@ -445,7 +443,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2700,
+        2704,
         400
       ]
     },
@@ -468,8 +466,8 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        2920,
-        300
+        2928,
+        304
       ],
       "credentials": {
         "googleSheetsOAuth2Api": {
@@ -497,8 +495,8 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        2920,
-        500
+        2928,
+        512
       ],
       "credentials": {
         "googleSheetsOAuth2Api": {
@@ -516,7 +514,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3140,
+        3152,
         400
       ]
     },
@@ -562,8 +560,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3580,
-        300
+        3584,
+        304
       ]
     },
     {
@@ -590,8 +588,8 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        3800,
-        300
+        3808,
+        304
       ],
       "credentials": {
         "googleSheetsOAuth2Api": {
@@ -650,7 +648,7 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        4020,
+        4032,
         400
       ],
       "credentials": {
@@ -669,8 +667,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3580,
-        500
+        3584,
+        512
       ]
     },
     {
@@ -685,9 +683,7 @@
           "mode": "name",
           "value": "Dashboard"
         },
-        "options": {
-          "range": "B5:D5"
-        }
+        "options": {}
       },
       "id": "recheck-dashboard",
       "name": "Re-check Dashboard B5",
@@ -713,7 +709,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4460,
+        4464,
         400
       ]
     },
@@ -746,7 +742,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        4680,
+        4688,
         400
       ]
     },
@@ -760,8 +756,8 @@
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        4900,
-        300
+        4912,
+        304
       ],
       "webhookId": "retry-wait"
     },
@@ -772,8 +768,8 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        4900,
-        500
+        4912,
+        512
       ]
     },
     {
@@ -783,8 +779,8 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        2040,
-        600
+        2048,
+        608
       ]
     },
     {
@@ -799,24 +795,36 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [
-        -200,
-        600
+        -208,
+        608
       ],
       "webhookId": "pipeline-monitor-webhook"
     },
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ JSON.stringify({ success: true, message: 'Pipeline monitor completed', timestamp: new Date().toISOString() }) }}"
+        "responseBody": "={{ JSON.stringify({ success: true, message: 'Pipeline monitor completed', timestamp: new Date().toISOString() }) }}",
+        "options": {}
       },
       "id": "webhook-response",
       "name": "Webhook Response",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [
-        5100,
-        500
+        5104,
+        512
       ]
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -240,
+        800
+      ],
+      "id": "baa72fbb-d099-4029-ba26-7b3608559d78",
+      "name": "When clicking ‘Execute workflow’"
     }
   ],
   "connections": {
@@ -1240,6 +1248,17 @@
           }
         ]
       ]
+    },
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Read Dashboard Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
@@ -1253,8 +1272,8 @@
     }
   },
   "meta": null,
-  "pinData": null,
-  "versionId": "e54e4a20-2f96-4001-951c-b0ac0a9ff70d",
+  "pinData": {},
+  "versionId": "8778f82b-6349-466b-a1bb-e1fd05da4c29",
   "activeVersionId": null,
   "triggerCount": 2,
   "shared": [
