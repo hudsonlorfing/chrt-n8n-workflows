@@ -1,9 +1,10 @@
 {
-  "updatedAt": "2025-12-26T17:42:23.264Z",
+  "updatedAt": "2025-12-26T19:50:21.235Z",
   "createdAt": "2025-12-17T17:08:43.420Z",
   "id": "aLxwvqoSTkZAQ3fq",
   "name": "1. Lead Ingestion & ICP Scoring",
-  "active": false,
+  "description": null,
+  "active": true,
   "isArchived": false,
   "nodes": [
     {
@@ -619,12 +620,26 @@
     },
     {
       "parameters": {
-        "jsCode": "// Get all items from both inputs using efficient Set lookup\nconst newLeads = $('Read New Leads').all();\nconst masterList = $('Read Master List').all();\n\n// Create a Set of existing profile URLs for O(1) lookup\nconst existingUrls = new Set(\n  masterList.map(item => (item.json.profileUrl || '').trim().toLowerCase())\n);\n\n// Filter new leads to only those not in master list\nconst uniqueLeads = newLeads.filter(lead => {\n  const url = (lead.json.profileUrl || '').trim().toLowerCase();\n  return url && !existingUrls.has(url);\n});\n\nreturn uniqueLeads;\n"
+        "mode": "append",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        -28000,
+        3104
+      ],
+      "id": "merge-wait-for-both",
+      "name": "Wait for Both Sheets"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Data comes from Merge node (append mode)\n// Input 0: New Leads, Input 1: Master List\n// The merge appends both, so we need to identify them by structure\n\n// All items from the merge\nconst allItems = $input.all();\n\n// New Leads have 'linkedinProfileUrl' or 'profileUrl', Master List has 'profileUrl'\n// Master List items have 'score' field (from previous processing)\nconst newLeads = [];\nconst masterUrls = new Set();\n\nallItems.forEach(item => {\n  const data = item.json;\n  // Master List items have 'score' or 'segment' fields\n  if (data.score !== undefined || data.segment !== undefined) {\n    const url = (data.profileUrl || '').trim().toLowerCase();\n    if (url) masterUrls.add(url);\n  } else {\n    // This is a new lead\n    newLeads.push(item);\n  }\n});\n\n// Filter new leads to only those not in master list\nconst uniqueLeads = newLeads.filter(lead => {\n  const url = (lead.json.linkedinProfileUrl || lead.json.profileUrl || '').trim().toLowerCase();\n  return url && !masterUrls.has(url);\n});\n\nreturn uniqueLeads;\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -27904,
+        -27700,
         3104
       ],
       "id": "1b0c3579-90f5-45b6-8881-d1143bf6959f",
@@ -632,20 +647,66 @@
     },
     {
       "parameters": {
-        "maxItems": "={{ (() => { try { return $('Determine Batch Size').first()?.json?.batchSize || 10; } catch (e) { return 10; } })() }}"
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "has-items",
+              "leftValue": "={{ $input.all().length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -27600,
+        3104
+      ],
+      "id": "check-has-leads",
+      "name": "Has Leads to Process?"
+    },
+    {
+      "parameters": {
+        "maxItems": 10
       },
       "type": "n8n-nodes-base.limit",
       "typeVersion": 1,
       "position": [
-        -27504,
-        3104
+        -27400,
+        3000
       ],
       "id": "6cc0c946-726b-454e-955f-db87dd179c71",
       "name": "Limit"
     },
     {
       "parameters": {
-        "jsCode": "// Return final status\nconst batchSize = $('Determine Batch Size').first()?.json?.batchSize || 10;\nreturn [{ json: { success: true, batchSize, source: 'lead-ingestion', timestamp: new Date().toISOString() } }];"
+        "jsCode": "// No leads to process\nreturn [{ json: { success: true, processed: 0, message: 'No new leads to process', timestamp: new Date().toISOString() } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -27400,
+        3200
+      ],
+      "id": "no-leads-found",
+      "name": "No Leads Found"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Return final status\nreturn [{ json: { success: true, source: 'lead-ingestion', timestamp: new Date().toISOString() } }];"
       },
       "id": "final-status",
       "name": "Final Status",
@@ -700,7 +761,7 @@
       "main": [
         [
           {
-            "node": "Dedupe New Leads",
+            "node": "Wait for Both Sheets",
             "type": "main",
             "index": 0
           }
@@ -708,6 +769,17 @@
       ]
     },
     "Read Master List": {
+      "main": [
+        [
+          {
+            "node": "Wait for Both Sheets",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Wait for Both Sheets": {
       "main": [
         [
           {
@@ -806,7 +878,25 @@
       "main": [
         [
           {
+            "node": "Has Leads to Process?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Leads to Process?": {
+      "main": [
+        [
+          {
             "node": "Limit",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Leads Found",
             "type": "main",
             "index": 0
           }
@@ -818,6 +908,17 @@
         [
           {
             "node": "Loop Over Leads1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "No Leads Found": {
+      "main": [
+        [
+          {
+            "node": "Final Status",
             "type": "main",
             "index": 0
           }
@@ -835,19 +936,64 @@
     "templateCredsSetupCompleted": true
   },
   "pinData": {},
-  "versionId": "f3afa973-8598-4da2-b7e8-4f54512bda0e",
-  "activeVersionId": null,
-  "triggerCount": 0,
+  "versionId": "7e8ebbd6-9c9f-4ce6-a5ad-b223a642c1f0",
+  "activeVersionId": "7e8ebbd6-9c9f-4ce6-a5ad-b223a642c1f0",
+  "versionCounter": 38,
+  "triggerCount": 1,
   "shared": [
     {
       "updatedAt": "2025-12-24T03:18:27.972Z",
       "createdAt": "2025-12-24T03:18:27.972Z",
       "role": "workflow:owner",
       "workflowId": "aLxwvqoSTkZAQ3fq",
-      "projectId": "O7lTivDfRl72aS23"
+      "projectId": "O7lTivDfRl72aS23",
+      "project": {
+        "updatedAt": "2025-12-24T03:17:11.000Z",
+        "createdAt": "2025-12-23T21:24:31.508Z",
+        "id": "O7lTivDfRl72aS23",
+        "name": "ChrtWorkflows",
+        "type": "team",
+        "icon": {
+          "type": "icon",
+          "value": "layers"
+        },
+        "description": "",
+        "projectRelations": [
+          {
+            "updatedAt": "2025-12-23T21:24:31.510Z",
+            "createdAt": "2025-12-23T21:24:31.510Z",
+            "userId": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4",
+            "projectId": "O7lTivDfRl72aS23",
+            "user": {
+              "updatedAt": "2025-12-26T16:26:59.000Z",
+              "createdAt": "2025-12-17T12:51:53.118Z",
+              "id": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4",
+              "email": "hudson@chrt.com",
+              "firstName": "Hudson",
+              "lastName": "Lorfing",
+              "personalizationAnswers": null,
+              "settings": {
+                "userActivated": true,
+                "userClaimedAiCredits": true,
+                "easyAIWorkflowOnboarded": true,
+                "firstSuccessfulWorkflowId": "kjjYKQEXv67Vl5MS",
+                "userActivatedAt": 1766099344758,
+                "npsSurvey": {
+                  "waitingForResponse": true,
+                  "ignoredCount": 1,
+                  "lastShownAt": 1766525415079
+                }
+              },
+              "disabled": false,
+              "mfaEnabled": false,
+              "lastActiveAt": "2025-12-26",
+              "isPending": false
+            }
+          }
+        ]
+      }
     }
   ],
-  "activeVersion": null,
   "tags": [
     {
       "updatedAt": "2025-12-17T14:25:00.955Z",
@@ -856,6 +1002,943 @@
       "name": "linkedin"
     }
   ],
-  "_folderPath": "linkedin",
-  "_fileName": "1.-lead-ingestion-&-icp-scoring.json"
+  "activeVersion": {
+    "updatedAt": "2025-12-26T19:50:21.237Z",
+    "createdAt": "2025-12-26T19:50:21.237Z",
+    "versionId": "7e8ebbd6-9c9f-4ce6-a5ad-b223a642c1f0",
+    "workflowId": "aLxwvqoSTkZAQ3fq",
+    "nodes": [
+      {
+        "parameters": {
+          "notice": "Click 'Test workflow' to run manually after pasting PhantomBuster export into New Leads sheet"
+        },
+        "id": "948717d3-54d7-4dc2-beaa-ceb078510e74",
+        "name": "Run Manually",
+        "type": "n8n-nodes-base.manualTrigger",
+        "typeVersion": 1,
+        "position": [
+          -28448,
+          3120
+        ]
+      },
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "lead-ingestion",
+          "responseMode": "lastNode",
+          "options": {}
+        },
+        "id": "webhook-trigger-ingestion",
+        "name": "Webhook Trigger",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          -28448,
+          2920
+        ],
+        "webhookId": "lead-ingestion-webhook"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Determine batch size based on trigger source\n// Default: 10 for manual, 240 for webhook (pipeline monitor)\nlet batchSize = 10;\n\ntry {\n  // Check if triggered via webhook with batchSize parameter\n  const inputData = $input.first()?.json || {};\n  if (inputData.batchSize) {\n    batchSize = parseInt(inputData.batchSize) || 240;\n  }\n  // Also check body property (n8n webhook wraps data sometimes)\n  if (inputData.body && inputData.body.batchSize) {\n    batchSize = parseInt(inputData.body.batchSize) || 240;\n  }\n} catch (e) {\n  // Manual trigger - use default\n  batchSize = 10;\n}\n\nreturn [{ json: { batchSize, source: batchSize > 10 ? 'pipeline-monitor' : 'manual' } }];"
+        },
+        "id": "determine-batch-size",
+        "name": "Determine Batch Size",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -28224,
+          2920
+        ]
+      },
+      {
+        "parameters": {
+          "documentId": {
+            "__rl": true,
+            "mode": "id",
+            "value": "1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8"
+          },
+          "sheetName": {
+            "__rl": true,
+            "mode": "name",
+            "value": "New Leads"
+          },
+          "options": {}
+        },
+        "id": "30a11b75-df9c-4f57-8241-0343d63b25b2",
+        "name": "Read New Leads",
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.5,
+        "position": [
+          -28224,
+          3008
+        ],
+        "credentials": {
+          "googleSheetsOAuth2Api": {
+            "id": "hf9VoWnqYNXhUZsn",
+            "name": "Google Sheets account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "documentId": {
+            "__rl": true,
+            "mode": "id",
+            "value": "1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8"
+          },
+          "sheetName": {
+            "__rl": true,
+            "mode": "name",
+            "value": "Master List"
+          },
+          "options": {}
+        },
+        "id": "984f4604-dd13-497a-9070-98c8d4e0c465",
+        "name": "Read Master List",
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.5,
+        "position": [
+          -28224,
+          3200
+        ],
+        "credentials": {
+          "googleSheetsOAuth2Api": {
+            "id": "hf9VoWnqYNXhUZsn",
+            "name": "Google Sheets account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "options": {
+            "reset": false
+          }
+        },
+        "id": "7f59b5ed-00a5-4e40-802b-a8718277b0dd",
+        "name": "Loop Over Leads1",
+        "type": "n8n-nodes-base.splitInBatches",
+        "typeVersion": 3,
+        "position": [
+          -26928,
+          3120
+        ]
+      },
+      {
+        "parameters": {
+          "modelId": {
+            "__rl": true,
+            "mode": "id",
+            "value": "claude-sonnet-4-5-20250929"
+          },
+          "messages": {
+            "values": [
+              {
+                "content": "={{ `Score this LinkedIn profile 0-10 for Chrt, a B2B SaaS for time-critical logistics. Return JSON only:\n{\"score\": <0-10>, \"segment\": \"<Shipper-Healthcare|Shipper-Aerospace|Courier|Forwarder|Skip>\", \"reason\": \"<one sentence>\"}\n\n## ICP CRITERIA\n\n### SHIPPER-HEALTHCARE (7-10)\nTitles: CSCO, Director, VP Supply Chain, VP Lab Ops, Director Logistics/Transportation/Courier Ops, Supply Chain Manager, Director Field Ops, Case Logistics Manager\nCompanies: Regional health systems, genetics/specialty labs, pharma/biotech, OPOs, tissue/blood banks, med device (surgical kits)\nSignals: \"logistics\" \"supply chain\" \"courier\" \"specimen\" in headline | 200-10K employees | Regional focus\n\n### SHIPPER-AEROSPACE (7-10)\nTitles: VP/SVP Supply Chain, Director, Director AOG Ops, VP Aftermarket/Customer Support, Materials Manager, CPO\nCompanies: MRO facilities, aircraft component mfg, engine MROs (StandardAero, MTU), airline maintenance\nSignals: \"AOG\" \"MRO\" \"aviation\" \"aerospace\" | Aftermarket focus | Emergency parts\n*Avoid: if currrent role is Airspace, previous roles at Airspace is not an issue\n\n### COURIER (6-10)\nTitles: Owner/CEO/Founder, Director, Operations Manager, Dispatch Manager, Fleet Manager, GM\nCompanies: Medical couriers, same-day/time-critical, cold chain specialists, regional networks\nSignals: \"medical courier\" \"same-day\" \"cold chain\" | 10-500 employees | Owner/operator\nAvoid: FedEx/UPS employees, DoorDash/Uber Eats, Amazon DSPs\n*Avoid: if currrent role is Airspace, previous roles at Airspace is not an issue\n\n### FORWARDER/AGENT (5-8)\nTitles: Operations Manager, Station Manager, Logistics Manager, Director, Network Manager\nCompanies: Freight forwarders, 3PLs with last-mile, same-day logistics specialists\n*Avoid: if currrent role is Airspace, previous roles at Airspace is not an issue\n\n## SCORING: 10=Perfect fit, 8-9=Excellent, 6-7=Good, 4-5=Marginal, 1-3=Poor, 0=Skip\n\n## LEAD DATA\nName: ${$json.fullName || 'Unknown'}\nTitle: ${$json.jobTitle || 'Unknown'}\nCompany: ${$json.company || 'Unknown'}\nIndustry: ${$json.industry || 'Unknown'}\nHeadline: ${$json.headline || 'N/A'}\nLocation: ${$json.location || 'N/A'}\nPrevious: ${$json.jobTitle2 || 'N/A'} @ ${$json.company2 || 'N/A'}` }}\n\n## INDUSTRY OPTIONS TO USE EXPLICITLY FROM HUBSPOT\nACCOUNTING, AIRLINES_AVIATION, ALTERNATIVE_DISPUTE_RESOLUTION, ALTERNATIVE_MEDICINE, ANIMATION, APPAREL_FASHION, ARCHITECTURE_PLANNING, ARTS_AND_CRAFTS, AUTOMOTIVE, AVIATION_AEROSPACE, BANKING, BIOTECHNOLOGY, BROADCAST_MEDIA, BUILDING_MATERIALS, BUSINESS_SUPPLIES_AND_EQUIPMENT, CAPITAL_MARKETS, CHEMICALS, CIVIC_SOCIAL_ORGANIZATION, CIVIL_ENGINEERING, COMMERCIAL_REAL_ESTATE, COMPUTER_NETWORK_SECURITY, COMPUTER_GAMES, COMPUTER_HARDWARE, COMPUTER_NETWORKING, COMPUTER_SOFTWARE, INTERNET, CONSTRUCTION, CONSUMER_ELECTRONICS, CONSUMER_GOODS, CONSUMER_SERVICES, COSMETICS, DAIRY, DEFENSE_SPACE, DESIGN, EDUCATION_MANAGEMENT, E_LEARNING, ELECTRICAL_ELECTRONIC_MANUFACTURING, ENTERTAINMENT, ENVIRONMENTAL_SERVICES, EVENTS_SERVICES, EXECUTIVE_OFFICE, FACILITIES_SERVICES, FARMING, FINANCIAL_SERVICES, FINE_ART, FISHERY, FOOD_BEVERAGES, FOOD_PRODUCTION, FUND_RAISING, FURNITURE, GAMBLING_CASINOS, GLASS_CERAMICS_CONCRETE, GOVERNMENT_ADMINISTRATION, GOVERNMENT_RELATIONS, GRAPHIC_DESIGN, HEALTH_WELLNESS_AND_FITNESS, HIGHER_EDUCATION, HOSPITAL_HEALTH_CARE, HOSPITALITY, HUMAN_RESOURCES, IMPORT_AND_EXPORT, INDIVIDUAL_FAMILY_SERVICES, INDUSTRIAL_AUTOMATION, INFORMATION_SERVICES, INFORMATION_TECHNOLOGY_AND_SERVICES, INSURANCE, INTERNATIONAL_AFFAIRS, INTERNATIONAL_TRADE_AND_DEVELOPMENT, INVESTMENT_BANKING, INVESTMENT_MANAGEMENT, JUDICIARY, LAW_ENFORCEMENT, LAW_PRACTICE, LEGAL_SERVICES, LEGISLATIVE_OFFICE, LEISURE_TRAVEL_TOURISM, LIBRARIES, LOGISTICS_AND_SUPPLY_CHAIN, LUXURY_GOODS_JEWELRY, MACHINERY, MANAGEMENT_CONSULTING, MARITIME, MARKET_RESEARCH, MARKETING_AND_ADVERTISING, MECHANICAL_OR_INDUSTRIAL_ENGINEERING, MEDIA_PRODUCTION, MEDICAL_DEVICES, MEDICAL_PRACTICE, MENTAL_HEALTH_CARE, MILITARY, MINING_METALS, MOTION_PICTURES_AND_FILM, MUSEUMS_AND_INSTITUTIONS, MUSIC, NANOTECHNOLOGY, NEWSPAPERS, NON_PROFIT_ORGANIZATION_MANAGEMENT, OIL_ENERGY, ONLINE_MEDIA, OUTSOURCING_OFFSHORING, PACKAGE_FREIGHT_DELIVERY, PACKAGING_AND_CONTAINERS, PAPER_FOREST_PRODUCTS, PERFORMING_ARTS, PHARMACEUTICALS, PHILANTHROPY, PHOTOGRAPHY, PLASTICS, POLITICAL_ORGANIZATION, PRIMARY_SECONDARY_EDUCATION, PRINTING, PROFESSIONAL_TRAINING_COACHING, PROGRAM_DEVELOPMENT, PUBLIC_POLICY, PUBLIC_RELATIONS_AND_COMMUNICATIONS, PUBLIC_SAFETY, PUBLISHING, RAILROAD_MANUFACTURE, RANCHING, REAL_ESTATE, RECREATIONAL_FACILITIES_AND_SERVICES, RELIGIOUS_INSTITUTIONS, RENEWABLES_ENVIRONMENT, RESEARCH, RESTAURANTS, RETAIL, SECURITY_AND_INVESTIGATIONS, SEMICONDUCTORS, SHIPBUILDING, SPORTING_GOODS, SPORTS, STAFFING_AND_RECRUITING, SUPERMARKETS, TELECOMMUNICATIONS, TEXTILES, THINK_TANKS, TOBACCO, TRANSLATION_AND_LOCALIZATION, TRANSPORTATION_TRUCKING_RAILROAD, UTILITIES, VENTURE_CAPITAL_PRIVATE_EQUITY, VETERINARY, WAREHOUSING, WHOLESALE, WINE_AND_SPIRITS, WIRELESS, WRITING_AND_EDITING, MOBILE_GAMES]\",\"error\":\"INVALID_OPTION\",\"name\":\"industry\",\"localizedErrorMessage\":\"Hospital & Health Care was not one of the allowed options: [ACCOUNTING, AIRLINES_AVIATION, ALTERNATIVE_DISPUTE_RESOLUTION, ALTERNATIVE_MEDICINE, ANIMATION, APPAREL_FASHION, ARCHITECTURE_PLANNING, ARTS_AND_CRAFTS, AUTOMOTIVE, AVIATION_AEROSPACE, BANKING, BIOTECHNOLOGY, BROADCAST_MEDIA, BUILDING_MATERIALS, BUSINESS_SUPPLIES_AND_EQUIPMENT, CAPITAL_MARKETS, CHEMICALS, CIVIC_SOCIAL_ORGANIZATION, CIVIL_ENGINEERING, COMMERCIAL_REAL_ESTATE, COMPUTER_NETWORK_SECURITY, COMPUTER_GAMES, COMPUTER_HARDWARE, COMPUTER_NETWORKING, COMPUTER_SOFTWARE, INTERNET, CONSTRUCTION, CONSUMER_ELECTRONICS, CONSUMER_GOODS, CONSUMER_SERVICES, COSMETICS, DAIRY, DEFENSE_SPACE, DESIGN, EDUCATION_MANAGEMENT, E_LEARNING, ELECTRICAL_ELECTRONIC_MANUFACTURING, ENTERTAINMENT, ENVIRONMENTAL_SERVICES, EVENTS_SERVICES, EXECUTIVE_OFFICE, FACILITIES_SERVICES, FARMING, FINANCIAL_SERVICES, FINE_ART, FISHERY, FOOD_BEVERAGES, FOOD_PRODUCTION, FUND_RAISING, FURNITURE, GAMBLING_CASINOS, GLASS_CERAMICS_CONCRETE, GOVERNMENT_ADMINISTRATION, GOVERNMENT_RELATIONS, GRAPHIC_DESIGN, HEALTH_WELLNESS_AND_FITNESS, HIGHER_EDUCATION, HOSPITAL_HEALTH_CARE, HOSPITALITY, HUMAN_RESOURCES, IMPORT_AND_EXPORT, INDIVIDUAL_FAMILY_SERVICES, INDUSTRIAL_AUTOMATION, INFORMATION_SERVICES, INFORMATION_TECHNOLOGY_AND_SERVICES, INSURANCE, INTERNATIONAL_AFFAIRS, INTERNATIONAL_TRADE_AND_DEVELOPMENT, INVESTMENT_BANKING, INVESTMENT_MANAGEMENT, JUDICIARY, LAW_ENFORCEMENT, LAW_PRACTICE, LEGAL_SERVICES, LEGISLATIVE_OFFICE, LEISURE_TRAVEL_TOURISM, LIBRARIES, LOGISTICS_AND_SUPPLY_CHAIN, LUXURY_GOODS_JEWELRY, MACHINERY, MANAGEMENT_CONSULTING, MARITIME, MARKET_RESEARCH, MARKETING_AND_ADVERTISING, MECHANICAL_OR_INDUSTRIAL_ENGINEERING, MEDIA_PRODUCTION, MEDICAL_DEVICES, MEDICAL_PRACTICE, MENTAL_HEALTH_CARE, MILITARY, MINING_METALS, MOTION_PICTURES_AND_FILM, MUSEUMS_AND_INSTITUTIONS, MUSIC, NANOTECHNOLOGY, NEWSPAPERS, NON_PROFIT_ORGANIZATION_MANAGEMENT, OIL_ENERGY, ONLINE_MEDIA, OUTSOURCING_OFFSHORING, PACKAGE_FREIGHT_DELIVERY, PACKAGING_AND_CONTAINERS, PAPER_FOREST_PRODUCTS, PERFORMING_ARTS, PHARMACEUTICALS, PHILANTHROPY, PHOTOGRAPHY, PLASTICS, POLITICAL_ORGANIZATION, PRIMARY_SECONDARY_EDUCATION, PRINTING, PROFESSIONAL_TRAINING_COACHING, PROGRAM_DEVELOPMENT, PUBLIC_POLICY, PUBLIC_RELATIONS_AND_COMMUNICATIONS, PUBLIC_SAFETY, PUBLISHING, RAILROAD_MANUFACTURE, RANCHING, REAL_ESTATE, RECREATIONAL_FACILITIES_AND_SERVICES, RELIGIOUS_INSTITUTIONS, RENEWABLES_ENVIRONMENT, RESEARCH, RESTAURANTS, RETAIL, SECURITY_AND_INVESTIGATIONS, SEMICONDUCTORS, SHIPBUILDING, SPORTING_GOODS, SPORTS, STAFFING_AND_RECRUITING, SUPERMARKETS, TELECOMMUNICATIONS, TEXTILES, THINK_TANKS, TOBACCO, TRANSLATION_AND_LOCALIZATION, TRANSPORTATION_TRUCKING_RAILROAD, UTILITIES, VENTURE_CAPITAL_PRIVATE_EQUITY, VETERINARY, WAREHOUSING, WHOLESALE, WINE_AND_SPIRITS, WIRELESS, WRITING_AND_EDITING, MOBILE_GAMES"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "e38f26b7-c0b8-4c59-8432-04b73ee571fb",
+        "name": "AI ICP Score",
+        "type": "@n8n/n8n-nodes-langchain.anthropic",
+        "typeVersion": 1,
+        "position": [
+          -26704,
+          3120
+        ],
+        "credentials": {
+          "anthropicApi": {
+            "id": "B6k4mmzjw7OzEK5c",
+            "name": "Anthropic account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "const pb = $('Loop Over Leads1').item.json;\nlet aiResult = { score: 5, segment: 'Unknown', reason: 'Could not parse AI response' };\n\ntry {\n  const content = $('AI ICP Score').item.json.content?.[0]?.text || '{}';\n  const parsed = JSON.parse(content.replace(/```json?|```/g, '').trim());\n  aiResult = {\n    score: parsed.score ?? 5,\n    segment: parsed.segment || 'Unknown',\n    reason: parsed.reason || 'No reason provided'\n  };\n} catch (e) {}\n\nreturn [{\n  json: {\n    profileUrl: pb.profileUrl || '',\n    fullName: pb.fullName || `${pb.firstName || ''} ${pb.lastName || ''}`.trim(),\n    jobTitle: pb.jobTitle || '',\n    company: pb.company || pb.companyName || '',\n    industry: pb.industry || '',\n    headline: pb.headline || '',\n    location: pb.location || '',\n    connectionDegree: pb.connectionDegree || '',\n    previousRole: pb.jobTitle2 ? `${pb.jobTitle2} @ ${pb.company2 || ''}` : '',\n    score: aiResult.score,\n    segment: aiResult.segment,\n    reason: aiResult.reason,\n    status: aiResult.score >= 6 ? 'Ready' : 'Low Priority',\n    added: new Date().toISOString().split('T')[0]\n  }\n}];"
+        },
+        "id": "c78dafcf-3174-4792-b843-9512bfaa472e",
+        "name": "Format for Master List",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -26352,
+          3120
+        ]
+      },
+      {
+        "parameters": {
+          "operation": "append",
+          "documentId": {
+            "__rl": true,
+            "mode": "id",
+            "value": "1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8"
+          },
+          "sheetName": {
+            "__rl": true,
+            "mode": "name",
+            "value": "Master List"
+          },
+          "columns": {
+            "mappingMode": "autoMapInputData",
+            "value": {},
+            "matchingColumns": [],
+            "schema": [
+              {
+                "id": "profileUrl",
+                "displayName": "profileUrl",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "fullName",
+                "displayName": "fullName",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "firstName",
+                "displayName": "firstName",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "lastName",
+                "displayName": "lastName",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "school",
+                "displayName": "school",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "schoolDegree",
+                "displayName": "schoolDegree",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "company",
+                "displayName": "company",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "companyUrl",
+                "displayName": "companyUrl",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "companyId",
+                "displayName": "companyId",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "jobTitle",
+                "displayName": "jobTitle",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "jobDateRange",
+                "displayName": "jobDateRange",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "industry",
+                "displayName": "industry",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "headline",
+                "displayName": "headline",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "location",
+                "displayName": "location",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "company2",
+                "displayName": "company2",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "companyUrl2",
+                "displayName": "companyUrl2",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "companyId2",
+                "displayName": "companyId2",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "jobTitle2",
+                "displayName": "jobTitle2",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "jobDateRange2",
+                "displayName": "jobDateRange2",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "score",
+                "displayName": "score",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "segment",
+                "displayName": "segment",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "reason",
+                "displayName": "reason",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "status",
+                "displayName": "status",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "added",
+                "displayName": "added",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "kyleSentDate",
+                "displayName": "kyleSentDate",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "kyleConnectDate",
+                "displayName": "kyleConnectDate",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "hudsonSentDate",
+                "displayName": "hudsonSentDate",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "hudsonConnectDate",
+                "displayName": "hudsonConnectDate",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "hubspotSync",
+                "displayName": "hubspotSync",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "hudsonNotes",
+                "displayName": "hudsonNotes",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "inviteResults",
+                "displayName": "inviteResults",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "connectionDegree",
+                "displayName": "connectionDegree",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "previousRole",
+                "displayName": "previousRole",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              }
+            ],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": false
+          },
+          "options": {}
+        },
+        "id": "f364d7c8-1b34-4828-a0a4-a4a93c519f55",
+        "name": "Add to Master List",
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.5,
+        "position": [
+          -26128,
+          3120
+        ],
+        "credentials": {
+          "googleSheetsOAuth2Api": {
+            "id": "hf9VoWnqYNXhUZsn",
+            "name": "Google Sheets account"
+          }
+        }
+      },
+      {
+        "parameters": {},
+        "id": "8eac512e-b181-4806-b005-a9983c523bc4",
+        "name": "Done",
+        "type": "n8n-nodes-base.noOp",
+        "typeVersion": 1,
+        "position": [
+          -26640,
+          2928
+        ]
+      },
+      {
+        "parameters": {
+          "documentId": {
+            "__rl": true,
+            "mode": "id",
+            "value": "1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8"
+          },
+          "sheetName": {
+            "__rl": true,
+            "mode": "name",
+            "value": "New Leads"
+          },
+          "filtersUI": {
+            "values": [
+              {
+                "lookupColumn": "profileUrl",
+                "lookupValue": "={{ $json['LinkedIn_Profile_URL '] }}"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "111f8bac-2145-45da-8da1-68b33230edb9",
+        "name": "Find lead",
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.5,
+        "position": [
+          -25904,
+          3120
+        ],
+        "credentials": {
+          "googleSheetsOAuth2Api": {
+            "id": "hf9VoWnqYNXhUZsn",
+            "name": "Google Sheets account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "operation": "delete",
+          "documentId": {
+            "__rl": true,
+            "value": "1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8",
+            "mode": "list",
+            "cachedResultName": "LinkedIn Leads",
+            "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8/edit?usp=drivesdk"
+          },
+          "sheetName": {
+            "__rl": true,
+            "value": 1474822897,
+            "mode": "list",
+            "cachedResultName": "New Leads",
+            "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8/edit#gid=1474822897"
+          },
+          "startIndex": "={{ $json.row_number }}"
+        },
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.7,
+        "position": [
+          -25648,
+          3120
+        ],
+        "id": "d65f2a38-d4c8-4439-bc8d-60aed73a64f5",
+        "name": "Delete new lead",
+        "credentials": {
+          "googleSheetsOAuth2Api": {
+            "id": "hf9VoWnqYNXhUZsn",
+            "name": "Google Sheets account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "mode": "append",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.merge",
+        "typeVersion": 3,
+        "position": [
+          -28000,
+          3104
+        ],
+        "id": "merge-wait-for-both",
+        "name": "Wait for Both Sheets"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Data comes from Merge node (append mode)\n// Input 0: New Leads, Input 1: Master List\n// The merge appends both, so we need to identify them by structure\n\n// All items from the merge\nconst allItems = $input.all();\n\n// New Leads have 'linkedinProfileUrl' or 'profileUrl', Master List has 'profileUrl'\n// Master List items have 'score' field (from previous processing)\nconst newLeads = [];\nconst masterUrls = new Set();\n\nallItems.forEach(item => {\n  const data = item.json;\n  // Master List items have 'score' or 'segment' fields\n  if (data.score !== undefined || data.segment !== undefined) {\n    const url = (data.profileUrl || '').trim().toLowerCase();\n    if (url) masterUrls.add(url);\n  } else {\n    // This is a new lead\n    newLeads.push(item);\n  }\n});\n\n// Filter new leads to only those not in master list\nconst uniqueLeads = newLeads.filter(lead => {\n  const url = (lead.json.linkedinProfileUrl || lead.json.profileUrl || '').trim().toLowerCase();\n  return url && !masterUrls.has(url);\n});\n\nreturn uniqueLeads;\n"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -27700,
+          3104
+        ],
+        "id": "1b0c3579-90f5-45b6-8881-d1143bf6959f",
+        "name": "Dedupe New Leads"
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "loose",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "has-items",
+                "leftValue": "={{ $input.all().length }}",
+                "rightValue": 0,
+                "operator": {
+                  "type": "number",
+                  "operation": "gt"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          -27600,
+          3104
+        ],
+        "id": "check-has-leads",
+        "name": "Has Leads to Process?"
+      },
+      {
+        "parameters": {
+          "maxItems": 10
+        },
+        "type": "n8n-nodes-base.limit",
+        "typeVersion": 1,
+        "position": [
+          -27400,
+          3000
+        ],
+        "id": "6cc0c946-726b-454e-955f-db87dd179c71",
+        "name": "Limit"
+      },
+      {
+        "parameters": {
+          "jsCode": "// No leads to process\nreturn [{ json: { success: true, processed: 0, message: 'No new leads to process', timestamp: new Date().toISOString() } }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -27400,
+          3200
+        ],
+        "id": "no-leads-found",
+        "name": "No Leads Found"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Return final status\nreturn [{ json: { success: true, source: 'lead-ingestion', timestamp: new Date().toISOString() } }];"
+        },
+        "id": "final-status",
+        "name": "Final Status",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -26416,
+          2928
+        ]
+      }
+    ],
+    "connections": {
+      "Run Manually": {
+        "main": [
+          [
+            {
+              "node": "Determine Batch Size",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Webhook Trigger": {
+        "main": [
+          [
+            {
+              "node": "Determine Batch Size",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Determine Batch Size": {
+        "main": [
+          [
+            {
+              "node": "Read Master List",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Read New Leads",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Read New Leads": {
+        "main": [
+          [
+            {
+              "node": "Wait for Both Sheets",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Read Master List": {
+        "main": [
+          [
+            {
+              "node": "Wait for Both Sheets",
+              "type": "main",
+              "index": 1
+            }
+          ]
+        ]
+      },
+      "Wait for Both Sheets": {
+        "main": [
+          [
+            {
+              "node": "Dedupe New Leads",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Loop Over Leads1": {
+        "main": [
+          [
+            {
+              "node": "Done",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "AI ICP Score",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Done": {
+        "main": [
+          [
+            {
+              "node": "Final Status",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "AI ICP Score": {
+        "main": [
+          [
+            {
+              "node": "Format for Master List",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Format for Master List": {
+        "main": [
+          [
+            {
+              "node": "Add to Master List",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Add to Master List": {
+        "main": [
+          [
+            {
+              "node": "Find lead",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Find lead": {
+        "main": [
+          [
+            {
+              "node": "Delete new lead",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Delete new lead": {
+        "main": [
+          [
+            {
+              "node": "Loop Over Leads1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Dedupe New Leads": {
+        "main": [
+          [
+            {
+              "node": "Has Leads to Process?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Has Leads to Process?": {
+        "main": [
+          [
+            {
+              "node": "Limit",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "No Leads Found",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Limit": {
+        "main": [
+          [
+            {
+              "node": "Loop Over Leads1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "No Leads Found": {
+        "main": [
+          [
+            {
+              "node": "Final Status",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "authors": "Hudson Lorfing",
+    "name": null,
+    "description": null,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2025-12-26T19:50:21.433Z",
+        "id": 32,
+        "workflowId": "aLxwvqoSTkZAQ3fq",
+        "versionId": "7e8ebbd6-9c9f-4ce6-a5ad-b223a642c1f0",
+        "event": "activated",
+        "userId": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4"
+      }
+    ]
+  }
 }

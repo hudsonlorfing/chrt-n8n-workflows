@@ -3,6 +3,7 @@
   "createdAt": "2025-12-17T17:34:32.062Z",
   "id": "kjjYKQEXv67Vl5MS",
   "name": "2. LinkedIn Outreach (PhantomBuster)",
+  "description": null,
   "active": true,
   "isArchived": false,
   "nodes": [
@@ -894,6 +895,7 @@
   "pinData": {},
   "versionId": "c7afb79f-5cf5-4881-b8da-d0aaa3a8cc6c",
   "activeVersionId": "c7afb79f-5cf5-4881-b8da-d0aaa3a8cc6c",
+  "versionCounter": 68,
   "triggerCount": 1,
   "shared": [
     {
@@ -901,7 +903,60 @@
       "createdAt": "2025-12-24T03:18:14.338Z",
       "role": "workflow:owner",
       "workflowId": "kjjYKQEXv67Vl5MS",
-      "projectId": "O7lTivDfRl72aS23"
+      "projectId": "O7lTivDfRl72aS23",
+      "project": {
+        "updatedAt": "2025-12-24T03:17:11.000Z",
+        "createdAt": "2025-12-23T21:24:31.508Z",
+        "id": "O7lTivDfRl72aS23",
+        "name": "ChrtWorkflows",
+        "type": "team",
+        "icon": {
+          "type": "icon",
+          "value": "layers"
+        },
+        "description": "",
+        "projectRelations": [
+          {
+            "updatedAt": "2025-12-23T21:24:31.510Z",
+            "createdAt": "2025-12-23T21:24:31.510Z",
+            "userId": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4",
+            "projectId": "O7lTivDfRl72aS23",
+            "user": {
+              "updatedAt": "2025-12-26T16:26:59.000Z",
+              "createdAt": "2025-12-17T12:51:53.118Z",
+              "id": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4",
+              "email": "hudson@chrt.com",
+              "firstName": "Hudson",
+              "lastName": "Lorfing",
+              "personalizationAnswers": null,
+              "settings": {
+                "userActivated": true,
+                "userClaimedAiCredits": true,
+                "easyAIWorkflowOnboarded": true,
+                "firstSuccessfulWorkflowId": "kjjYKQEXv67Vl5MS",
+                "userActivatedAt": 1766099344758,
+                "npsSurvey": {
+                  "waitingForResponse": true,
+                  "ignoredCount": 1,
+                  "lastShownAt": 1766525415079
+                }
+              },
+              "disabled": false,
+              "mfaEnabled": false,
+              "lastActiveAt": "2025-12-26",
+              "isPending": false
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "tags": [
+    {
+      "updatedAt": "2025-12-17T14:25:00.955Z",
+      "createdAt": "2025-12-17T14:25:00.955Z",
+      "id": "ST1cKCxkQ4kcD3uk",
+      "name": "linkedin"
     }
   ],
   "activeVersion": {
@@ -1780,16 +1835,16 @@
     },
     "authors": "Hudson Lorfing",
     "name": "v4_12max_daily",
-    "description": ""
-  },
-  "tags": [
-    {
-      "updatedAt": "2025-12-17T14:25:00.955Z",
-      "createdAt": "2025-12-17T14:25:00.955Z",
-      "id": "ST1cKCxkQ4kcD3uk",
-      "name": "linkedin"
-    }
-  ],
-  "_folderPath": "linkedin",
-  "_fileName": "2.-linkedin-outreach-(phantombuster).json"
+    "description": "",
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2025-12-23T19:06:53.611Z",
+        "id": 8,
+        "workflowId": "kjjYKQEXv67Vl5MS",
+        "versionId": "c7afb79f-5cf5-4881-b8da-d0aaa3a8cc6c",
+        "event": "activated",
+        "userId": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4"
+      }
+    ]
+  }
 }

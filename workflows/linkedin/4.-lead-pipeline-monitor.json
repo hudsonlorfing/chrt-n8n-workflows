@@ -1,6 +1,11 @@
 {
+  "updatedAt": "2025-12-26T19:26:32.000Z",
+  "createdAt": "2025-12-26T18:55:11.571Z",
+  "id": "dWFsEXELFTJU0W01",
   "name": "4. Lead Pipeline Monitor",
+  "description": null,
   "active": false,
+  "isArchived": false,
   "nodes": [
     {
       "parameters": {
@@ -1273,19 +1278,74 @@
   },
   "settings": {
     "executionOrder": "v1",
-    "callerPolicy": "workflowsFromSameOwner"
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
   },
-  "staticData": null,
-  "meta": {
-    "templateCredsSetupCompleted": true
+  "staticData": {
+    "node:Daily 6am": {
+      "recurrenceRules": []
+    }
   },
-  "pinData": {},
-  "tags": [
+  "meta": null,
+  "pinData": null,
+  "versionId": "ff4c5528-6f0f-4fbf-92da-95b944a186fe",
+  "activeVersionId": null,
+  "versionCounter": 10,
+  "triggerCount": 2,
+  "shared": [
     {
-      "name": "testing"
+      "updatedAt": "2025-12-26T19:26:32.444Z",
+      "createdAt": "2025-12-26T19:26:32.444Z",
+      "role": "workflow:owner",
+      "workflowId": "dWFsEXELFTJU0W01",
+      "projectId": "O7lTivDfRl72aS23",
+      "project": {
+        "updatedAt": "2025-12-24T03:17:11.000Z",
+        "createdAt": "2025-12-23T21:24:31.508Z",
+        "id": "O7lTivDfRl72aS23",
+        "name": "ChrtWorkflows",
+        "type": "team",
+        "icon": {
+          "type": "icon",
+          "value": "layers"
+        },
+        "description": "",
+        "projectRelations": [
+          {
+            "updatedAt": "2025-12-23T21:24:31.510Z",
+            "createdAt": "2025-12-23T21:24:31.510Z",
+            "userId": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4",
+            "projectId": "O7lTivDfRl72aS23",
+            "user": {
+              "updatedAt": "2025-12-26T16:26:59.000Z",
+              "createdAt": "2025-12-17T12:51:53.118Z",
+              "id": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4",
+              "email": "hudson@chrt.com",
+              "firstName": "Hudson",
+              "lastName": "Lorfing",
+              "personalizationAnswers": null,
+              "settings": {
+                "userActivated": true,
+                "userClaimedAiCredits": true,
+                "easyAIWorkflowOnboarded": true,
+                "firstSuccessfulWorkflowId": "kjjYKQEXv67Vl5MS",
+                "userActivatedAt": 1766099344758,
+                "npsSurvey": {
+                  "waitingForResponse": true,
+                  "ignoredCount": 1,
+                  "lastShownAt": 1766525415079
+                }
+              },
+              "disabled": false,
+              "mfaEnabled": false,
+              "lastActiveAt": "2025-12-26",
+              "isPending": false
+            }
+          }
+        ]
+      }
     }
   ],
-  "_folderPath": "linkedin",
-  "_fileName": "4.-lead-pipeline-monitor.json"
+  "tags": [],
+  "activeVersion": null
 }
-
