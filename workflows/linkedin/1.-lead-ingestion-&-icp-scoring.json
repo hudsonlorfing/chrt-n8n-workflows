@@ -23,7 +23,7 @@
       "parameters": {
         "httpMethod": "POST",
         "path": "lead-ingestion",
-        "responseMode": "responseNode",
+        "responseMode": "lastNode",
         "options": {}
       },
       "id": "webhook-trigger-ingestion",
@@ -38,7 +38,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Determine batch size based on trigger source\n// Default: 10 for manual, 240 for webhook (pipeline monitor)\nlet batchSize = 10;\n\ntry {\n  // Check if triggered via webhook with batchSize parameter\n  const webhookData = $('Webhook Trigger').first()?.json;\n  if (webhookData && webhookData.batchSize) {\n    batchSize = parseInt(webhookData.batchSize) || 240;\n  }\n} catch (e) {\n  // Manual trigger - use default\n  batchSize = 10;\n}\n\nreturn [{ json: { batchSize, source: batchSize > 10 ? 'pipeline-monitor' : 'manual' } }];"
+        "jsCode": "// Determine batch size based on trigger source\n// Default: 10 for manual, 240 for webhook (pipeline monitor)\nlet batchSize = 10;\n\ntry {\n  // Check if triggered via webhook with batchSize parameter\n  const inputData = $input.first()?.json || {};\n  if (inputData.batchSize) {\n    batchSize = parseInt(inputData.batchSize) || 240;\n  }\n  // Also check body property (n8n webhook wraps data sometimes)\n  if (inputData.body && inputData.body.batchSize) {\n    batchSize = parseInt(inputData.body.batchSize) || 240;\n  }\n} catch (e) {\n  // Manual trigger - use default\n  batchSize = 10;\n}\n\nreturn [{ json: { batchSize, source: batchSize > 10 ? 'pipeline-monitor' : 'manual' } }];"
       },
       "id": "determine-batch-size",
       "name": "Determine Batch Size",
@@ -632,7 +632,7 @@
     },
     {
       "parameters": {
-        "maxItems": "={{ $('Determine Batch Size').first()?.json?.batchSize || 10 }}"
+        "maxItems": "={{ (() => { try { return $('Determine Batch Size').first()?.json?.batchSize || 10; } catch (e) { return 10; } })() }}"
       },
       "type": "n8n-nodes-base.limit",
       "typeVersion": 1,
@@ -645,13 +645,12 @@
     },
     {
       "parameters": {
-        "respondWith": "json",
-        "responseBody": "={{ JSON.stringify({ success: true, processed: $('Loop Over Leads1').context.noItemsLeft ? 0 : $input.all().length, timestamp: new Date().toISOString() }) }}"
+        "jsCode": "// Return final status\nconst batchSize = $('Determine Batch Size').first()?.json?.batchSize || 10;\nreturn [{ json: { success: true, batchSize, source: 'lead-ingestion', timestamp: new Date().toISOString() } }];"
       },
-      "id": "webhook-response-ingestion",
-      "name": "Webhook Response",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.1,
+      "id": "final-status",
+      "name": "Final Status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
         -26416,
         2928
@@ -741,7 +740,7 @@
       "main": [
         [
           {
-            "node": "Webhook Response",
+            "node": "Final Status",
             "type": "main",
             "index": 0
           }

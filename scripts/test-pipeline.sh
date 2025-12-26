@@ -35,8 +35,8 @@ update_workflow() {
   
   echo -e "${YELLOW}Updating workflow from $file...${NC}"
   
-  # Filter out read-only properties
-  local filtered=$(cat "$file" | jq 'del(.updatedAt, .createdAt, .id, .isArchived, .versionId, .activeVersionId, .triggerCount, .shared, .activeVersion, .tags, ._folderPath, ._fileName)')
+  # Filter out read-only properties - must match n8n API requirements
+  local filtered=$(cat "$file" | jq 'del(.updatedAt, .createdAt, .id, .isArchived, .versionId, .activeVersionId, .triggerCount, .shared, .activeVersion, .tags, ._folderPath, ._fileName, .meta, .pinData, .staticData)')
   
   response=$(curl -s -X PUT \
     "${N8N_BASE_URL}/api/v1/workflows/${workflow_id}" \
@@ -61,7 +61,7 @@ import_workflow() {
   echo -e "${YELLOW}Importing workflow from $file...${NC}"
   
   # Prepare workflow for import - remove metadata that shouldn't be set on import
-  local workflow_data=$(cat "$file" | jq 'del(.updatedAt, .createdAt, .id, .isArchived, .versionId, .activeVersionId, .triggerCount, .shared, .activeVersion, ._folderPath, ._fileName)')
+  local workflow_data=$(cat "$file" | jq 'del(.updatedAt, .createdAt, .id, .isArchived, .versionId, .activeVersionId, .triggerCount, .shared, .activeVersion, ._folderPath, ._fileName, .meta, .pinData, .staticData) | .tags = []')
   
   response=$(curl -s -X POST \
     "${N8N_BASE_URL}/api/v1/workflows" \
