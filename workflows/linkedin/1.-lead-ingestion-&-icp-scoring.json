@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2025-12-24T04:40:35.246Z",
+  "updatedAt": "2025-12-24T05:20:46.269Z",
   "createdAt": "2025-12-17T17:08:43.420Z",
   "id": "aLxwvqoSTkZAQ3fq",
   "name": "1. Lead Ingestion & ICP Scoring",
@@ -621,12 +621,12 @@
       "main": [
         [
           {
-            "node": "Read New Leads",
+            "node": "Read Master List",
             "type": "main",
             "index": 0
           },
           {
-            "node": "Read Master List",
+            "node": "Read New Leads",
             "type": "main",
             "index": 0
           }
@@ -759,7 +759,7 @@
     "templateCredsSetupCompleted": true
   },
   "pinData": {},
-  "versionId": "e98daaf6-2f61-4a8c-a63a-e487ca44ae77",
+  "versionId": "a5bcefd4-9ccb-4aa1-8253-b7eae34a1adc",
   "activeVersionId": null,
   "triggerCount": 0,
   "shared": [
