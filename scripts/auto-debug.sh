@@ -34,6 +34,7 @@ CYAN='\033[0;36m'
 NC='\033[0m'
 
 # Workflow IDs (format: name:id)
+# Project ID: O7lTivDfRl72aS23 (Chrt)
 WORKFLOWS="sync:r4ICnvhdbQwejSdH ingestion:aLxwvqoSTkZAQ3fq outreach:kjjYKQEXv67Vl5MS hubspot:a56vnrPo9dsg5mmf pipeline:dWFsEXELFTJU0W01"
 
 # Ensure debug logs directory exists
