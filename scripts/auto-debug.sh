@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # n8n Auto-Debug Script
 # 
@@ -33,13 +33,8 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-# Workflow IDs
-declare -A WORKFLOW_IDS
-WORKFLOW_IDS["sync"]="r4ICnvhdbQwejSdH"
-WORKFLOW_IDS["ingestion"]="aLxwvqoSTkZAQ3fq"
-WORKFLOW_IDS["outreach"]="kjjYKQEXv67Vl5MS"
-WORKFLOW_IDS["hubspot"]="a56vnrPo9dsg5mmf"
-WORKFLOW_IDS["pipeline"]="dWFsEXELFTJU0W01"
+# Workflow IDs (format: name:id)
+WORKFLOWS="sync:r4ICnvhdbQwejSdH ingestion:aLxwvqoSTkZAQ3fq outreach:kjjYKQEXv67Vl5MS hubspot:a56vnrPo9dsg5mmf pipeline:dWFsEXELFTJU0W01"
 
 # Ensure debug logs directory exists
 mkdir -p "$DEBUG_LOGS_DIR"
@@ -69,8 +64,9 @@ find_errors() {
     
     local errors_found=0
     
-    for wf_name in "${!WORKFLOW_IDS[@]}"; do
-        local wf_id="${WORKFLOW_IDS[$wf_name]}"
+    for wf in $WORKFLOWS; do
+        local wf_name="${wf%%:*}"
+        local wf_id="${wf##*:}"
         local executions=$(curl -s "https://chrt.app.n8n.cloud/api/v1/executions?workflowId=${wf_id}&limit=${limit}" \
             -H "X-N8N-API-KEY: $N8N_API_KEY")
         
@@ -211,8 +207,9 @@ watch_errors() {
         local current_time=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
         echo -e "\n${BLUE}[$(date)] Checking for new errors...${NC}"
         
-        for wf_name in "${!WORKFLOW_IDS[@]}"; do
-            local wf_id="${WORKFLOW_IDS[$wf_name]}"
+        for wf in $WORKFLOWS; do
+            local wf_name="${wf%%:*}"
+            local wf_id="${wf##*:}"
             local executions=$(curl -s "https://chrt.app.n8n.cloud/api/v1/executions?workflowId=${wf_id}&limit=3" \
                 -H "X-N8N-API-KEY: $N8N_API_KEY")
             
