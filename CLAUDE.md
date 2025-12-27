@@ -1,8 +1,6 @@
-# CLAUDE.md - n8n Workflow Development Context
+# CLAUDE.md - n8n Workflow Project Context
 
-## Project Overview
-
-This repository contains version-controlled n8n workflow JSON files for Chrt's lead generation automation system. All workflows sync bidirectionally with an n8n Cloud instance.
+> **Parent Context:** See `_Shared/CLAUDE.md` in the Business repo root for overall workspace context, agent skills, and general conventions.
 
 ## Quick Start
 
@@ -12,7 +10,7 @@ cd /Users/hudsonlorfing/Documents/Business/Chrt/workflows/chrt-n8n-workflows
 ./scripts/n8n-sync.sh preflight
 ```
 
-## Key Configuration
+## Project Configuration
 
 | Setting | Value |
 |---------|-------|
@@ -31,9 +29,9 @@ cd /Users/hudsonlorfing/Documents/Business/Chrt/workflows/chrt-n8n-workflows
 | 4. Lead Pipeline Monitor | `dWFsEXELFTJU0W01` | ⚠️ Inactive (debugging) |
 | 5. Error Monitor Webhook | `YWP69Qgq0ZlCN7Gj` | ✅ Active |
 
-## Development Workflow
+## Common Commands
 
-### 1. Making Changes
+### Development Workflow
 
 ```bash
 # Edit JSON locally, then push to n8n
@@ -41,18 +39,15 @@ cd /Users/hudsonlorfing/Documents/Business/Chrt/workflows/chrt-n8n-workflows
 
 # Or edit in n8n UI, then download
 ./scripts/n8n-sync.sh download
-```
 
-### 2. Testing
-
-```bash
+# Test workflow
 ./scripts/n8n-debug.sh activate <workflow_id>
 ./scripts/n8n-debug.sh trigger <workflow_id>  # for webhook workflows
 ./scripts/n8n-debug.sh list 5 <workflow_id>   # recent executions
 ./scripts/n8n-debug.sh full <exec_id>          # full execution data
 ```
 
-### 3. Error Analysis
+### Error Analysis
 
 ```bash
 # Check all workflows for errors
@@ -87,20 +82,20 @@ chrt-n8n-workflows/
 
 ## Architecture Decisions
 
-### Sync Workflow Design
-- Uses GitHub Trees API for recursive file listing (replaced loop-based approach)
+### Sync Workflow
+- Uses GitHub Trees API for recursive file listing
 - Tag-based folder routing (`linkedin` tag → `workflows/linkedin/`)
 - `onError: continueErrorOutput` on all GitHub nodes for resilience
 
-### Lead Ingestion Optimization
-- Replaced SQL-based Merge node with JavaScript Code node
-- Uses `Set` for O(1) deduplication lookups
-- Dynamic batch sizing via webhook parameter
+### Lead Ingestion
+- JavaScript Code node with `Set` for O(1) deduplication
+- Dynamic batch sizing via webhook parameter (10 manual, 240 automated)
+- Waits for both sheets before deduplication
 
 ### Error Monitoring
-- Webhook filters out manual triggers automatically
+- Filters out manual triggers automatically
 - Attempts local debugger first, falls back to logging
-- Returns debug command in response for manual follow-up
+- Returns debug command in webhook response
 
 ## Environment Variables
 
@@ -112,23 +107,15 @@ N8N_BASE_URL=https://chrt.app.n8n.cloud
 
 ## Common Issues
 
-### "request/body must NOT have additional properties"
-The n8n API rejects read-only properties. The `n8n-debug.sh update` command automatically strips these.
+| Issue | Solution |
+|-------|----------|
+| "request/body must NOT have additional properties" | `n8n-debug.sh update` strips read-only properties |
+| Webhook timeout (524) | Workflow continues in background, check n8n UI |
+| Git auth errors | SSH for local Git, PAT for n8n sync workflow |
 
-### Webhook timeout (524)
-Long-running workflows may timeout but continue executing. Check n8n UI for actual status.
-
-### Git auth errors
-SSH is configured for local Git operations. PAT is used only by the n8n sync workflow.
-
-## Related Documentation
+## Related Files
 
 - [WORKFLOW-PROCESS.md](WORKFLOW-PROCESS.md) - Full development workflow
 - [STATUS.md](STATUS.md) - Current issues and fixes
 - [AUTO-DEBUG.md](AUTO-DEBUG.md) - Error analysis system
-- [SETUP.md](SETUP.md) - Initial setup instructions
-
-## Current Session Status
-
-See `SESSION-*.md` files for recent work summaries.
-
+- [SESSION-*.md](SESSION-2024-12-26.md) - Session summaries
