@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2025-12-26T20:46:06.090Z",
+  "updatedAt": "2025-12-27T00:36:22.462Z",
   "createdAt": "2025-12-26T18:55:11.571Z",
   "id": "dWFsEXELFTJU0W01",
   "name": "4. Lead Pipeline Monitor",
@@ -341,7 +341,7 @@
           "options": {
             "caseSensitive": true,
             "leftValue": "",
-            "typeValidation": "loose",
+            "typeValidation": "strict",
             "version": 2
           },
           "conditions": [
@@ -395,20 +395,6 @@
           "name": "Phantom Header Auth"
         }
       }
-    },
-    {
-      "parameters": {
-        "amount": 600
-      },
-      "id": "wait-for-phantom",
-      "name": "Wait 10 min for Phantom",
-      "type": "n8n-nodes-base.wait",
-      "typeVersion": 1.1,
-      "position": [
-        2272,
-        400
-      ],
-      "webhookId": "phantom-wait"
     },
     {
       "parameters": {
@@ -495,8 +481,8 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        2928,
-        512
+        3040,
+        448
       ],
       "credentials": {
         "googleSheetsOAuth2Api": {
@@ -514,7 +500,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3152,
+        3360,
         400
       ]
     },
@@ -547,7 +533,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        3360,
+        3568,
         400
       ]
     },
@@ -560,7 +546,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3584,
+        3792,
         304
       ]
     },
@@ -588,7 +574,7 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        3808,
+        4016,
         304
       ],
       "credentials": {
@@ -648,7 +634,7 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        4032,
+        4240,
         400
       ],
       "credentials": {
@@ -667,7 +653,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3584,
+        3792,
         512
       ]
     },
@@ -690,7 +676,7 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        4240,
+        4448,
         400
       ],
       "credentials": {
@@ -709,7 +695,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4464,
+        4672,
         400
       ]
     },
@@ -742,7 +728,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        4688,
+        4896,
         400
       ]
     },
@@ -756,7 +742,7 @@
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        4912,
+        5120,
         304
       ],
       "webhookId": "retry-wait"
@@ -768,7 +754,7 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        4912,
+        5120,
         512
       ]
     },
@@ -811,7 +797,7 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [
-        5104,
+        5312,
         512
       ]
     },
@@ -825,6 +811,32 @@
       ],
       "id": "baa72fbb-d099-4029-ba26-7b3608559d78",
       "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "amount": 20,
+        "unit": "minutes"
+      },
+      "id": "wait-for-phantom",
+      "name": "Wait 20 min for Phantom",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2272,
+        400
+      ],
+      "webhookId": "phantom-wait"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        3216,
+        384
+      ],
+      "id": "06d13644-87b1-414b-8789-6010081f7c6b",
+      "name": "Merge"
     }
   ],
   "connections": {
@@ -1048,18 +1060,7 @@
       "main": [
         [
           {
-            "node": "Wait 10 min for Phantom",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Wait 10 min for Phantom": {
-      "main": [
-        [
-          {
-            "node": "Fetch Phantom Output",
+            "node": "Wait 20 min for Phantom",
             "type": "main",
             "index": 0
           }
@@ -1097,7 +1098,7 @@
       "main": [
         [
           {
-            "node": "Dedupe Against Master + New Leads",
+            "node": "Merge",
             "type": "main",
             "index": 0
           }
@@ -1108,9 +1109,9 @@
       "main": [
         [
           {
-            "node": "Dedupe Against Master + New Leads",
+            "node": "Merge",
             "type": "main",
-            "index": 0
+            "index": 1
           }
         ]
       ]
@@ -1259,6 +1260,28 @@
           }
         ]
       ]
+    },
+    "Wait 20 min for Phantom": {
+      "main": [
+        [
+          {
+            "node": "Fetch Phantom Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Dedupe Against Master + New Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
@@ -1273,7 +1296,7 @@
   },
   "meta": null,
   "pinData": {},
-  "versionId": "8778f82b-6349-466b-a1bb-e1fd05da4c29",
+  "versionId": "902bf3a9-68c4-4d56-b12b-2bc0b87bcfd3",
   "activeVersionId": null,
   "triggerCount": 2,
   "shared": [
