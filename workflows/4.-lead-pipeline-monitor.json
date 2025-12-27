@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2025-12-26T20:04:15.241Z",
+  "updatedAt": "2025-12-27T00:36:22.462Z",
   "createdAt": "2025-12-26T18:55:11.571Z",
   "id": "dWFsEXELFTJU0W01",
   "name": "4. Lead Pipeline Monitor",
@@ -22,7 +22,7 @@
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
       "position": [
-        -200,
+        -208,
         400
       ]
     },
@@ -38,16 +38,14 @@
           "mode": "name",
           "value": "Dashboard"
         },
-        "options": {
-          "range": "B5:D5"
-        }
+        "options": {}
       },
       "id": "read-dashboard",
       "name": "Read Dashboard Metrics",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        20,
+        32,
         400
       ],
       "credentials": {
@@ -99,7 +97,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        460,
+        464,
         400
       ]
     },
@@ -107,20 +105,20 @@
       "parameters": {
         "method": "POST",
         "url": "={{ $env.N8N_WEBHOOK_URL || 'https://chrt.app.n8n.cloud' }}/webhook/lead-ingestion",
-        "options": {
-          "timeout": 300000
-        },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ batchSize: 240, source: 'pipeline-monitor' }) }}"
+        "jsonBody": "={{ JSON.stringify({ batchSize: 240, source: 'pipeline-monitor' }) }}",
+        "options": {
+          "timeout": 300000
+        }
       },
       "id": "trigger-ingestion",
       "name": "Trigger Lead Ingestion",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        700,
-        300
+        704,
+        304
       ],
       "onError": "continueRegularOutput"
     },
@@ -153,8 +151,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        700,
-        500
+        704,
+        512
       ]
     },
     {
@@ -176,8 +174,8 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        940,
-        500
+        944,
+        512
       ],
       "credentials": {
         "googleSheetsOAuth2Api": {
@@ -195,8 +193,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1160,
-        500
+        1168,
+        512
       ]
     },
     {
@@ -228,7 +226,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        1380,
+        1392,
         400
       ]
     },
@@ -240,7 +238,7 @@
       "typeVersion": 1,
       "position": [
         1600,
-        300
+        304
       ],
       "notesInFlow": true,
       "notes": "TODO: Configure SMTP - Low URL Alert"
@@ -274,8 +272,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        1380,
-        600
+        1392,
+        608
       ]
     },
     {
@@ -286,7 +284,7 @@
       "typeVersion": 1,
       "position": [
         1600,
-        500
+        512
       ],
       "notesInFlow": true,
       "notes": "TODO: Configure SMTP - Fallback Mode Alert"
@@ -320,7 +318,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        1380,
+        1392,
         800
       ]
     },
@@ -343,7 +341,7 @@
           "options": {
             "caseSensitive": true,
             "leftValue": "",
-            "typeValidation": "loose",
+            "typeValidation": "strict",
             "version": 2
           },
           "conditions": [
@@ -366,8 +364,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        1820,
-        500
+        1824,
+        512
       ]
     },
     {
@@ -388,7 +386,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2040,
+        2048,
         400
       ],
       "credentials": {
@@ -397,20 +395,6 @@
           "name": "Phantom Header Auth"
         }
       }
-    },
-    {
-      "parameters": {
-        "amount": 600
-      },
-      "id": "wait-for-phantom",
-      "name": "Wait 10 min for Phantom",
-      "type": "n8n-nodes-base.wait",
-      "typeVersion": 1.1,
-      "position": [
-        2260,
-        400
-      ],
-      "webhookId": "phantom-wait"
     },
     {
       "parameters": {
@@ -445,7 +429,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2700,
+        2704,
         400
       ]
     },
@@ -468,8 +452,8 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        2920,
-        300
+        2928,
+        304
       ],
       "credentials": {
         "googleSheetsOAuth2Api": {
@@ -497,8 +481,8 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        2920,
-        500
+        3040,
+        448
       ],
       "credentials": {
         "googleSheetsOAuth2Api": {
@@ -516,7 +500,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3140,
+        3360,
         400
       ]
     },
@@ -549,7 +533,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        3360,
+        3568,
         400
       ]
     },
@@ -562,8 +546,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3580,
-        300
+        3792,
+        304
       ]
     },
     {
@@ -590,8 +574,8 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        3800,
-        300
+        4016,
+        304
       ],
       "credentials": {
         "googleSheetsOAuth2Api": {
@@ -650,7 +634,7 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        4020,
+        4240,
         400
       ],
       "credentials": {
@@ -669,8 +653,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3580,
-        500
+        3792,
+        512
       ]
     },
     {
@@ -685,16 +669,14 @@
           "mode": "name",
           "value": "Dashboard"
         },
-        "options": {
-          "range": "B5:D5"
-        }
+        "options": {}
       },
       "id": "recheck-dashboard",
       "name": "Re-check Dashboard B5",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        4240,
+        4448,
         400
       ],
       "credentials": {
@@ -713,7 +695,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4460,
+        4672,
         400
       ]
     },
@@ -746,7 +728,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        4680,
+        4896,
         400
       ]
     },
@@ -760,8 +742,8 @@
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        4900,
-        300
+        5120,
+        304
       ],
       "webhookId": "retry-wait"
     },
@@ -772,8 +754,8 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        4900,
-        500
+        5120,
+        512
       ]
     },
     {
@@ -783,8 +765,8 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        2040,
-        600
+        2048,
+        608
       ]
     },
     {
@@ -799,24 +781,62 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [
-        -200,
-        600
+        -208,
+        608
       ],
       "webhookId": "pipeline-monitor-webhook"
     },
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ JSON.stringify({ success: true, message: 'Pipeline monitor completed', timestamp: new Date().toISOString() }) }}"
+        "responseBody": "={{ JSON.stringify({ success: true, message: 'Pipeline monitor completed', timestamp: new Date().toISOString() }) }}",
+        "options": {}
       },
       "id": "webhook-response",
       "name": "Webhook Response",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [
-        5100,
-        500
+        5312,
+        512
       ]
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -240,
+        800
+      ],
+      "id": "baa72fbb-d099-4029-ba26-7b3608559d78",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "amount": 20,
+        "unit": "minutes"
+      },
+      "id": "wait-for-phantom",
+      "name": "Wait 20 min for Phantom",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2272,
+        400
+      ],
+      "webhookId": "phantom-wait"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        3216,
+        384
+      ],
+      "id": "06d13644-87b1-414b-8789-6010081f7c6b",
+      "name": "Merge"
     }
   ],
   "connections": {
@@ -1040,18 +1060,7 @@
       "main": [
         [
           {
-            "node": "Wait 10 min for Phantom",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Wait 10 min for Phantom": {
-      "main": [
-        [
-          {
-            "node": "Fetch Phantom Output",
+            "node": "Wait 20 min for Phantom",
             "type": "main",
             "index": 0
           }
@@ -1089,7 +1098,7 @@
       "main": [
         [
           {
-            "node": "Dedupe Against Master + New Leads",
+            "node": "Merge",
             "type": "main",
             "index": 0
           }
@@ -1100,9 +1109,9 @@
       "main": [
         [
           {
-            "node": "Dedupe Against Master + New Leads",
+            "node": "Merge",
             "type": "main",
-            "index": 0
+            "index": 1
           }
         ]
       ]
@@ -1240,6 +1249,39 @@
           }
         ]
       ]
+    },
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Read Dashboard Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 20 min for Phantom": {
+      "main": [
+        [
+          {
+            "node": "Fetch Phantom Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Dedupe Against Master + New Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
@@ -1253,8 +1295,8 @@
     }
   },
   "meta": null,
-  "pinData": null,
-  "versionId": "e54e4a20-2f96-4001-951c-b0ac0a9ff70d",
+  "pinData": {},
+  "versionId": "902bf3a9-68c4-4d56-b12b-2bc0b87bcfd3",
   "activeVersionId": null,
   "triggerCount": 2,
   "shared": [
