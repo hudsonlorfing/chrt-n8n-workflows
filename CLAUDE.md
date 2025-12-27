@@ -1,6 +1,15 @@
-# CLAUDE.md - n8n Workflow Project Context
+# CLAUDE.md - n8n Workflow Development Context
 
 > **Parent Context:** See `_Shared/CLAUDE.md` in the Business repo root for overall workspace context, agent skills, and general conventions.
+
+## Project Overview
+
+This repository contains version-controlled n8n workflow JSON files for Chrt's automation system. We run **two n8n instances**:
+
+| Instance | URL | Purpose |
+|----------|-----|---------|
+| **n8n Cloud** | https://chrt.app.n8n.cloud | LinkedIn lead gen, GitHub sync |
+| **Hostinger VPS** | https://srv1230891.hstgr.cloud | Fireflies, meetings, file operations |
 
 ## Quick Start
 
@@ -8,9 +17,14 @@
 # ALWAYS run this before starting any work
 cd /Users/hudsonlorfing/Documents/Business/Chrt/workflows/chrt-n8n-workflows
 ./scripts/n8n-sync.sh preflight
+
+# Sync meeting notes from GitHub to Obsidian
+./scripts/sync-meetings.sh
 ```
 
-## Project Configuration
+## Key Configuration
+
+### n8n Cloud (LinkedIn Workflows)
 
 | Setting | Value |
 |---------|-------|
@@ -18,7 +32,15 @@ cd /Users/hudsonlorfing/Documents/Business/Chrt/workflows/chrt-n8n-workflows
 | Project ID | `O7lTivDfRl72aS23` |
 | GitHub Repo | hudsonlorfing/chrt-n8n-workflows |
 
-### Workflow IDs
+### Hostinger VPS (Meeting/File Workflows)
+
+| Setting | Value |
+|---------|-------|
+| VPS URL | https://srv1230891.hstgr.cloud |
+| Plan | KVM 2 (8GB RAM, 2 vCPU) |
+| Meeting Repo | hudsonlorfing/meeting-notes |
+
+### Workflow IDs (n8n Cloud)
 
 | Workflow | ID | Status |
 |----------|-----|--------|
@@ -29,9 +51,15 @@ cd /Users/hudsonlorfing/Documents/Business/Chrt/workflows/chrt-n8n-workflows
 | 4. Lead Pipeline Monitor | `dWFsEXELFTJU0W01` | ⚠️ Inactive (debugging) |
 | 5. Error Monitor Webhook | `YWP69Qgq0ZlCN7Gj` | ✅ Active |
 
-## Common Commands
+### Workflows (Hostinger Self-Hosted)
 
-### Development Workflow
+| Workflow | Webhook Path | Status |
+|----------|--------------|--------|
+| 6. Fireflies Meeting Processor | `/webhook/fireflies-meeting` | 🆕 New |
+
+## Development Workflow
+
+### 1. Making Changes
 
 ```bash
 # Edit JSON locally, then push to n8n
@@ -39,15 +67,18 @@ cd /Users/hudsonlorfing/Documents/Business/Chrt/workflows/chrt-n8n-workflows
 
 # Or edit in n8n UI, then download
 ./scripts/n8n-sync.sh download
+```
 
-# Test workflow
+### 2. Testing
+
+```bash
 ./scripts/n8n-debug.sh activate <workflow_id>
 ./scripts/n8n-debug.sh trigger <workflow_id>  # for webhook workflows
 ./scripts/n8n-debug.sh list 5 <workflow_id>   # recent executions
 ./scripts/n8n-debug.sh full <exec_id>          # full execution data
 ```
 
-### Error Analysis
+### 3. Error Analysis
 
 ```bash
 # Check all workflows for errors
@@ -62,9 +93,10 @@ cd /Users/hudsonlorfing/Documents/Business/Chrt/workflows/chrt-n8n-workflows
 ```
 chrt-n8n-workflows/
 ├── workflows/
-│   ├── chrt-github-workflow-sync.json    # Bidirectional sync
-│   ├── 4.-lead-pipeline-monitor.json     # Pipeline automation
-│   ├── 5.-error-monitor-webhook.json     # Error notifications
+│   ├── chrt-github-workflow-sync.json    # Bidirectional sync (Cloud)
+│   ├── 4.-lead-pipeline-monitor.json     # Pipeline automation (Cloud)
+│   ├── 5.-error-monitor-webhook.json     # Error notifications (Cloud)
+│   ├── 6.-fireflies-meeting-processor.json # Meeting analysis (Hostinger)
 │   └── linkedin/
 │       ├── 1.-lead-ingestion-&-icp-scoring.json
 │       ├── 2.-linkedin-outreach-(phantombuster).json
@@ -74,7 +106,8 @@ chrt-n8n-workflows/
 │   ├── n8n-sync.sh         # Pre-flight & sync operations
 │   ├── n8n-debug.sh        # API interaction & debugging
 │   ├── auto-debug.sh       # AI-powered error analysis
-│   └── auto-debug-server.js # Local webhook listener
+│   ├── auto-debug-server.js # Local webhook listener
+│   └── sync-meetings.sh    # Sync meeting notes to Obsidian
 ├── test-results/           # Test logs and documentation
 ├── debug-logs/             # Error analysis outputs (gitignored)
 └── .env                    # N8N_API_KEY, N8N_BASE_URL (gitignored)
@@ -82,20 +115,27 @@ chrt-n8n-workflows/
 
 ## Architecture Decisions
 
-### Sync Workflow
-- Uses GitHub Trees API for recursive file listing
+### Sync Workflow Design
+- Uses GitHub Trees API for recursive file listing (replaced loop-based approach)
 - Tag-based folder routing (`linkedin` tag → `workflows/linkedin/`)
 - `onError: continueErrorOutput` on all GitHub nodes for resilience
 
-### Lead Ingestion
-- JavaScript Code node with `Set` for O(1) deduplication
-- Dynamic batch sizing via webhook parameter (10 manual, 240 automated)
-- Waits for both sheets before deduplication
+### Lead Ingestion Optimization
+- Replaced SQL-based Merge node with JavaScript Code node
+- Uses `Set` for O(1) deduplication lookups
+- Dynamic batch sizing via webhook parameter
 
 ### Error Monitoring
-- Filters out manual triggers automatically
+- Webhook filters out manual triggers automatically
 - Attempts local debugger first, falls back to logging
-- Returns debug command in webhook response
+- Returns debug command in response for manual follow-up
+
+### Fireflies Meeting Processor (Hostinger)
+- Receives webhooks from Fireflies.ai when transcription completes
+- Slack prompts for workspace selection and meeting context
+- Gemini AI analyzes transcript and creates structured note
+- Commits to `meeting-notes` GitHub repo
+- Local `sync-meetings.sh` pulls to Obsidian vaults
 
 ## Environment Variables
 
@@ -107,15 +147,24 @@ N8N_BASE_URL=https://chrt.app.n8n.cloud
 
 ## Common Issues
 
-| Issue | Solution |
-|-------|----------|
-| "request/body must NOT have additional properties" | `n8n-debug.sh update` strips read-only properties |
-| Webhook timeout (524) | Workflow continues in background, check n8n UI |
-| Git auth errors | SSH for local Git, PAT for n8n sync workflow |
+### "request/body must NOT have additional properties"
+The n8n API rejects read-only properties. The `n8n-debug.sh update` command automatically strips these.
 
-## Related Files
+### Webhook timeout (524)
+Long-running workflows may timeout but continue executing. Check n8n UI for actual status.
+
+### Git auth errors
+SSH is configured for local Git operations. PAT is used only by the n8n sync workflow.
+
+## Related Documentation
 
 - [WORKFLOW-PROCESS.md](WORKFLOW-PROCESS.md) - Full development workflow
 - [STATUS.md](STATUS.md) - Current issues and fixes
 - [AUTO-DEBUG.md](AUTO-DEBUG.md) - Error analysis system
-- [SESSION-*.md](SESSION-2024-12-26.md) - Session summaries
+- [SETUP.md](SETUP.md) - Initial setup instructions
+- [FIREFLIES-SETUP.md](FIREFLIES-SETUP.md) - Fireflies meeting processor setup
+
+## Current Session Status
+
+See `SESSION-*.md` files for recent work summaries.
+

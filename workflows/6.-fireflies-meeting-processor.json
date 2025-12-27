@@ -1,0 +1,338 @@
+{
+  "name": "6. Fireflies Meeting Processor",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "fireflies-meeting",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "fireflies-webhook",
+      "name": "Fireflies Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 300],
+      "webhookId": "fireflies-meeting"
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "YOUR_SLACK_CHANNEL_ID"
+        },
+        "text": "📝 *New Meeting Transcript Ready*\n*Title:* {{ $json.body.title || $json.title || 'Untitled' }}\n*Date:* {{ $json.body.date || $json.date || 'Unknown' }}",
+        "attachments": [],
+        "blocksUi": {
+          "blocksValues": [
+            {
+              "type": "section",
+              "text": {
+                "type": "mrkdwn",
+                "text": "📝 *New Meeting Ready for Processing*\n*Title:* `{{ $json.body?.title || $json.title || 'Untitled Meeting' }}`\n*Duration:* {{ Math.round(($json.body?.duration || $json.duration || 0) / 60) }} minutes"
+              }
+            },
+            {
+              "type": "divider"
+            },
+            {
+              "type": "input",
+              "element": {
+                "type": "static_select",
+                "action_id": "workspace_select",
+                "placeholder": {
+                  "type": "plain_text",
+                  "text": "Select workspace"
+                },
+                "options": [
+                  {
+                    "text": { "type": "plain_text", "text": "🏢 Chrt" },
+                    "value": "chrt"
+                  },
+                  {
+                    "text": { "type": "plain_text", "text": "💡 GoodLux" },
+                    "value": "goodlux"
+                  },
+                  {
+                    "text": { "type": "plain_text", "text": "🏠 Personal" },
+                    "value": "personal"
+                  },
+                  {
+                    "text": { "type": "plain_text", "text": "🛖 ShedPro" },
+                    "value": "shedpro"
+                  }
+                ]
+              },
+              "label": { "type": "plain_text", "text": "Which workspace?" }
+            },
+            {
+              "type": "input",
+              "element": {
+                "type": "plain_text_input",
+                "action_id": "meeting_purpose",
+                "multiline": true,
+                "placeholder": {
+                  "type": "plain_text",
+                  "text": "e.g., Discovery call with ACME Corp about logistics needs"
+                }
+              },
+              "label": { "type": "plain_text", "text": "What was the purpose of this meeting?" }
+            },
+            {
+              "type": "input",
+              "element": {
+                "type": "plain_text_input",
+                "action_id": "focus_areas",
+                "multiline": true,
+                "placeholder": {
+                  "type": "plain_text",
+                  "text": "e.g., Extract action items, identify pain points, note budget discussions"
+                }
+              },
+              "label": { "type": "plain_text", "text": "Any specific areas to focus on?" },
+              "optional": true
+            },
+            {
+              "type": "actions",
+              "elements": [
+                {
+                  "type": "button",
+                  "text": { "type": "plain_text", "text": "✨ Process Meeting" },
+                  "style": "primary",
+                  "action_id": "submit_meeting"
+                },
+                {
+                  "type": "button",
+                  "text": { "type": "plain_text", "text": "Skip" },
+                  "action_id": "skip_meeting"
+                }
+              ]
+            }
+          ]
+        },
+        "otherOptions": {
+          "includeLinkToWorkflow": false
+        }
+      },
+      "id": "slack-prompt",
+      "name": "Slack: Ask for Context",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.3,
+      "position": [240, 300],
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "YOUR_SLACK_CRED_ID",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "check-skip",
+              "leftValue": "={{ $json.actions?.find(a => a.action_id === 'skip_meeting') ? true : false }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-skipped",
+      "name": "Skipped?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract Slack responses and combine with transcript\nconst webhook = $('Fireflies Webhook').first().json;\nconst slack = $input.first().json;\n\n// Get transcript from Fireflies payload\nconst body = webhook.body || webhook;\nconst transcript = body.transcript || body.sentences?.map(s => `${s.speaker_name}: ${s.text}`).join('\\n') || '';\n\n// Parse Slack action values\nconst actions = slack.actions || [];\nconst state = slack.state?.values || {};\n\n// Try to get values from actions first, then state\nlet workspace = 'chrt';\nlet purpose = '';\nlet focus = '';\n\n// From actions (button click includes these)\nfor (const action of actions) {\n  if (action.action_id === 'workspace_select') {\n    workspace = action.selected_option?.value || 'chrt';\n  }\n}\n\n// From state (form values)\nfor (const blockId in state) {\n  const block = state[blockId];\n  if (block.workspace_select) {\n    workspace = block.workspace_select.selected_option?.value || workspace;\n  }\n  if (block.meeting_purpose) {\n    purpose = block.meeting_purpose.value || '';\n  }\n  if (block.focus_areas) {\n    focus = block.focus_areas.value || '';\n  }\n}\n\n// Map workspace to GitHub folder\nconst folderMap = {\n  chrt: 'chrt',\n  goodlux: 'goodlux',\n  personal: 'personal',\n  shedpro: 'shedpro'\n};\n\n// Build filename from date and title\nconst meetingDate = body.date || body.dateString || new Date().toISOString();\nconst dateStr = new Date(meetingDate).toISOString().split('T')[0];\nconst title = (body.title || 'Meeting').replace(/[^a-zA-Z0-9 -]/g, '').trim();\nconst fileName = `${dateStr}: ${title}.md`;\n\n// Extract attendees\nconst attendees = body.attendees || body.participants || [];\nconst attendeeList = attendees.map(a => a.name || a.displayName || a.email || 'Unknown').join(', ');\n\nreturn [{\n  json: {\n    transcript,\n    title: body.title || 'Untitled Meeting',\n    date: meetingDate,\n    dateStr,\n    attendees: attendeeList,\n    attendeesRaw: attendees,\n    workspace,\n    folder: folderMap[workspace] || 'chrt',\n    purpose,\n    focusAreas: focus,\n    fileName,\n    duration: body.duration || 0,\n    meetingUrl: body.meeting_url || body.video_url || '',\n    firefliesUrl: body.transcript_url || ''\n  }\n}];"
+      },
+      "id": "prepare-data",
+      "name": "Prepare Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [720, 200]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "models/gemini-2.0-flash"
+        },
+        "promptType": "define",
+        "text": "You are a meeting analysis expert. Analyze the following meeting transcript and create a structured markdown note for an Obsidian vault.\n\n**Meeting Context:**\n- Title: {{ $json.title }}\n- Date: {{ $json.dateStr }}\n- Attendees: {{ $json.attendees || 'Not specified' }}\n- Purpose: {{ $json.purpose || 'Not specified' }}\n- Focus Areas: {{ $json.focusAreas || 'None specified' }}\n\n**Your Task:**\nCreate a comprehensive meeting note with the following structure. Use proper Obsidian markdown formatting.\n\n**Output EXACTLY in this format:**\n\n```\n---\nup:\n  - \"[[Calendar]]\"\nin:\n  - \"[[Meetings]]\"\nrelated:\ncreated: {{ $json.dateStr }}\ntags:\n  - meeting\n---\n# {{ $json.title }}\n\n> [One sentence summary of the meeting's main outcome]\n\n## Meeting Details\n| | |\n|---|---|\n| **Date** | {{ $json.dateStr }} |\n| **Attendees** | {{ $json.attendees || 'Not recorded' }} |\n| **Duration** | {{ Math.round($json.duration / 60) || 'Unknown' }} minutes |\n\n## Summary\n[3-4 sentence executive summary of what was discussed and decided]\n\n## Key Discussion Points\n- [Main topic 1 with key details]\n- [Main topic 2 with key details]\n- [Main topic 3 with key details]\n\n## Action Items\n- [ ] [Specific action item with owner if mentioned] #hudson\n- [ ] [Another action item]\n\n## Decisions Made\n- [Any decisions or agreements reached]\n\n## Follow-up Required\n- [Next steps or follow-up meetings needed]\n\n## Notes\n[Any additional relevant details, quotes, or context from the meeting]\n```\n\n**Transcript to analyze:**\n{{ $json.transcript }}\n\n**Important:**\n- Extract REAL action items from the transcript, not placeholder text\n- If attendee names are mentioned, use them for action item ownership\n- Be specific and factual based on transcript content\n- If something wasn't discussed, omit that section rather than using placeholder text"
+      },
+      "id": "gemini-analyze",
+      "name": "Gemini: Analyze Transcript",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [960, 200],
+      "credentials": {
+        "googleGeminiApi": {
+          "id": "YOUR_GEMINI_CRED_ID",
+          "name": "Google Gemini account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Clean up the Gemini output - remove markdown code fences if present\nconst geminiOutput = $input.first().json;\nconst prepData = $('Prepare Data').first().json;\n\nlet content = geminiOutput.text || geminiOutput.content || '';\n\n// Remove markdown code fences if Gemini wrapped the output\ncontent = content.replace(/^```(?:markdown)?\\n?/gm, '').replace(/\\n?```$/gm, '').trim();\n\n// Ensure frontmatter is properly formatted\nif (!content.startsWith('---')) {\n  content = `---\\nup:\\n  - \"[[Calendar]]\"\\nin:\\n  - \"[[Meetings]]\"\\nrelated:\\ncreated: ${prepData.dateStr}\\ntags:\\n  - meeting\\n---\\n\\n${content}`;\n}\n\nreturn [{\n  json: {\n    content,\n    folder: prepData.folder,\n    fileName: prepData.fileName,\n    workspace: prepData.workspace,\n    title: prepData.title,\n    date: prepData.dateStr\n  }\n}];"
+      },
+      "id": "clean-output",
+      "name": "Clean Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1200, 200]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://api.github.com/repos/hudsonlorfing/meeting-notes/contents/{{ $json.folder }}/{{ encodeURIComponent($json.fileName) }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "githubApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ message: 'Add meeting: ' + $json.title + ' (' + $json.date + ')', content: Buffer.from($json.content).toString('base64'), branch: 'main' }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "id": "github-commit",
+      "name": "GitHub: Commit File",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1440, 200],
+      "credentials": {
+        "githubApi": {
+          "id": "YOUR_GITHUB_CRED_ID",
+          "name": "GitHub account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "YOUR_SLACK_CHANNEL_ID"
+        },
+        "text": "✅ *Meeting processed successfully!*\n\n📝 *{{ $('Prepare Data').first().json.title }}*\n📁 Saved to: `{{ $('Prepare Data').first().json.workspace }}/{{ $('Prepare Data').first().json.fileName }}`\n\n_Run `sync-meetings` on your Mac to pull the latest notes._"
+      },
+      "id": "slack-success",
+      "name": "Slack: Notify Success",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.3,
+      "position": [1680, 100],
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "YOUR_SLACK_CRED_ID",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "YOUR_SLACK_CHANNEL_ID"
+        },
+        "text": "⚠️ *Error processing meeting*\n\n{{ $json.error || 'Unknown error' }}\n\nCheck the n8n execution logs for details."
+      },
+      "id": "slack-error",
+      "name": "Slack: Notify Error",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.3,
+      "position": [1680, 300],
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "YOUR_SLACK_CRED_ID",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "skipped-done",
+      "name": "Skipped - Done",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [720, 400]
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 500],
+      "id": "manual-trigger",
+      "name": "Manual Trigger (Testing)"
+    }
+  ],
+  "connections": {
+    "Fireflies Webhook": {
+      "main": [[{ "node": "Slack: Ask for Context", "type": "main", "index": 0 }]]
+    },
+    "Slack: Ask for Context": {
+      "main": [[{ "node": "Skipped?", "type": "main", "index": 0 }]]
+    },
+    "Skipped?": {
+      "main": [
+        [{ "node": "Prepare Data", "type": "main", "index": 0 }],
+        [{ "node": "Skipped - Done", "type": "main", "index": 0 }]
+      ]
+    },
+    "Prepare Data": {
+      "main": [[{ "node": "Gemini: Analyze Transcript", "type": "main", "index": 0 }]]
+    },
+    "Gemini: Analyze Transcript": {
+      "main": [[{ "node": "Clean Output", "type": "main", "index": 0 }]]
+    },
+    "Clean Output": {
+      "main": [[{ "node": "GitHub: Commit File", "type": "main", "index": 0 }]]
+    },
+    "GitHub: Commit File": {
+      "main": [
+        [{ "node": "Slack: Notify Success", "type": "main", "index": 0 }],
+        [{ "node": "Slack: Notify Error", "type": "main", "index": 0 }]
+      ]
+    },
+    "Manual Trigger (Testing)": {
+      "main": [[{ "node": "Slack: Ask for Context", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [
+    {
+      "name": "meetings"
+    }
+  ]
+}
+
