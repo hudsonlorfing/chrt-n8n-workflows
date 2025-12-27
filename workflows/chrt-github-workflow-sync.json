@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2025-12-27T00:35:18.747Z",
+  "updatedAt": "2025-12-27T02:09:21.022Z",
   "createdAt": "2025-12-24T03:16:41.674Z",
   "id": "r4ICnvhdbQwejSdH",
   "name": "Chrt GitHub Workflow Sync",
@@ -213,6 +213,7 @@
       ],
       "webhookId": "ce4b561b-acb9-4cd8-b76f-4928dada9674",
       "typeVersion": 1,
+      "onError": "continueErrorOutput",
       "credentials": {
         "githubApi": {
           "id": "QO1GzHuZN8K3xHku",
@@ -294,6 +295,7 @@
       ],
       "webhookId": "27218087-8df7-474d-a39f-70cfa9c34ec8",
       "typeVersion": 1,
+      "onError": "continueErrorOutput",
       "credentials": {
         "githubApi": {
           "id": "QO1GzHuZN8K3xHku",
@@ -564,6 +566,7 @@
       ],
       "typeVersion": 1,
       "webhookId": "7c19519e-8d0f-499b-a18b-894c48e21901",
+      "onError": "continueErrorOutput",
       "credentials": {
         "githubApi": {
           "id": "QO1GzHuZN8K3xHku",
@@ -1166,8 +1169,8 @@
     "templateCredsSetupCompleted": true
   },
   "pinData": {},
-  "versionId": "1efb696b-e498-40a3-b790-6598b98e4091",
-  "activeVersionId": "43f32a56-eadb-4d0e-946c-a90808c6d1fe",
+  "versionId": "7a48a3ca-1bd6-4f47-9633-c3a020f91144",
+  "activeVersionId": "7a48a3ca-1bd6-4f47-9633-c3a020f91144",
   "triggerCount": 2,
   "shared": [
     {
@@ -1179,9 +1182,9 @@
     }
   ],
   "activeVersion": {
-    "updatedAt": "2025-12-26T19:01:46.939Z",
-    "createdAt": "2025-12-26T19:01:46.939Z",
-    "versionId": "43f32a56-eadb-4d0e-946c-a90808c6d1fe",
+    "updatedAt": "2025-12-27T02:09:21.023Z",
+    "createdAt": "2025-12-27T02:09:21.023Z",
+    "versionId": "7a48a3ca-1bd6-4f47-9633-c3a020f91144",
     "workflowId": "r4ICnvhdbQwejSdH",
     "nodes": [
       {
@@ -1209,9 +1212,7 @@
         "parameters": {
           "rule": {
             "interval": [
-              {
-                "field": "hours"
-              }
+              {}
             ]
           }
         },
@@ -1227,7 +1228,6 @@
       {
         "parameters": {
           "path": "sync-debug",
-          "httpMethod": "GET",
           "responseMode": "lastNode",
           "options": {}
         },
@@ -1236,14 +1236,13 @@
         "type": "n8n-nodes-base.webhook",
         "position": [
           -624,
-          9976
+          9984
         ],
         "webhookId": "sync-debug-webhook",
         "typeVersion": 2
       },
       {
         "parameters": {
-          "method": "GET",
           "url": "=https://api.github.com/repos/{{ $json.github_account_name }}/{{ $json.github_repo_name }}/git/trees/main?recursive=1",
           "authentication": "predefinedCredentialType",
           "nodeCredentialType": "githubApi",
@@ -1395,6 +1394,7 @@
         ],
         "webhookId": "ce4b561b-acb9-4cd8-b76f-4928dada9674",
         "typeVersion": 1,
+        "onError": "continueErrorOutput",
         "credentials": {
           "githubApi": {
             "id": "QO1GzHuZN8K3xHku",
@@ -1476,6 +1476,7 @@
         ],
         "webhookId": "27218087-8df7-474d-a39f-70cfa9c34ec8",
         "typeVersion": 1,
+        "onError": "continueErrorOutput",
         "credentials": {
           "githubApi": {
             "id": "QO1GzHuZN8K3xHku",
@@ -1746,6 +1747,7 @@
         ],
         "typeVersion": 1,
         "webhookId": "7c19519e-8d0f-499b-a18b-894c48e21901",
+        "onError": "continueErrorOutput",
         "credentials": {
           "githubApi": {
             "id": "QO1GzHuZN8K3xHku",
@@ -1911,7 +1913,7 @@
         "name": "Aggregate GitHub Files",
         "type": "n8n-nodes-base.aggregate",
         "position": [
-          760,
+          768,
           9904
         ],
         "typeVersion": 1
@@ -1924,7 +1926,7 @@
         "name": "Split for Comparison",
         "type": "n8n-nodes-base.code",
         "position": [
-          856,
+          864,
           9904
         ],
         "typeVersion": 2
