@@ -27,3 +27,5 @@ test-results/*.log
 # Debug execution output files
 execution-*.json
 
+# Debug logs directory
+debug-logs/
