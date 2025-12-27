@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2025-12-26T19:01:46.938Z",
+  "updatedAt": "2025-12-27T00:35:18.747Z",
   "createdAt": "2025-12-24T03:16:41.674Z",
   "id": "r4ICnvhdbQwejSdH",
   "name": "Chrt GitHub Workflow Sync",
@@ -32,9 +32,7 @@
       "parameters": {
         "rule": {
           "interval": [
-            {
-              "field": "hours"
-            }
+            {}
           ]
         }
       },
@@ -50,7 +48,6 @@
     {
       "parameters": {
         "path": "sync-debug",
-        "httpMethod": "GET",
         "responseMode": "lastNode",
         "options": {}
       },
@@ -59,14 +56,13 @@
       "type": "n8n-nodes-base.webhook",
       "position": [
         -624,
-        9976
+        9984
       ],
       "webhookId": "sync-debug-webhook",
       "typeVersion": 2
     },
     {
       "parameters": {
-        "method": "GET",
         "url": "=https://api.github.com/repos/{{ $json.github_account_name }}/{{ $json.github_repo_name }}/git/trees/main?recursive=1",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "githubApi",
@@ -734,7 +730,7 @@
       "name": "Aggregate GitHub Files",
       "type": "n8n-nodes-base.aggregate",
       "position": [
-        760,
+        768,
         9904
       ],
       "typeVersion": 1
@@ -747,7 +743,7 @@
       "name": "Split for Comparison",
       "type": "n8n-nodes-base.code",
       "position": [
-        856,
+        864,
         9904
       ],
       "typeVersion": 2
@@ -1171,9 +1167,9 @@
     "templateCredsSetupCompleted": true
   },
   "pinData": {},
-  "versionId": "43f32a56-eadb-4d0e-946c-a90808c6d1fe",
+  "versionId": "1efb696b-e498-40a3-b790-6598b98e4091",
   "activeVersionId": "43f32a56-eadb-4d0e-946c-a90808c6d1fe",
-  "versionCounter": 38,
+  "versionCounter": 39,
   "triggerCount": 2,
   "shared": [
     {
