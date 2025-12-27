@@ -3,7 +3,6 @@
   "createdAt": "2025-12-19T16:28:57.739Z",
   "id": "a56vnrPo9dsg5mmf",
   "name": "3. Connection Sync → HubSpot",
-  "description": null,
   "active": true,
   "isArchived": false,
   "nodes": [
@@ -1368,7 +1367,6 @@
   "pinData": {},
   "versionId": "453b1170-7a3d-4418-8369-3c922e4ee12e",
   "activeVersionId": "453b1170-7a3d-4418-8369-3c922e4ee12e",
-  "versionCounter": 39,
   "triggerCount": 1,
   "shared": [
     {
@@ -1376,60 +1374,7 @@
       "createdAt": "2025-12-24T03:18:02.180Z",
       "role": "workflow:owner",
       "workflowId": "a56vnrPo9dsg5mmf",
-      "projectId": "O7lTivDfRl72aS23",
-      "project": {
-        "updatedAt": "2025-12-24T03:17:11.000Z",
-        "createdAt": "2025-12-23T21:24:31.508Z",
-        "id": "O7lTivDfRl72aS23",
-        "name": "ChrtWorkflows",
-        "type": "team",
-        "icon": {
-          "type": "icon",
-          "value": "layers"
-        },
-        "description": "",
-        "projectRelations": [
-          {
-            "updatedAt": "2025-12-23T21:24:31.510Z",
-            "createdAt": "2025-12-23T21:24:31.510Z",
-            "userId": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4",
-            "projectId": "O7lTivDfRl72aS23",
-            "user": {
-              "updatedAt": "2025-12-26T16:26:59.000Z",
-              "createdAt": "2025-12-17T12:51:53.118Z",
-              "id": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4",
-              "email": "hudson@chrt.com",
-              "firstName": "Hudson",
-              "lastName": "Lorfing",
-              "personalizationAnswers": null,
-              "settings": {
-                "userActivated": true,
-                "userClaimedAiCredits": true,
-                "easyAIWorkflowOnboarded": true,
-                "firstSuccessfulWorkflowId": "kjjYKQEXv67Vl5MS",
-                "userActivatedAt": 1766099344758,
-                "npsSurvey": {
-                  "waitingForResponse": true,
-                  "ignoredCount": 1,
-                  "lastShownAt": 1766525415079
-                }
-              },
-              "disabled": false,
-              "mfaEnabled": false,
-              "lastActiveAt": "2025-12-26",
-              "isPending": false
-            }
-          }
-        ]
-      }
-    }
-  ],
-  "tags": [
-    {
-      "updatedAt": "2025-12-17T14:25:00.955Z",
-      "createdAt": "2025-12-17T14:25:00.955Z",
-      "id": "ST1cKCxkQ4kcD3uk",
-      "name": "linkedin"
+      "projectId": "O7lTivDfRl72aS23"
     }
   ],
   "activeVersion": {
@@ -2787,16 +2732,16 @@
     },
     "authors": "Hudson Lorfing",
     "name": "Version 453b1170",
-    "description": "",
-    "workflowPublishHistory": [
-      {
-        "createdAt": "2025-12-24T04:40:07.355Z",
-        "id": 9,
-        "workflowId": "a56vnrPo9dsg5mmf",
-        "versionId": "453b1170-7a3d-4418-8369-3c922e4ee12e",
-        "event": "activated",
-        "userId": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4"
-      }
-    ]
-  }
+    "description": ""
+  },
+  "tags": [
+    {
+      "updatedAt": "2025-12-17T14:25:00.955Z",
+      "createdAt": "2025-12-17T14:25:00.955Z",
+      "id": "ST1cKCxkQ4kcD3uk",
+      "name": "linkedin"
+    }
+  ],
+  "_folderPath": "linkedin",
+  "_fileName": "3.-connection-sync-→-hubspot.json"
 }
