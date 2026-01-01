@@ -1,0 +1,518 @@
+{
+  "updatedAt": "2026-01-01T08:23:49.000Z",
+  "createdAt": "2025-12-27T02:10:18.332Z",
+  "id": "YWP69Qgq0ZlCN7Gj",
+  "name": "5. Error Monitor Webhook",
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "workflow-error",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "error-webhook",
+      "name": "Error Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "workflow-error-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Filter out manual triggers and extract error info\nconst rawData = $input.first().json;\n// Webhook data is nested under 'body' in n8n webhooks\nconst data = rawData.body || rawData;\n\n// Check if this was a manual trigger - skip those\nconst mode = data.execution?.mode || data.mode || '';\nif (mode === 'manual' || mode === 'trigger') {\n  return [{ json: { skip: true, reason: 'Manual trigger - not monitoring' } }];\n}\n\n// Extract error details\nconst workflowId = data.workflow?.id || data.workflowData?.id || 'unknown';\nconst workflowName = data.workflow?.name || data.workflowData?.name || 'Unknown Workflow';\nconst executionId = data.execution?.id || data.executionId || 'unknown';\nconst errorMessage = data.execution?.error?.message || data.error?.message || 'Unknown error';\nconst errorNode = data.execution?.error?.node?.name || data.error?.node?.name || data.error?.node || 'Unknown node';\nconst errorStack = data.execution?.error?.stack || data.error?.stack || '';\nconst startedAt = data.execution?.startedAt || new Date().toISOString();\n\nreturn [{\n  json: {\n    skip: false,\n    workflowId,\n    workflowName,\n    executionId,\n    errorMessage,\n    errorNode,\n    errorStack,\n    startedAt,\n    mode,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "parse-error",
+      "name": "Parse Error Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "not-skip",
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-should-process",
+      "name": "Should Process?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format error for logging and notification\nconst error = $input.first().json;\n\nconst formattedError = {\n  summary: `Error in ${error.workflowName} at node '${error.errorNode}'`,\n  details: {\n    workflow: {\n      id: error.workflowId,\n      name: error.workflowName\n    },\n    execution: {\n      id: error.executionId,\n      startedAt: error.startedAt,\n      mode: error.mode\n    },\n    error: {\n      node: error.errorNode,\n      message: error.errorMessage,\n      stack: (error.errorStack || '').substring(0, 500)\n    }\n  },\n  debugContext: {\n    workflowId: error.workflowId,\n    executionId: error.executionId,\n    errorNode: error.errorNode,\n    errorMessage: error.errorMessage\n  },\n  debugCommand: `cd /Users/hudsonlorfing/Documents/Business/Chrt/workflows/chrt-n8n-workflows && ./scripts/auto-debug.sh analyze ${error.executionId}`,\n  timestamp: error.timestamp\n};\n\nreturn [{ json: formattedError }];"
+      },
+      "id": "format-error",
+      "name": "Format Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:3847/n8n-error",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "timeout": 5000
+        }
+      },
+      "id": "notify-local-debugger",
+      "name": "Notify Local Debugger",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        -100
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Log that local debugger wasn't available\nconst error = $('Format Error').first().json;\n\nconst logEntry = {\n  status: 'logged_locally',\n  message: 'Local debugger not available. Error logged in n8n execution history.',\n  summary: error.summary,\n  debugCommand: error.debugCommand,\n  n8nUrl: `https://chrt.app.n8n.cloud/workflow/${error.details.workflow.id}/executions/${error.details.execution.id}`,\n  timestamp: new Date().toISOString()\n};\n\nreturn [{ json: logEntry }];"
+      },
+      "id": "log-error",
+      "name": "Log Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { status: 'success', localDebugger: 'connected', summary: $json.summary } }}",
+        "options": {}
+      },
+      "id": "respond-success",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1100,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { status: 'skipped', reason: $json.reason } }}",
+        "options": {}
+      },
+      "id": "respond-skipped",
+      "name": "Respond Skipped",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        660,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "respond-logged",
+      "name": "Respond Logged",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1320,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Error Webhook": {
+      "main": [
+        [
+          {
+            "node": "Parse Error Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Error Data": {
+      "main": [
+        [
+          {
+            "node": "Should Process?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Should Process?": {
+      "main": [
+        [
+          {
+            "node": "Format Error",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Skipped",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Error": {
+      "main": [
+        [
+          {
+            "node": "Notify Local Debugger",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Local Debugger": {
+      "main": [
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Error": {
+      "main": [
+        [
+          {
+            "node": "Respond Logged",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": null,
+  "versionId": "11d7e062-7142-4bb0-9821-d57f18f43f84",
+  "activeVersionId": "11d7e062-7142-4bb0-9821-d57f18f43f84",
+  "triggerCount": 1,
+  "shared": [
+    {
+      "updatedAt": "2026-01-01T08:23:49.208Z",
+      "createdAt": "2026-01-01T08:23:49.208Z",
+      "role": "workflow:owner",
+      "workflowId": "YWP69Qgq0ZlCN7Gj",
+      "projectId": "O7lTivDfRl72aS23"
+    }
+  ],
+  "activeVersion": {
+    "updatedAt": "2025-12-27T02:23:31.306Z",
+    "createdAt": "2025-12-27T02:23:31.306Z",
+    "versionId": "11d7e062-7142-4bb0-9821-d57f18f43f84",
+    "workflowId": "YWP69Qgq0ZlCN7Gj",
+    "nodes": [
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "workflow-error",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "error-webhook",
+        "name": "Error Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          0,
+          0
+        ],
+        "webhookId": "workflow-error-webhook"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Filter out manual triggers and extract error info\nconst rawData = $input.first().json;\n// Webhook data is nested under 'body' in n8n webhooks\nconst data = rawData.body || rawData;\n\n// Check if this was a manual trigger - skip those\nconst mode = data.execution?.mode || data.mode || '';\nif (mode === 'manual' || mode === 'trigger') {\n  return [{ json: { skip: true, reason: 'Manual trigger - not monitoring' } }];\n}\n\n// Extract error details\nconst workflowId = data.workflow?.id || data.workflowData?.id || 'unknown';\nconst workflowName = data.workflow?.name || data.workflowData?.name || 'Unknown Workflow';\nconst executionId = data.execution?.id || data.executionId || 'unknown';\nconst errorMessage = data.execution?.error?.message || data.error?.message || 'Unknown error';\nconst errorNode = data.execution?.error?.node?.name || data.error?.node?.name || data.error?.node || 'Unknown node';\nconst errorStack = data.execution?.error?.stack || data.error?.stack || '';\nconst startedAt = data.execution?.startedAt || new Date().toISOString();\n\nreturn [{\n  json: {\n    skip: false,\n    workflowId,\n    workflowName,\n    executionId,\n    errorMessage,\n    errorNode,\n    errorStack,\n    startedAt,\n    mode,\n    timestamp: new Date().toISOString()\n  }\n}];"
+        },
+        "id": "parse-error",
+        "name": "Parse Error Data",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          220,
+          0
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "not-skip",
+                "leftValue": "={{ $json.skip }}",
+                "rightValue": false,
+                "operator": {
+                  "type": "boolean",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "check-should-process",
+        "name": "Should Process?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          440,
+          0
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "// Format error for logging and notification\nconst error = $input.first().json;\n\nconst formattedError = {\n  summary: `Error in ${error.workflowName} at node '${error.errorNode}'`,\n  details: {\n    workflow: {\n      id: error.workflowId,\n      name: error.workflowName\n    },\n    execution: {\n      id: error.executionId,\n      startedAt: error.startedAt,\n      mode: error.mode\n    },\n    error: {\n      node: error.errorNode,\n      message: error.errorMessage,\n      stack: (error.errorStack || '').substring(0, 500)\n    }\n  },\n  debugContext: {\n    workflowId: error.workflowId,\n    executionId: error.executionId,\n    errorNode: error.errorNode,\n    errorMessage: error.errorMessage\n  },\n  debugCommand: `cd /Users/hudsonlorfing/Documents/Business/Chrt/workflows/chrt-n8n-workflows && ./scripts/auto-debug.sh analyze ${error.executionId}`,\n  timestamp: error.timestamp\n};\n\nreturn [{ json: formattedError }];"
+        },
+        "id": "format-error",
+        "name": "Format Error",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          660,
+          -100
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "http://localhost:3847/n8n-error",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify($json) }}",
+          "options": {
+            "timeout": 5000
+          }
+        },
+        "id": "notify-local-debugger",
+        "name": "Notify Local Debugger",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          880,
+          -100
+        ],
+        "onError": "continueErrorOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Log that local debugger wasn't available\nconst error = $('Format Error').first().json;\n\nconst logEntry = {\n  status: 'logged_locally',\n  message: 'Local debugger not available. Error logged in n8n execution history.',\n  summary: error.summary,\n  debugCommand: error.debugCommand,\n  n8nUrl: `https://chrt.app.n8n.cloud/workflow/${error.details.workflow.id}/executions/${error.details.execution.id}`,\n  timestamp: new Date().toISOString()\n};\n\nreturn [{ json: logEntry }];"
+        },
+        "id": "log-error",
+        "name": "Log Error",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1100,
+          0
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ { status: 'success', localDebugger: 'connected', summary: $json.summary } }}",
+          "options": {}
+        },
+        "id": "respond-success",
+        "name": "Respond Success",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [
+          1100,
+          -200
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ { status: 'skipped', reason: $json.reason } }}",
+          "options": {}
+        },
+        "id": "respond-skipped",
+        "name": "Respond Skipped",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [
+          660,
+          100
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ $json }}",
+          "options": {}
+        },
+        "id": "respond-logged",
+        "name": "Respond Logged",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [
+          1320,
+          0
+        ]
+      }
+    ],
+    "connections": {
+      "Error Webhook": {
+        "main": [
+          [
+            {
+              "node": "Parse Error Data",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Parse Error Data": {
+        "main": [
+          [
+            {
+              "node": "Should Process?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Should Process?": {
+        "main": [
+          [
+            {
+              "node": "Format Error",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Respond Skipped",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Format Error": {
+        "main": [
+          [
+            {
+              "node": "Notify Local Debugger",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Notify Local Debugger": {
+        "main": [
+          [
+            {
+              "node": "Respond Success",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Log Error",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Log Error": {
+        "main": [
+          [
+            {
+              "node": "Respond Logged",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "authors": "Hudson Lorfing",
+    "name": null,
+    "description": null
+  },
+  "tags": [],
+  "_folderPath": "",
+  "_fileName": "5.-error-monitor-webhook.json"
+}
