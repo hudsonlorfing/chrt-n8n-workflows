@@ -3,7 +3,6 @@
   "createdAt": "2025-12-24T03:16:41.674Z",
   "id": "r4ICnvhdbQwejSdH",
   "name": "Chrt GitHub Workflow Sync",
-  "description": null,
   "active": true,
   "isArchived": false,
   "nodes": [
@@ -1172,7 +1171,6 @@
   "pinData": {},
   "versionId": "7a48a3ca-1bd6-4f47-9633-c3a020f91144",
   "activeVersionId": "7a48a3ca-1bd6-4f47-9633-c3a020f91144",
-  "versionCounter": 42,
   "triggerCount": 2,
   "shared": [
     {
@@ -1180,60 +1178,7 @@
       "createdAt": "2025-12-24T03:17:46.976Z",
       "role": "workflow:owner",
       "workflowId": "r4ICnvhdbQwejSdH",
-      "projectId": "O7lTivDfRl72aS23",
-      "project": {
-        "updatedAt": "2025-12-24T03:17:11.000Z",
-        "createdAt": "2025-12-23T21:24:31.508Z",
-        "id": "O7lTivDfRl72aS23",
-        "name": "ChrtWorkflows",
-        "type": "team",
-        "icon": {
-          "type": "icon",
-          "value": "layers"
-        },
-        "description": "",
-        "projectRelations": [
-          {
-            "updatedAt": "2025-12-23T21:24:31.510Z",
-            "createdAt": "2025-12-23T21:24:31.510Z",
-            "userId": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4",
-            "projectId": "O7lTivDfRl72aS23",
-            "user": {
-              "updatedAt": "2026-01-01T08:00:00.000Z",
-              "createdAt": "2025-12-17T12:51:53.118Z",
-              "id": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4",
-              "email": "hudson@chrt.com",
-              "firstName": "Hudson",
-              "lastName": "Lorfing",
-              "personalizationAnswers": null,
-              "settings": {
-                "userActivated": true,
-                "userClaimedAiCredits": true,
-                "easyAIWorkflowOnboarded": true,
-                "firstSuccessfulWorkflowId": "kjjYKQEXv67Vl5MS",
-                "userActivatedAt": 1766099344758,
-                "npsSurvey": {
-                  "waitingForResponse": true,
-                  "ignoredCount": 1,
-                  "lastShownAt": 1766525415079
-                }
-              },
-              "disabled": false,
-              "mfaEnabled": false,
-              "lastActiveAt": "2026-01-01",
-              "isPending": false
-            }
-          }
-        ]
-      }
-    }
-  ],
-  "tags": [
-    {
-      "updatedAt": "2025-12-24T03:13:55.056Z",
-      "createdAt": "2025-12-24T03:13:55.056Z",
-      "id": "DEHTpDES3OilFwB8",
-      "name": "github"
+      "projectId": "O7lTivDfRl72aS23"
     }
   ],
   "activeVersion": {
@@ -2393,16 +2338,16 @@
     },
     "authors": "Hudson Lorfing",
     "name": null,
-    "description": null,
-    "workflowPublishHistory": [
-      {
-        "createdAt": "2025-12-27T02:09:21.215Z",
-        "id": 41,
-        "workflowId": "r4ICnvhdbQwejSdH",
-        "versionId": "7a48a3ca-1bd6-4f47-9633-c3a020f91144",
-        "event": "activated",
-        "userId": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4"
-      }
-    ]
-  }
+    "description": null
+  },
+  "tags": [
+    {
+      "updatedAt": "2025-12-24T03:13:55.056Z",
+      "createdAt": "2025-12-24T03:13:55.056Z",
+      "id": "DEHTpDES3OilFwB8",
+      "name": "github"
+    }
+  ],
+  "_folderPath": "",
+  "_fileName": "chrt-github-workflow-sync.json"
 }
