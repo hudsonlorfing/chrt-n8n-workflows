@@ -1287,6 +1287,7 @@
   "settings": {
     "executionOrder": "v1",
     "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "YWP69Qgq0ZlCN7Gj",
     "availableInMCP": false
   },
   "staticData": {

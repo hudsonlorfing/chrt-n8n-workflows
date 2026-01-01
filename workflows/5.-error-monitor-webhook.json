@@ -7,25 +7,19 @@
   "isArchived": false,
   "nodes": [
     {
-      "parameters": {
-        "httpMethod": "POST",
-        "path": "workflow-error",
-        "responseMode": "responseNode",
-        "options": {}
-      },
-      "id": "error-webhook",
-      "name": "Error Webhook",
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2,
+      "parameters": {},
+      "id": "error-trigger",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
       "position": [
         0,
         0
-      ],
-      "webhookId": "workflow-error-webhook"
+      ]
     },
     {
       "parameters": {
-        "jsCode": "// Filter out manual triggers and extract error info\nconst rawData = $input.first().json;\n// Webhook data is nested under 'body' in n8n webhooks\nconst data = rawData.body || rawData;\n\n// Check if this was a manual trigger - skip those\nconst mode = data.execution?.mode || data.mode || '';\nif (mode === 'manual' || mode === 'trigger') {\n  return [{ json: { skip: true, reason: 'Manual trigger - not monitoring' } }];\n}\n\n// Extract error details\nconst workflowId = data.workflow?.id || data.workflowData?.id || 'unknown';\nconst workflowName = data.workflow?.name || data.workflowData?.name || 'Unknown Workflow';\nconst executionId = data.execution?.id || data.executionId || 'unknown';\nconst errorMessage = data.execution?.error?.message || data.error?.message || 'Unknown error';\nconst errorNode = data.execution?.error?.node?.name || data.error?.node?.name || data.error?.node || 'Unknown node';\nconst errorStack = data.execution?.error?.stack || data.error?.stack || '';\nconst startedAt = data.execution?.startedAt || new Date().toISOString();\n\nreturn [{\n  json: {\n    skip: false,\n    workflowId,\n    workflowName,\n    executionId,\n    errorMessage,\n    errorNode,\n    errorStack,\n    startedAt,\n    mode,\n    timestamp: new Date().toISOString()\n  }\n}];"
+        "jsCode": "// Parse error data from Error Trigger node\nconst data = $input.first().json;\n\n// Error Trigger provides data directly (not nested like webhooks)\nconst execution = data.execution || {};\nconst workflow = data.workflow || {};\n\n// Check if this was a manual trigger - skip those\nconst mode = execution.mode || '';\nif (mode === 'manual') {\n  return [{ json: { skip: true, reason: 'Manual trigger - not monitoring' } }];\n}\n\n// Extract error details from Error Trigger format\nconst workflowId = workflow.id || 'unknown';\nconst workflowName = workflow.name || 'Unknown Workflow';\nconst executionId = execution.id || 'unknown';\nconst errorMessage = execution.error?.message || 'Unknown error';\nconst errorNode = execution.error?.node?.name || execution.lastNodeExecuted || 'Unknown node';\nconst errorStack = execution.error?.stack || '';\nconst startedAt = execution.startedAt || new Date().toISOString();\n\nreturn [{\n  json: {\n    skip: false,\n    workflowId,\n    workflowName,\n    executionId,\n    errorMessage,\n    errorNode,\n    errorStack,\n    startedAt,\n    mode,\n    timestamp: new Date().toISOString()\n  }\n}];"
       },
       "id": "parse-error",
       "name": "Parse Error Data",
@@ -117,45 +111,33 @@
       ]
     },
     {
-      "parameters": {
-        "respondWith": "json",
-        "responseBody": "={{ { status: 'success', localDebugger: 'connected', summary: $json.summary } }}",
-        "options": {}
-      },
-      "id": "respond-success",
-      "name": "Respond Success",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.1,
+      "parameters": {},
+      "id": "done-success",
+      "name": "Done (Debugger Connected)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
       "position": [
         1100,
         -200
       ]
     },
     {
-      "parameters": {
-        "respondWith": "json",
-        "responseBody": "={{ { status: 'skipped', reason: $json.reason } }}",
-        "options": {}
-      },
-      "id": "respond-skipped",
-      "name": "Respond Skipped",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.1,
+      "parameters": {},
+      "id": "done-skipped",
+      "name": "Done (Skipped)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
       "position": [
         660,
         100
       ]
     },
     {
-      "parameters": {
-        "respondWith": "json",
-        "responseBody": "={{ $json }}",
-        "options": {}
-      },
-      "id": "respond-logged",
-      "name": "Respond Logged",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.1,
+      "parameters": {},
+      "id": "done-logged",
+      "name": "Done (Logged)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
       "position": [
         1320,
         0
@@ -163,7 +145,7 @@
     }
   ],
   "connections": {
-    "Error Webhook": {
+    "Error Trigger": {
       "main": [
         [
           {
@@ -196,7 +178,7 @@
         ],
         [
           {
-            "node": "Respond Skipped",
+            "node": "Done (Skipped)",
             "type": "main",
             "index": 0
           }
@@ -218,7 +200,7 @@
       "main": [
         [
           {
-            "node": "Respond Success",
+            "node": "Done (Debugger Connected)",
             "type": "main",
             "index": 0
           }
@@ -236,7 +218,7 @@
       "main": [
         [
           {
-            "node": "Respond Logged",
+            "node": "Done (Logged)",
             "type": "main",
             "index": 0
           }
@@ -271,25 +253,19 @@
     "workflowId": "YWP69Qgq0ZlCN7Gj",
     "nodes": [
       {
-        "parameters": {
-          "httpMethod": "POST",
-          "path": "workflow-error",
-          "responseMode": "responseNode",
-          "options": {}
-        },
-        "id": "error-webhook",
-        "name": "Error Webhook",
-        "type": "n8n-nodes-base.webhook",
-        "typeVersion": 2,
+        "parameters": {},
+        "id": "error-trigger",
+        "name": "Error Trigger",
+        "type": "n8n-nodes-base.errorTrigger",
+        "typeVersion": 1,
         "position": [
           0,
           0
-        ],
-        "webhookId": "workflow-error-webhook"
+        ]
       },
       {
         "parameters": {
-          "jsCode": "// Filter out manual triggers and extract error info\nconst rawData = $input.first().json;\n// Webhook data is nested under 'body' in n8n webhooks\nconst data = rawData.body || rawData;\n\n// Check if this was a manual trigger - skip those\nconst mode = data.execution?.mode || data.mode || '';\nif (mode === 'manual' || mode === 'trigger') {\n  return [{ json: { skip: true, reason: 'Manual trigger - not monitoring' } }];\n}\n\n// Extract error details\nconst workflowId = data.workflow?.id || data.workflowData?.id || 'unknown';\nconst workflowName = data.workflow?.name || data.workflowData?.name || 'Unknown Workflow';\nconst executionId = data.execution?.id || data.executionId || 'unknown';\nconst errorMessage = data.execution?.error?.message || data.error?.message || 'Unknown error';\nconst errorNode = data.execution?.error?.node?.name || data.error?.node?.name || data.error?.node || 'Unknown node';\nconst errorStack = data.execution?.error?.stack || data.error?.stack || '';\nconst startedAt = data.execution?.startedAt || new Date().toISOString();\n\nreturn [{\n  json: {\n    skip: false,\n    workflowId,\n    workflowName,\n    executionId,\n    errorMessage,\n    errorNode,\n    errorStack,\n    startedAt,\n    mode,\n    timestamp: new Date().toISOString()\n  }\n}];"
+          "jsCode": "// Parse error data from Error Trigger node\nconst data = $input.first().json;\n\n// Error Trigger provides data directly (not nested like webhooks)\nconst execution = data.execution || {};\nconst workflow = data.workflow || {};\n\n// Check if this was a manual trigger - skip those\nconst mode = execution.mode || '';\nif (mode === 'manual') {\n  return [{ json: { skip: true, reason: 'Manual trigger - not monitoring' } }];\n}\n\n// Extract error details from Error Trigger format\nconst workflowId = workflow.id || 'unknown';\nconst workflowName = workflow.name || 'Unknown Workflow';\nconst executionId = execution.id || 'unknown';\nconst errorMessage = execution.error?.message || 'Unknown error';\nconst errorNode = execution.error?.node?.name || execution.lastNodeExecuted || 'Unknown node';\nconst errorStack = execution.error?.stack || '';\nconst startedAt = execution.startedAt || new Date().toISOString();\n\nreturn [{\n  json: {\n    skip: false,\n    workflowId,\n    workflowName,\n    executionId,\n    errorMessage,\n    errorNode,\n    errorStack,\n    startedAt,\n    mode,\n    timestamp: new Date().toISOString()\n  }\n}];"
         },
         "id": "parse-error",
         "name": "Parse Error Data",
@@ -381,45 +357,33 @@
         ]
       },
       {
-        "parameters": {
-          "respondWith": "json",
-          "responseBody": "={{ { status: 'success', localDebugger: 'connected', summary: $json.summary } }}",
-          "options": {}
-        },
-        "id": "respond-success",
-        "name": "Respond Success",
-        "type": "n8n-nodes-base.respondToWebhook",
-        "typeVersion": 1.1,
+        "parameters": {},
+        "id": "done-success",
+        "name": "Done (Debugger Connected)",
+        "type": "n8n-nodes-base.noOp",
+        "typeVersion": 1,
         "position": [
           1100,
           -200
         ]
       },
       {
-        "parameters": {
-          "respondWith": "json",
-          "responseBody": "={{ { status: 'skipped', reason: $json.reason } }}",
-          "options": {}
-        },
-        "id": "respond-skipped",
-        "name": "Respond Skipped",
-        "type": "n8n-nodes-base.respondToWebhook",
-        "typeVersion": 1.1,
+        "parameters": {},
+        "id": "done-skipped",
+        "name": "Done (Skipped)",
+        "type": "n8n-nodes-base.noOp",
+        "typeVersion": 1,
         "position": [
           660,
           100
         ]
       },
       {
-        "parameters": {
-          "respondWith": "json",
-          "responseBody": "={{ $json }}",
-          "options": {}
-        },
-        "id": "respond-logged",
-        "name": "Respond Logged",
-        "type": "n8n-nodes-base.respondToWebhook",
-        "typeVersion": 1.1,
+        "parameters": {},
+        "id": "done-logged",
+        "name": "Done (Logged)",
+        "type": "n8n-nodes-base.noOp",
+        "typeVersion": 1,
         "position": [
           1320,
           0
@@ -427,7 +391,7 @@
       }
     ],
     "connections": {
-      "Error Webhook": {
+      "Error Trigger": {
         "main": [
           [
             {
@@ -460,7 +424,7 @@
           ],
           [
             {
-              "node": "Respond Skipped",
+              "node": "Done (Skipped)",
               "type": "main",
               "index": 0
             }
@@ -482,7 +446,7 @@
         "main": [
           [
             {
-              "node": "Respond Success",
+              "node": "Done (Debugger Connected)",
               "type": "main",
               "index": 0
             }
@@ -500,7 +464,7 @@
         "main": [
           [
             {
-              "node": "Respond Logged",
+              "node": "Done (Logged)",
               "type": "main",
               "index": 0
             }

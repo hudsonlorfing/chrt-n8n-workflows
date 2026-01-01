@@ -876,7 +876,7 @@
   },
   "settings": {
     "executionOrder": "v1",
-    "timeSavedMode": "fixed",
+    "errorWorkflow": "YWP69Qgq0ZlCN7Gj",
     "callerPolicy": "workflowsFromSameOwner",
     "availableInMCP": false
   },

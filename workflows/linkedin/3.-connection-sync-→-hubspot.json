@@ -1354,7 +1354,8 @@
     }
   },
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "errorWorkflow": "YWP69Qgq0ZlCN7Gj"
   },
   "staticData": {
     "node:Daily 6pm Mon-Sat2": {
