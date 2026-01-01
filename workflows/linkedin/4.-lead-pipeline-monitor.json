@@ -1341,7 +1341,7 @@
             "userId": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4",
             "projectId": "O7lTivDfRl72aS23",
             "user": {
-              "updatedAt": "2025-12-26T16:26:59.000Z",
+              "updatedAt": "2026-01-01T08:00:00.000Z",
               "createdAt": "2025-12-17T12:51:53.118Z",
               "id": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4",
               "email": "hudson@chrt.com",
@@ -1362,7 +1362,7 @@
               },
               "disabled": false,
               "mfaEnabled": false,
-              "lastActiveAt": "2025-12-26",
+              "lastActiveAt": "2026-01-01",
               "isPending": false
             }
           }
