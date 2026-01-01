@@ -39,6 +39,19 @@ cd /Users/hudsonlorfing/Documents/Business/Chrt/workflows/chrt-n8n-workflows
 | VPS URL | https://srv1230891.hstgr.cloud |
 | Plan | KVM 2 (8GB RAM, 2 vCPU) |
 | Meeting Repo | hudsonlorfing/meeting-notes |
+| SSH Access | `ssh hostinger-n8n` or `ssh root@srv1230891.hstgr.cloud` |
+| n8n Data Dir | /root/.n8n |
+
+#### SSH Configuration
+
+Add to `~/.ssh/config`:
+```
+Host hostinger-n8n
+    HostName srv1230891.hstgr.cloud
+    User root
+    Port 22
+    IdentityFile ~/.ssh/hostinger_n8n
+```
 
 ### Workflow IDs (n8n Cloud)
 
@@ -49,13 +62,14 @@ cd /Users/hudsonlorfing/Documents/Business/Chrt/workflows/chrt-n8n-workflows
 | 2. LinkedIn Outreach (PhantomBuster) | `kjjYKQEXv67Vl5MS` | ✅ Active |
 | 3. Connection Sync → HubSpot | `a56vnrPo9dsg5mmf` | ✅ Active |
 | 4. Lead Pipeline Monitor | `dWFsEXELFTJU0W01` | ⚠️ Inactive (debugging) |
-| 5. Error Monitor Webhook | `YWP69Qgq0ZlCN7Gj` | ✅ Active |
+| 5. Error Monitor | `YWP69Qgq0ZlCN7Gj` | ✅ Active (Error Trigger) |
+| 6. Fireflies Meeting Processor | `e9BkrmWnJOf0X7wc` | ✅ Active |
 
 ### Workflows (Hostinger Self-Hosted)
 
 | Workflow | Webhook Path | Status |
 |----------|--------------|--------|
-| 6. Fireflies Meeting Processor | `/webhook/fireflies-meeting` | 🆕 New |
+| Fireflies (VPS copy) | `/webhook/fireflies-meeting` | 🆕 Planned |
 
 ## Development Workflow
 
@@ -161,6 +175,7 @@ SSH is configured for local Git operations. PAT is used only by the n8n sync wor
 - [WORKFLOW-PROCESS.md](WORKFLOW-PROCESS.md) - Full development workflow
 - [STATUS.md](STATUS.md) - Current issues and fixes
 - [AUTO-DEBUG.md](AUTO-DEBUG.md) - Error analysis system
+- [PROJECT-CLAUDE-AUTOFIX.md](PROJECT-CLAUDE-AUTOFIX.md) - Claude Code auto-fix system (planned)
 - [SETUP.md](SETUP.md) - Initial setup instructions
 - [FIREFLIES-SETUP.md](FIREFLIES-SETUP.md) - Fireflies meeting processor setup
 
