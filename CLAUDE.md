@@ -50,8 +50,10 @@ Host hostinger-n8n
     HostName srv1230891.hstgr.cloud
     User root
     Port 22
-    IdentityFile ~/.ssh/hostinger_n8n
+    IdentityFile ~/.ssh/id_ed25519
 ```
+
+**Note:** The SSH key must be loaded in the agent: `ssh-add ~/.ssh/id_ed25519` (passphrase protected, stored in 1Password as "Hostinger_SSH_New")
 
 ### Workflow IDs (n8n Cloud)
 
