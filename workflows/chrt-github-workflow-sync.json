@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2025-12-27T02:09:21.022Z",
+  "updatedAt": "2026-01-01T08:36:42.883Z",
   "createdAt": "2025-12-24T03:16:41.674Z",
   "id": "r4ICnvhdbQwejSdH",
   "name": "Chrt GitHub Workflow Sync",
@@ -1158,8 +1158,8 @@
   "settings": {
     "executionOrder": "v1",
     "callerPolicy": "workflowsFromSameOwner",
-    "errorWorkflow": "YWP69Qgq0ZlCN7Gj",
-    "availableInMCP": false
+    "availableInMCP": false,
+    "errorWorkflow": "YWP69Qgq0ZlCN7Gj"
   },
   "staticData": {
     "node:Schedule Trigger": {
