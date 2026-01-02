@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2025-12-24T04:40:19.938Z",
+  "updatedAt": "2026-01-01T08:36:37.843Z",
   "createdAt": "2025-12-17T17:34:32.062Z",
   "id": "kjjYKQEXv67Vl5MS",
   "name": "2. LinkedIn Outreach (PhantomBuster)",
@@ -876,9 +876,10 @@
   },
   "settings": {
     "executionOrder": "v1",
-    "errorWorkflow": "YWP69Qgq0ZlCN7Gj",
+    "timeSavedMode": "fixed",
     "callerPolicy": "workflowsFromSameOwner",
-    "availableInMCP": false
+    "availableInMCP": false,
+    "errorWorkflow": "YWP69Qgq0ZlCN7Gj"
   },
   "staticData": {
     "node:Twice Daily (9am, 2pm)": {
