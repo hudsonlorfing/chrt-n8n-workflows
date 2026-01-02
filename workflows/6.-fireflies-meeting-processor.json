@@ -1,224 +1,802 @@
 {
+  "updatedAt": "2026-01-02T10:08:29.857Z",
+  "createdAt": "2026-01-02T09:08:28.436Z",
+  "id": "I5qKGljJAwRbPK2e",
   "name": "6. Fireflies Meeting Processor",
-  "active": false,
+  "description": null,
+  "active": true,
+  "isArchived": false,
   "nodes": [
     {
       "parameters": {
         "httpMethod": "POST",
         "path": "fireflies-meeting",
-        "responseMode": "onReceived",
         "options": {}
       },
-      "id": "fireflies-webhook",
       "name": "Fireflies Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [0, 300],
-      "webhookId": "fireflies-meeting"
+      "position": [
+        0,
+        304
+      ],
+      "webhookId": "fireflies-meeting",
+      "id": "dd4e5645-32e9-480d-abff-a30ca71707cd"
     },
     {
       "parameters": {
-        "jsCode": "// Extract and validate Fireflies payload\nconst webhook = $input.first().json;\nconst body = webhook.body || webhook;\n\nconst meetingId = body.meeting_id || body.id || '';\nconst title = body.title || 'Untitled Meeting';\nconst transcript = body.transcript || body.sentences?.map(s => `${s.speaker_name}: ${s.text}`).join('\\n') || '';\n\n// Hash for duplicate detection\nconst hash = require('crypto').createHash('md5').update(meetingId + title + transcript.substring(0, 500)).digest('hex').substring(0, 12);\n\n// Token estimation\nconst transcriptLength = transcript.length;\nconst estimatedTokens = Math.ceil(transcriptLength / 4);\n\n// Auto-detect workspace from title/attendees\nlet workspace = 'chrt'; // default\nconst titleLower = title.toLowerCase();\nif (titleLower.includes('goodlux') || titleLower.includes('light')) workspace = 'goodlux';\nelse if (titleLower.includes('shed') || titleLower.includes('shedpro')) workspace = 'shedpro';\nelse if (titleLower.includes('personal') || titleLower.includes('family')) workspace = 'personal';\n\n// Attendees\nconst attendees = (body.attendees || body.participants || []).map(a => a.name || a.displayName || a.email || 'Unknown').join(', ');\n\n// Filename\nconst dateStr = new Date(body.date || body.dateString || new Date()).toISOString().split('T')[0];\nconst safeTitle = title.replace(/[^a-zA-Z0-9 -]/g, '').trim().substring(0, 50);\nconst fileName = `${dateStr}: ${safeTitle}.md`;\n\nreturn [{\n  json: {\n    meetingId,\n    hash,\n    title,\n    date: body.date || body.dateString || new Date().toISOString(),\n    dateStr,\n    duration: body.duration || 0,\n    attendees,\n    transcript,\n    transcriptLength,\n    estimatedTokens,\n    workspace,\n    folder: workspace,\n    fileName,\n    firefliesUrl: body.transcript_url || '',\n    rawPayload: body\n  }\n}];"
+        "jsCode": "const webhook = $input.first().json;\nconst body = webhook.body || webhook;\nconst meetingId = body.meeting_id || body.id || '';\nconst title = body.title || 'Untitled Meeting';\nconst transcript = body.transcript || body.sentences?.map(s => s.speaker_name + ': ' + s.text).join('\\n') || '';\nconst hash = require('crypto').createHash('md5').update(meetingId + title + transcript.substring(0, 500)).digest('hex').substring(0, 12);\nconst transcriptLength = transcript.length;\nconst estimatedTokens = Math.ceil(transcriptLength / 4);\nconst attendees = (body.attendees || body.participants || []).map(a => a.name || a.displayName || a.email || 'Unknown').join(', ');\nconst dateStr = new Date(body.date || body.dateString || new Date()).toISOString().split('T')[0];\nreturn [{ json: { meetingId, hash, title, date: body.date || body.dateString || new Date().toISOString(), dateStr, duration: body.duration || 0, attendees, transcript, transcriptLength, estimatedTokens, firefliesUrl: body.transcript_url || '' } }];"
       },
-      "id": "extract-meeting",
       "name": "Extract Meeting Data",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [220, 300]
+      "position": [
+        224,
+        304
+      ],
+      "id": "08f2bf50-c7a8-4951-8576-ff20f1d81bf5"
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose", "version": 2 },
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
           "conditions": [
             {
               "id": "has-transcript",
               "leftValue": "={{ $json.transcript.length }}",
               "rightValue": 100,
-              "operator": { "type": "number", "operation": "gte" }
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
             }
           ],
           "combinator": "and"
         },
         "options": {}
       },
-      "id": "check-valid",
       "name": "Has Valid Transcript?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [440, 300]
+      "position": [
+        448,
+        304
+      ],
+      "id": "0b3d86ee-9c7f-44f5-926d-e704f2ab81cb"
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "={{ $env.SLACK_MEETINGS_WEBHOOK }}",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ text: '📝 *Processing Meeting...*\\n*Title:* ' + $json.title + '\\n*Duration:* ' + Math.round($json.duration / 60) + ' min\\n*Tokens:* ~' + $json.estimatedTokens.toLocaleString() + '\\n*Workspace:* ' + $json.workspace }) }}",
-        "options": { "timeout": 10000 }
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "C0A79PHB5JL"
+        },
+        "text": ":memo: *Processing Meeting...*\n*Title:* {{ $json.title }}\n*Duration:* {{ Math.round($json.duration / 60) }} min",
+        "otherOptions": {}
       },
-      "id": "slack-start",
       "name": "Slack: Processing",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [660, 200]
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.3,
+      "position": [
+        672,
+        208
+      ],
+      "id": "7debca0f-a28f-41ea-bd27-14987fd4156e",
+      "webhookId": "03e2ad37-bf0d-46ed-bee3-8af7cce847cf",
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "EBe7rpazmQ7oFc5K",
+          "name": "Slack account"
+        }
+      }
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "http://srv1230891.hstgr.cloud:3849/select-model",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ task: 'meeting_analysis', inputTokens: $json.estimatedTokens }) }}",
-        "options": { "timeout": 10000 }
+        "jsCode": "const meeting = $('Extract Meeting Data').first().json;\nconst safeTitle = meeting.title.replace(/[^a-zA-Z0-9 -]/g, '').trim().substring(0, 50);\nconst fileName = meeting.dateStr + ': ' + safeTitle + '.md';\nlet workspace = 'chrt';\nconst titleLower = meeting.title.toLowerCase();\nif (titleLower.includes('goodlux')) workspace = 'goodlux';\nelse if (titleLower.includes('shed')) workspace = 'shedpro';\nelse if (titleLower.includes('personal')) workspace = 'personal';\nreturn [{ json: { ...meeting, workspace, folder: workspace, fileName } }];"
       },
-      "id": "select-model",
-      "name": "Select Gemini Model",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [900, 200],
-      "onError": "continueErrorOutput"
-    },
-    {
-      "parameters": {
-        "jsCode": "// Apply model selection\nconst modelResponse = $input.first().json;\nconst meeting = $('Extract Meeting Data').first().json;\n\nconst model = modelResponse.model || 'gemini-2.0-flash';\n\nreturn [{\n  json: {\n    ...meeting,\n    selectedModel: model,\n    modelReason: modelResponse.reason || 'Default'\n  }\n}];"
-      },
-      "id": "apply-model",
-      "name": "Apply Model",
+      "name": "Prepare Data",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1140, 200]
+      "position": [
+        880,
+        208
+      ],
+      "id": "6eb098a7-f273-44b7-aba9-bc4190f56201"
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "=https://generativelanguage.googleapis.com/v1beta/models/{{ $json.selectedModel }}:generateContent?key=AIzaSyBYVujCEbmqmcHc_mH0OofmQISnzXiRQGg",
+        "url": "http://srv1230891.hstgr.cloud:3851/analyze-meeting",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ contents: [{ parts: [{ text: 'You are a meeting analysis expert. Create a structured Obsidian markdown note.\\n\\n**Meeting:**\\n- Title: ' + $json.title + '\\n- Date: ' + $json.dateStr + '\\n- Attendees: ' + ($json.attendees || 'Not specified') + '\\n\\n**Transcript:**\\n' + $json.transcript.substring(0, 80000) + '\\n\\n**Output this EXACT format:**\\n\\n---\\nup:\\n  - \"[[Calendar]]\"\\nin:\\n  - \"[[Meetings]]\"\\nrelated:\\ncreated: ' + $json.dateStr + '\\ntags:\\n  - meeting\\n---\\n# ' + $json.title + '\\n\\n> [One sentence summary]\\n\\n## Meeting Details\\n| | |\\n|---|---|\\n| **Date** | ' + $json.dateStr + ' |\\n| **Attendees** | ' + ($json.attendees || 'Not recorded') + ' |\\n| **Duration** | ' + (Math.round($json.duration / 60) || '?') + ' min |\\n\\n## Summary\\n[3-4 sentence summary]\\n\\n## Key Points\\n- [Point 1]\\n- [Point 2]\\n\\n## Action Items\\n- [ ] [Action with owner] #hudson\\n\\n## Decisions\\n- [Decisions made]\\n\\n## Follow-up\\n- [Next steps]\\n\\n## Notes\\n[Additional details]' }] }], generationConfig: { temperature: 0.3, maxOutputTokens: 4096 } }) }}",
-        "options": { "timeout": 120000 }
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "timeout": 120000
+        }
       },
-      "id": "gemini-analyze",
-      "name": "Gemini: Analyze",
+      "name": "VPS: Analyze",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1380, 200],
+      "position": [
+        1120,
+        208
+      ],
+      "id": "1ab0aea3-1477-456b-9cee-99ce24f0ba08",
       "onError": "continueErrorOutput"
     },
     {
       "parameters": {
-        "jsCode": "// Extract and clean Gemini response\nconst gemini = $input.first().json;\nconst meeting = $('Apply Model').first().json;\n\nlet content = '';\ntry {\n  content = gemini.candidates?.[0]?.content?.parts?.[0]?.text || '';\n} catch (e) {\n  throw new Error('Gemini parsing error: ' + e.message);\n}\n\nif (!content) {\n  throw new Error('Gemini returned empty response');\n}\n\n// Clean markdown fences\ncontent = content.replace(/^```(?:markdown)?\\n?/gm, '').replace(/\\n?```$/gm, '').trim();\n\n// Ensure frontmatter\nif (!content.startsWith('---')) {\n  content = `---\\nup:\\n  - \"[[Calendar]]\"\\nin:\\n  - \"[[Meetings]]\"\\nrelated:\\ncreated: ${meeting.dateStr}\\ntags:\\n  - meeting\\n---\\n\\n${content}`;\n}\n\nreturn [{\n  json: {\n    content,\n    folder: meeting.folder,\n    fileName: meeting.fileName,\n    workspace: meeting.workspace,\n    title: meeting.title,\n    date: meeting.dateStr,\n    hash: meeting.hash,\n    model: meeting.selectedModel\n  }\n}];"
+        "jsCode": "const ai = $input.first().json;\nconst meeting = $('Prepare Data').first().json;\nlet content = ai.content || '';\nif (!content) throw new Error(ai.error || 'AI returned empty response');\nif (!content.startsWith('---')) {\n  content = '---\\nup:\\n  - \"[[Calendar]]\"\\nin:\\n  - \"[[Meetings]]\"\\nrelated:\\ncreated: ' + meeting.dateStr + '\\ntags:\\n  - meeting\\n---\\n\\n' + content;\n}\nconst contentBase64 = Buffer.from(content).toString('base64');\nreturn [{ json: { content, contentBase64, folder: meeting.folder, fileName: meeting.fileName, workspace: meeting.workspace, title: meeting.title, date: meeting.dateStr, model: ai.model || 'claude' } }];"
       },
-      "id": "clean-output",
       "name": "Clean Output",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1620, 200]
+      "position": [
+        1360,
+        208
+      ],
+      "id": "944f2c71-1597-48c5-9c86-32349230b5f7"
     },
     {
       "parameters": {
-        "method": "PUT",
-        "url": "=https://api.github.com/repos/hudsonlorfing/meeting-notes/contents/{{ $json.folder }}/{{ encodeURIComponent($json.fileName) }}",
-        "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "githubApi",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ message: 'Add meeting: ' + $json.title + ' (' + $json.date + ')', content: Buffer.from($json.content).toString('base64'), branch: 'main' }) }}",
-        "options": {}
+        "resource": "file",
+        "owner": {
+          "__rl": true,
+          "value": "hudsonlorfing",
+          "mode": "list",
+          "cachedResultName": "hudsonlorfing"
+        },
+        "repository": {
+          "__rl": true,
+          "value": "meeting-notes",
+          "mode": "list",
+          "cachedResultName": "meeting-notes"
+        },
+        "filePath": "={{ $json.folder + '/' + $json.fileName }}",
+        "fileContent": "={{ $json.content }}",
+        "commitMessage": "={{ 'Add meeting: ' + $json.title + ' (' + $json.date + ')' }}"
       },
-      "id": "github-commit",
       "name": "GitHub: Commit",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [1860, 200],
+      "type": "n8n-nodes-base.github",
+      "typeVersion": 1,
+      "position": [
+        1600,
+        208
+      ],
+      "id": "449b3e9d-95bf-48c9-894e-cf6180e66447",
+      "webhookId": "13fd95c8-b5e2-4b91-931e-dbd9285a9e23",
       "credentials": {
-        "githubApi": { "id": "QO1GzHuZN8K3xHku", "name": "GitHub account" }
+        "githubApi": {
+          "id": "yiGNsTvCmOQmaC7f",
+          "name": "GitHub PAT - Workflows"
+        }
       },
       "onError": "continueErrorOutput"
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "={{ $env.SLACK_MEETINGS_WEBHOOK }}",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ text: '✅ *Meeting processed!*\\n\\n📝 *' + $json.title + '*\\n📁 `' + $json.workspace + '/' + $json.fileName + '`\\n🤖 Model: ' + $json.model + '\\n\\n_Run `sync-meetings` to pull to Obsidian_' }) }}",
-        "options": {}
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "C0A79PHB5JL"
+        },
+        "text": ":white_check_mark: *Meeting processed!*\n\n:memo: *{{ $('Clean Output').first().json.title }}*\n:file_folder: `{{ $('Clean Output').first().json.workspace }}/{{ $('Clean Output').first().json.fileName }}`\n:robot_face: Model: {{ $('Clean Output').first().json.model }}",
+        "otherOptions": {}
       },
-      "id": "slack-success",
       "name": "Slack: Success",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [2100, 100]
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.3,
+      "position": [
+        1840,
+        112
+      ],
+      "id": "a1b1a961-8072-4f8f-b709-39e26a4e42e9",
+      "webhookId": "17277b6c-d5cb-4f20-8a52-3805fd8e3552",
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "EBe7rpazmQ7oFc5K",
+          "name": "Slack account"
+        }
+      }
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "={{ $env.SLACK_MEETINGS_WEBHOOK }}",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ text: '⚠️ *Error processing meeting*\\n\\n' + ($json.error || $json.message || JSON.stringify($json).substring(0, 200)) + '\\n\\nCheck n8n execution logs.' }) }}",
-        "options": {}
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "C0A79PHB5JL"
+        },
+        "text": ":warning: *Error processing meeting*\n\n{{ $json.error || $json.message || 'Check n8n logs' }}",
+        "otherOptions": {}
       },
-      "id": "slack-error",
       "name": "Slack: Error",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [2100, 300]
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.3,
+      "position": [
+        1840,
+        304
+      ],
+      "id": "eace013e-2387-400b-80a9-07fc32ac3c95",
+      "webhookId": "1e51367d-3213-4369-92ec-00c3681ad5f8",
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "EBe7rpazmQ7oFc5K",
+          "name": "Slack account"
+        }
+      }
     },
     {
       "parameters": {},
-      "id": "invalid-done",
-      "name": "Invalid - Done",
+      "name": "Invalid",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
-      "position": [660, 400]
+      "position": [
+        672,
+        400
+      ],
+      "id": "8113f095-3527-4031-b742-6120d343a45c"
     }
   ],
   "connections": {
     "Fireflies Webhook": {
-      "main": [[{ "node": "Extract Meeting Data", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Extract Meeting Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Extract Meeting Data": {
-      "main": [[{ "node": "Has Valid Transcript?", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Has Valid Transcript?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Has Valid Transcript?": {
       "main": [
-        [{ "node": "Slack: Processing", "type": "main", "index": 0 }],
-        [{ "node": "Invalid - Done", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Slack: Processing",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Invalid",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Slack: Processing": {
-      "main": [[{ "node": "Select Gemini Model", "type": "main", "index": 0 }]]
-    },
-    "Select Gemini Model": {
       "main": [
-        [{ "node": "Apply Model", "type": "main", "index": 0 }],
-        [{ "node": "Apply Model", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Prepare Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
-    "Apply Model": {
-      "main": [[{ "node": "Gemini: Analyze", "type": "main", "index": 0 }]]
-    },
-    "Gemini: Analyze": {
+    "Prepare Data": {
       "main": [
-        [{ "node": "Clean Output", "type": "main", "index": 0 }],
-        [{ "node": "Slack: Error", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "VPS: Analyze",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "VPS: Analyze": {
+      "main": [
+        [
+          {
+            "node": "Clean Output",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Slack: Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Clean Output": {
-      "main": [[{ "node": "GitHub: Commit", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "GitHub: Commit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "GitHub: Commit": {
       "main": [
-        [{ "node": "Slack: Success", "type": "main", "index": 0 }],
-        [{ "node": "Slack: Error", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Slack: Success",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Slack: Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     }
   },
   "settings": {
     "executionOrder": "v1",
-    "callerPolicy": "workflowsFromSameOwner"
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "YWP69Qgq0ZlCN7Gj",
+    "availableInMCP": false
   },
-  "tags": []
+  "staticData": null,
+  "meta": null,
+  "pinData": {},
+  "versionId": "0b4b9b3f-4e0b-482b-ad8a-2debc8062580",
+  "activeVersionId": "0b4b9b3f-4e0b-482b-ad8a-2debc8062580",
+  "versionCounter": 45,
+  "triggerCount": 1,
+  "shared": [
+    {
+      "updatedAt": "2026-01-02T10:08:09.329Z",
+      "createdAt": "2026-01-02T10:08:09.329Z",
+      "role": "workflow:owner",
+      "workflowId": "I5qKGljJAwRbPK2e",
+      "projectId": "O7lTivDfRl72aS23",
+      "project": {
+        "updatedAt": "2025-12-24T03:17:11.000Z",
+        "createdAt": "2025-12-23T21:24:31.508Z",
+        "id": "O7lTivDfRl72aS23",
+        "name": "ChrtWorkflows",
+        "type": "team",
+        "icon": {
+          "type": "icon",
+          "value": "layers"
+        },
+        "description": "",
+        "projectRelations": [
+          {
+            "updatedAt": "2025-12-23T21:24:31.510Z",
+            "createdAt": "2025-12-23T21:24:31.510Z",
+            "userId": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4",
+            "projectId": "O7lTivDfRl72aS23",
+            "user": {
+              "updatedAt": "2026-01-02T10:08:33.703Z",
+              "createdAt": "2025-12-17T12:51:53.118Z",
+              "id": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4",
+              "email": "hudson@chrt.com",
+              "firstName": "Hudson",
+              "lastName": "Lorfing",
+              "personalizationAnswers": null,
+              "settings": {
+                "userActivated": true,
+                "userClaimedAiCredits": true,
+                "easyAIWorkflowOnboarded": true,
+                "firstSuccessfulWorkflowId": "kjjYKQEXv67Vl5MS",
+                "userActivatedAt": 1766099344758,
+                "npsSurvey": {
+                  "waitingForResponse": true,
+                  "ignoredCount": 2,
+                  "lastShownAt": 1767348510879
+                }
+              },
+              "disabled": false,
+              "mfaEnabled": false,
+              "lastActiveAt": "2026-01-02",
+              "isPending": false
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": {
+    "updatedAt": "2026-01-02T10:08:36.000Z",
+    "createdAt": "2026-01-02T10:08:29.859Z",
+    "versionId": "0b4b9b3f-4e0b-482b-ad8a-2debc8062580",
+    "workflowId": "I5qKGljJAwRbPK2e",
+    "nodes": [
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "fireflies-meeting",
+          "options": {}
+        },
+        "name": "Fireflies Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          0,
+          304
+        ],
+        "webhookId": "fireflies-meeting",
+        "id": "dd4e5645-32e9-480d-abff-a30ca71707cd"
+      },
+      {
+        "parameters": {
+          "jsCode": "const webhook = $input.first().json;\nconst body = webhook.body || webhook;\nconst meetingId = body.meeting_id || body.id || '';\nconst title = body.title || 'Untitled Meeting';\nconst transcript = body.transcript || body.sentences?.map(s => s.speaker_name + ': ' + s.text).join('\\n') || '';\nconst hash = require('crypto').createHash('md5').update(meetingId + title + transcript.substring(0, 500)).digest('hex').substring(0, 12);\nconst transcriptLength = transcript.length;\nconst estimatedTokens = Math.ceil(transcriptLength / 4);\nconst attendees = (body.attendees || body.participants || []).map(a => a.name || a.displayName || a.email || 'Unknown').join(', ');\nconst dateStr = new Date(body.date || body.dateString || new Date()).toISOString().split('T')[0];\nreturn [{ json: { meetingId, hash, title, date: body.date || body.dateString || new Date().toISOString(), dateStr, duration: body.duration || 0, attendees, transcript, transcriptLength, estimatedTokens, firefliesUrl: body.transcript_url || '' } }];"
+        },
+        "name": "Extract Meeting Data",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          224,
+          304
+        ],
+        "id": "08f2bf50-c7a8-4951-8576-ff20f1d81bf5"
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "loose",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "has-transcript",
+                "leftValue": "={{ $json.transcript.length }}",
+                "rightValue": 100,
+                "operator": {
+                  "type": "number",
+                  "operation": "gte"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "name": "Has Valid Transcript?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          448,
+          304
+        ],
+        "id": "0b3d86ee-9c7f-44f5-926d-e704f2ab81cb"
+      },
+      {
+        "parameters": {
+          "authentication": "oAuth2",
+          "select": "channel",
+          "channelId": {
+            "__rl": true,
+            "mode": "id",
+            "value": "C0A79PHB5JL"
+          },
+          "text": ":memo: *Processing Meeting...*\n*Title:* {{ $json.title }}\n*Duration:* {{ Math.round($json.duration / 60) }} min",
+          "otherOptions": {}
+        },
+        "name": "Slack: Processing",
+        "type": "n8n-nodes-base.slack",
+        "typeVersion": 2.3,
+        "position": [
+          672,
+          208
+        ],
+        "id": "7debca0f-a28f-41ea-bd27-14987fd4156e",
+        "webhookId": "03e2ad37-bf0d-46ed-bee3-8af7cce847cf",
+        "credentials": {
+          "slackOAuth2Api": {
+            "id": "EBe7rpazmQ7oFc5K",
+            "name": "Slack account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "const meeting = $('Extract Meeting Data').first().json;\nconst safeTitle = meeting.title.replace(/[^a-zA-Z0-9 -]/g, '').trim().substring(0, 50);\nconst fileName = meeting.dateStr + ': ' + safeTitle + '.md';\nlet workspace = 'chrt';\nconst titleLower = meeting.title.toLowerCase();\nif (titleLower.includes('goodlux')) workspace = 'goodlux';\nelse if (titleLower.includes('shed')) workspace = 'shedpro';\nelse if (titleLower.includes('personal')) workspace = 'personal';\nreturn [{ json: { ...meeting, workspace, folder: workspace, fileName } }];"
+        },
+        "name": "Prepare Data",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          880,
+          208
+        ],
+        "id": "6eb098a7-f273-44b7-aba9-bc4190f56201"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "http://srv1230891.hstgr.cloud:3851/analyze-meeting",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify($json) }}",
+          "options": {
+            "timeout": 120000
+          }
+        },
+        "name": "VPS: Analyze",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1120,
+          208
+        ],
+        "id": "1ab0aea3-1477-456b-9cee-99ce24f0ba08",
+        "onError": "continueErrorOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "const ai = $input.first().json;\nconst meeting = $('Prepare Data').first().json;\nlet content = ai.content || '';\nif (!content) throw new Error(ai.error || 'AI returned empty response');\nif (!content.startsWith('---')) {\n  content = '---\\nup:\\n  - \"[[Calendar]]\"\\nin:\\n  - \"[[Meetings]]\"\\nrelated:\\ncreated: ' + meeting.dateStr + '\\ntags:\\n  - meeting\\n---\\n\\n' + content;\n}\nconst contentBase64 = Buffer.from(content).toString('base64');\nreturn [{ json: { content, contentBase64, folder: meeting.folder, fileName: meeting.fileName, workspace: meeting.workspace, title: meeting.title, date: meeting.dateStr, model: ai.model || 'claude' } }];"
+        },
+        "name": "Clean Output",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1360,
+          208
+        ],
+        "id": "944f2c71-1597-48c5-9c86-32349230b5f7"
+      },
+      {
+        "parameters": {
+          "resource": "file",
+          "owner": {
+            "__rl": true,
+            "value": "hudsonlorfing",
+            "mode": "list",
+            "cachedResultName": "hudsonlorfing"
+          },
+          "repository": {
+            "__rl": true,
+            "value": "meeting-notes",
+            "mode": "list",
+            "cachedResultName": "meeting-notes"
+          },
+          "filePath": "={{ $json.folder + '/' + $json.fileName }}",
+          "fileContent": "={{ $json.content }}",
+          "commitMessage": "={{ 'Add meeting: ' + $json.title + ' (' + $json.date + ')' }}"
+        },
+        "name": "GitHub: Commit",
+        "type": "n8n-nodes-base.github",
+        "typeVersion": 1,
+        "position": [
+          1600,
+          208
+        ],
+        "id": "449b3e9d-95bf-48c9-894e-cf6180e66447",
+        "webhookId": "13fd95c8-b5e2-4b91-931e-dbd9285a9e23",
+        "credentials": {
+          "githubApi": {
+            "id": "yiGNsTvCmOQmaC7f",
+            "name": "GitHub PAT - Workflows"
+          }
+        },
+        "onError": "continueErrorOutput"
+      },
+      {
+        "parameters": {
+          "authentication": "oAuth2",
+          "select": "channel",
+          "channelId": {
+            "__rl": true,
+            "mode": "id",
+            "value": "C0A79PHB5JL"
+          },
+          "text": ":white_check_mark: *Meeting processed!*\n\n:memo: *{{ $('Clean Output').first().json.title }}*\n:file_folder: `{{ $('Clean Output').first().json.workspace }}/{{ $('Clean Output').first().json.fileName }}`\n:robot_face: Model: {{ $('Clean Output').first().json.model }}",
+          "otherOptions": {}
+        },
+        "name": "Slack: Success",
+        "type": "n8n-nodes-base.slack",
+        "typeVersion": 2.3,
+        "position": [
+          1840,
+          112
+        ],
+        "id": "a1b1a961-8072-4f8f-b709-39e26a4e42e9",
+        "webhookId": "17277b6c-d5cb-4f20-8a52-3805fd8e3552",
+        "credentials": {
+          "slackOAuth2Api": {
+            "id": "EBe7rpazmQ7oFc5K",
+            "name": "Slack account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "authentication": "oAuth2",
+          "select": "channel",
+          "channelId": {
+            "__rl": true,
+            "mode": "id",
+            "value": "C0A79PHB5JL"
+          },
+          "text": ":warning: *Error processing meeting*\n\n{{ $json.error || $json.message || 'Check n8n logs' }}",
+          "otherOptions": {}
+        },
+        "name": "Slack: Error",
+        "type": "n8n-nodes-base.slack",
+        "typeVersion": 2.3,
+        "position": [
+          1840,
+          304
+        ],
+        "id": "eace013e-2387-400b-80a9-07fc32ac3c95",
+        "webhookId": "1e51367d-3213-4369-92ec-00c3681ad5f8",
+        "credentials": {
+          "slackOAuth2Api": {
+            "id": "EBe7rpazmQ7oFc5K",
+            "name": "Slack account"
+          }
+        }
+      },
+      {
+        "parameters": {},
+        "name": "Invalid",
+        "type": "n8n-nodes-base.noOp",
+        "typeVersion": 1,
+        "position": [
+          672,
+          400
+        ],
+        "id": "8113f095-3527-4031-b742-6120d343a45c"
+      }
+    ],
+    "connections": {
+      "Fireflies Webhook": {
+        "main": [
+          [
+            {
+              "node": "Extract Meeting Data",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Extract Meeting Data": {
+        "main": [
+          [
+            {
+              "node": "Has Valid Transcript?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Has Valid Transcript?": {
+        "main": [
+          [
+            {
+              "node": "Slack: Processing",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Invalid",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Slack: Processing": {
+        "main": [
+          [
+            {
+              "node": "Prepare Data",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Prepare Data": {
+        "main": [
+          [
+            {
+              "node": "VPS: Analyze",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "VPS: Analyze": {
+        "main": [
+          [
+            {
+              "node": "Clean Output",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Slack: Error",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Clean Output": {
+        "main": [
+          [
+            {
+              "node": "GitHub: Commit",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "GitHub: Commit": {
+        "main": [
+          [
+            {
+              "node": "Slack: Success",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Slack: Error",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "authors": "Hudson Lorfing",
+    "name": "Version 0b4b9b3f",
+    "description": "",
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-01-02T10:08:36.536Z",
+        "id": 75,
+        "workflowId": "I5qKGljJAwRbPK2e",
+        "versionId": "0b4b9b3f-4e0b-482b-ad8a-2debc8062580",
+        "event": "activated",
+        "userId": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4"
+      }
+    ]
+  }
 }
