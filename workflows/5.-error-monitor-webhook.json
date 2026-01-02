@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-01-01T08:23:49.000Z",
+  "updatedAt": "2026-01-02T07:49:31.407Z",
   "createdAt": "2025-12-27T02:10:18.332Z",
   "id": "YWP69Qgq0ZlCN7Gj",
   "name": "5. Error Monitor Webhook",
@@ -79,16 +79,16 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://localhost:3847/n8n-error",
+        "url": "http://srv1230891.hstgr.cloud:3848/auto-fix",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($json) }}",
+        "jsonBody": "={{ JSON.stringify({ workflowId: $json.details.workflow.id, workflowName: $json.details.workflow.name, executionId: $json.details.execution.id, errorNode: $json.details.error.node, errorMessage: $json.details.error.message, errorStack: $json.details.error.stack }) }}",
         "options": {
-          "timeout": 5000
+          "timeout": 10000
         }
       },
-      "id": "notify-local-debugger",
-      "name": "Notify Local Debugger",
+      "id": "notify-vps-autofix",
+      "name": "Call VPS Auto-Fix",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -113,7 +113,7 @@
     {
       "parameters": {},
       "id": "done-success",
-      "name": "Done (Debugger Connected)",
+      "name": "Done (Auto-Fix Started)",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
@@ -189,18 +189,18 @@
       "main": [
         [
           {
-            "node": "Notify Local Debugger",
+            "node": "Call VPS Auto-Fix",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Notify Local Debugger": {
+    "Call VPS Auto-Fix": {
       "main": [
         [
           {
-            "node": "Done (Debugger Connected)",
+            "node": "Done (Auto-Fix Started)",
             "type": "main",
             "index": 0
           }
@@ -234,9 +234,9 @@
   "staticData": null,
   "meta": null,
   "pinData": null,
-  "versionId": "11d7e062-7142-4bb0-9821-d57f18f43f84",
-  "activeVersionId": "11d7e062-7142-4bb0-9821-d57f18f43f84",
-  "triggerCount": 1,
+  "versionId": "63f76b41-8d21-470d-8072-f97de6008392",
+  "activeVersionId": "63f76b41-8d21-470d-8072-f97de6008392",
+  "triggerCount": 0,
   "shared": [
     {
       "updatedAt": "2026-01-01T08:23:49.208Z",
@@ -247,9 +247,9 @@
     }
   ],
   "activeVersion": {
-    "updatedAt": "2025-12-27T02:23:31.306Z",
-    "createdAt": "2025-12-27T02:23:31.306Z",
-    "versionId": "11d7e062-7142-4bb0-9821-d57f18f43f84",
+    "updatedAt": "2026-01-02T07:49:31.408Z",
+    "createdAt": "2026-01-02T07:49:31.408Z",
+    "versionId": "63f76b41-8d21-470d-8072-f97de6008392",
     "workflowId": "YWP69Qgq0ZlCN7Gj",
     "nodes": [
       {
@@ -325,16 +325,16 @@
       {
         "parameters": {
           "method": "POST",
-          "url": "http://localhost:3847/n8n-error",
+          "url": "http://srv1230891.hstgr.cloud:3848/auto-fix",
           "sendBody": true,
           "specifyBody": "json",
-          "jsonBody": "={{ JSON.stringify($json) }}",
+          "jsonBody": "={{ JSON.stringify({ workflowId: $json.details.workflow.id, workflowName: $json.details.workflow.name, executionId: $json.details.execution.id, errorNode: $json.details.error.node, errorMessage: $json.details.error.message, errorStack: $json.details.error.stack }) }}",
           "options": {
-            "timeout": 5000
+            "timeout": 10000
           }
         },
-        "id": "notify-local-debugger",
-        "name": "Notify Local Debugger",
+        "id": "notify-vps-autofix",
+        "name": "Call VPS Auto-Fix",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
@@ -359,7 +359,7 @@
       {
         "parameters": {},
         "id": "done-success",
-        "name": "Done (Debugger Connected)",
+        "name": "Done (Auto-Fix Started)",
         "type": "n8n-nodes-base.noOp",
         "typeVersion": 1,
         "position": [
@@ -435,18 +435,18 @@
         "main": [
           [
             {
-              "node": "Notify Local Debugger",
+              "node": "Call VPS Auto-Fix",
               "type": "main",
               "index": 0
             }
           ]
         ]
       },
-      "Notify Local Debugger": {
+      "Call VPS Auto-Fix": {
         "main": [
           [
             {
-              "node": "Done (Debugger Connected)",
+              "node": "Done (Auto-Fix Started)",
               "type": "main",
               "index": 0
             }
