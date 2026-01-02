@@ -51,7 +51,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.SLACK_WEBHOOK_URL || 'https://hooks.slack.com/services/YOUR_WEBHOOK' }}",
+        "url": "={{ $env.SLACK_MEETINGS_WEBHOOK }}",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ text: '📝 *Processing Meeting...*\\n*Title:* ' + $json.title + '\\n*Duration:* ' + Math.round($json.duration / 60) + ' min\\n*Tokens:* ~' + $json.estimatedTokens.toLocaleString() + '\\n*Workspace:* ' + $json.workspace }) }}",
@@ -139,7 +139,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.SLACK_WEBHOOK_URL || 'https://hooks.slack.com/services/YOUR_WEBHOOK' }}",
+        "url": "={{ $env.SLACK_MEETINGS_WEBHOOK }}",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ text: '✅ *Meeting processed!*\\n\\n📝 *' + $json.title + '*\\n📁 `' + $json.workspace + '/' + $json.fileName + '`\\n🤖 Model: ' + $json.model + '\\n\\n_Run `sync-meetings` to pull to Obsidian_' }) }}",
@@ -154,7 +154,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.SLACK_WEBHOOK_URL || 'https://hooks.slack.com/services/YOUR_WEBHOOK' }}",
+        "url": "={{ $env.SLACK_MEETINGS_WEBHOOK }}",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ text: '⚠️ *Error processing meeting*\\n\\n' + ($json.error || $json.message || JSON.stringify($json).substring(0, 200)) + '\\n\\nCheck n8n execution logs.' }) }}",
