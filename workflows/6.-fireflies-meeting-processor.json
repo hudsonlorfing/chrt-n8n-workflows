@@ -52,7 +52,7 @@
       "parameters": {
         "authentication": "oAuth2",
         "select": "channel",
-        "channelId": { "__rl": true, "mode": "id", "value": "C0A79PHB5JL" },
+        "channelId": { "__rl": true, "mode": "name", "value": "meetings" },
         "text": "📝 *New Meeting Transcript Ready*\n*Title:* {{ $json.title }}\n*Duration:* {{ Math.round($json.duration / 60) || 'Unknown' }} minutes\n*Transcript:* {{ $json.estimatedTokens.toLocaleString() }} tokens",
         "attachments": [],
         "blocksUi": {
@@ -244,7 +244,7 @@
       "parameters": {
         "authentication": "oAuth2",
         "select": "channel",
-        "channelId": { "__rl": true, "mode": "id", "value": "C0A79PHB5JL" },
+        "channelId": { "__rl": true, "mode": "name", "value": "meetings" },
         "text": "✅ *Meeting processed!*\n\n📝 *{{ $('Prepare Data').first().json.title }}*\n📁 `{{ $('Prepare Data').first().json.workspace }}/{{ $('Prepare Data').first().json.fileName }}`\n🤖 Model: {{ $('Apply Model Selection').first().json.selectedModel }}\n\n_Run `sync-meetings` to pull to Obsidian_"
       },
       "id": "slack-success",
@@ -260,7 +260,7 @@
       "parameters": {
         "authentication": "oAuth2",
         "select": "channel",
-        "channelId": { "__rl": true, "mode": "id", "value": "C0A79PHB5JL" },
+        "channelId": { "__rl": true, "mode": "name", "value": "meetings" },
         "text": "⚠️ *Error processing meeting*\n\n{{ $json.error || $json.message || 'Unknown error' }}\n\nCheck n8n execution logs."
       },
       "id": "slack-error",
