@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2025-12-24T04:39:58.275Z",
+  "updatedAt": "2026-01-01T08:36:39.706Z",
   "createdAt": "2025-12-19T16:28:57.739Z",
   "id": "a56vnrPo9dsg5mmf",
   "name": "3. Connection Sync → HubSpot",
@@ -1355,7 +1355,9 @@
   },
   "settings": {
     "executionOrder": "v1",
-    "errorWorkflow": "YWP69Qgq0ZlCN7Gj"
+    "errorWorkflow": "YWP69Qgq0ZlCN7Gj",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
   },
   "staticData": {
     "node:Daily 6pm Mon-Sat2": {
