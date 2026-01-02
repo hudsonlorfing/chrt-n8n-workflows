@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2025-12-26T19:56:23.138Z",
+  "updatedAt": "2026-01-01T08:36:04.783Z",
   "createdAt": "2025-12-17T17:08:43.420Z",
   "id": "aLxwvqoSTkZAQ3fq",
   "name": "1. Lead Ingestion & ICP Scoring",
@@ -925,8 +925,8 @@
   "settings": {
     "executionOrder": "v1",
     "callerPolicy": "workflowsFromSameOwner",
-    "errorWorkflow": "YWP69Qgq0ZlCN7Gj",
-    "availableInMCP": false
+    "availableInMCP": false,
+    "errorWorkflow": "YWP69Qgq0ZlCN7Gj"
   },
   "staticData": null,
   "meta": {
@@ -934,7 +934,7 @@
   },
   "pinData": {},
   "versionId": "eb352e91-f2d1-4ef4-8aaf-51d55831eebc",
-  "activeVersionId": "7e8ebbd6-9c9f-4ce6-a5ad-b223a642c1f0",
+  "activeVersionId": "eb352e91-f2d1-4ef4-8aaf-51d55831eebc",
   "triggerCount": 1,
   "shared": [
     {
@@ -946,9 +946,9 @@
     }
   ],
   "activeVersion": {
-    "updatedAt": "2025-12-26T19:50:21.237Z",
-    "createdAt": "2025-12-26T19:50:21.237Z",
-    "versionId": "7e8ebbd6-9c9f-4ce6-a5ad-b223a642c1f0",
+    "updatedAt": "2025-12-26T19:56:23.139Z",
+    "createdAt": "2025-12-26T19:56:23.139Z",
+    "versionId": "eb352e91-f2d1-4ef4-8aaf-51d55831eebc",
     "workflowId": "aLxwvqoSTkZAQ3fq",
     "nodes": [
       {
@@ -977,7 +977,7 @@
         "typeVersion": 2,
         "position": [
           -28448,
-          2920
+          2928
         ],
         "webhookId": "lead-ingestion-webhook"
       },
@@ -991,7 +991,7 @@
         "typeVersion": 2,
         "position": [
           -28224,
-          2920
+          2928
         ]
       },
       {
@@ -1507,7 +1507,7 @@
             "values": [
               {
                 "lookupColumn": "profileUrl",
-                "lookupValue": "={{ $json['LinkedIn_Profile_URL '] }}"
+                "lookupValue": "={{ $json.profileUrl }}"
               }
             ]
           },
@@ -1563,10 +1563,7 @@
         }
       },
       {
-        "parameters": {
-          "mode": "append",
-          "options": {}
-        },
+        "parameters": {},
         "type": "n8n-nodes-base.merge",
         "typeVersion": 3,
         "position": [
@@ -1583,7 +1580,7 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          -27700,
+          -27696,
           3104
         ],
         "id": "1b0c3579-90f5-45b6-8881-d1143bf6959f",
@@ -1629,8 +1626,8 @@
         "type": "n8n-nodes-base.limit",
         "typeVersion": 1,
         "position": [
-          -27400,
-          3000
+          -27408,
+          3008
         ],
         "id": "6cc0c946-726b-454e-955f-db87dd179c71",
         "name": "Limit"
@@ -1642,7 +1639,7 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          -27400,
+          -27408,
           3200
         ],
         "id": "no-leads-found",
