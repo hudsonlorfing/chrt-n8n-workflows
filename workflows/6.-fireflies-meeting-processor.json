@@ -18,7 +18,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Extract and validate Fireflies payload\nconst webhook = $input.first().json;\nconst body = webhook.body || webhook;\n\n// Check for duplicate - use meeting ID or transcript hash\nconst meetingId = body.meeting_id || body.id || '';\nconst title = body.title || 'Untitled Meeting';\nconst transcript = body.transcript || body.sentences?.map(s => `${s.speaker_name}: ${s.text}`).join('\\n') || '';\n\n// Create a simple hash for duplicate detection\nconst hash = require('crypto').createHash('md5').update(meetingId + title + transcript.substring(0, 500)).digest('hex').substring(0, 12);\n\n// Check transcript length for batching\nconst transcriptLength = transcript.length;\nconst estimatedTokens = Math.ceil(transcriptLength / 4); // rough estimate\nconst needsBatching = estimatedTokens > 30000; // Gemini Flash limit\n\nreturn [{\n  json: {\n    meetingId,\n    hash,\n    title,\n    date: body.date || body.dateString || new Date().toISOString(),\n    duration: body.duration || 0,\n    attendees: body.attendees || body.participants || [],\n    transcript,\n    transcriptLength,\n    estimatedTokens,\n    needsBatching,\n    firefliesUrl: body.transcript_url || '',\n    meetingUrl: body.meeting_url || body.video_url || '',\n    rawPayload: body\n  }\n}];"
+        "jsCode": "// Extract and validate Fireflies payload\nconst webhook = $input.first().json;\nconst body = webhook.body || webhook;\n\nconst meetingId = body.meeting_id || body.id || '';\nconst title = body.title || 'Untitled Meeting';\nconst transcript = body.transcript || body.sentences?.map(s => `${s.speaker_name}: ${s.text}`).join('\\n') || '';\n\n// Hash for duplicate detection\nconst hash = require('crypto').createHash('md5').update(meetingId + title + transcript.substring(0, 500)).digest('hex').substring(0, 12);\n\n// Token estimation\nconst transcriptLength = transcript.length;\nconst estimatedTokens = Math.ceil(transcriptLength / 4);\n\n// Auto-detect workspace from title/attendees\nlet workspace = 'chrt'; // default\nconst titleLower = title.toLowerCase();\nif (titleLower.includes('goodlux') || titleLower.includes('light')) workspace = 'goodlux';\nelse if (titleLower.includes('shed') || titleLower.includes('shedpro')) workspace = 'shedpro';\nelse if (titleLower.includes('personal') || titleLower.includes('family')) workspace = 'personal';\n\n// Attendees\nconst attendees = (body.attendees || body.participants || []).map(a => a.name || a.displayName || a.email || 'Unknown').join(', ');\n\n// Filename\nconst dateStr = new Date(body.date || body.dateString || new Date()).toISOString().split('T')[0];\nconst safeTitle = title.replace(/[^a-zA-Z0-9 -]/g, '').trim().substring(0, 50);\nconst fileName = `${dateStr}: ${safeTitle}.md`;\n\nreturn [{\n  json: {\n    meetingId,\n    hash,\n    title,\n    date: body.date || body.dateString || new Date().toISOString(),\n    dateStr,\n    duration: body.duration || 0,\n    attendees,\n    transcript,\n    transcriptLength,\n    estimatedTokens,\n    workspace,\n    folder: workspace,\n    fileName,\n    firefliesUrl: body.transcript_url || '',\n    rawPayload: body\n  }\n}];"
       },
       "id": "extract-meeting",
       "name": "Extract Meeting Data",
@@ -50,122 +50,18 @@
     },
     {
       "parameters": {
-        "authentication": "oAuth2",
-        "select": "channel",
-        "channelId": { "__rl": true, "mode": "name", "value": "meetings" },
-        "text": "📝 *New Meeting Transcript Ready*\n*Title:* {{ $json.title }}\n*Duration:* {{ Math.round($json.duration / 60) || 'Unknown' }} minutes\n*Transcript:* {{ $json.estimatedTokens.toLocaleString() }} tokens",
-        "attachments": [],
-        "blocksUi": {
-          "blocksValues": [
-            {
-              "type": "section",
-              "text": {
-                "type": "mrkdwn",
-                "text": "📝 *New Meeting Ready for Processing*\n*Title:* `{{ $json.title }}`\n*Duration:* {{ Math.round($json.duration / 60) || '?' }} min | *Tokens:* ~{{ $json.estimatedTokens.toLocaleString() }}"
-              }
-            },
-            { "type": "divider" },
-            {
-              "type": "input",
-              "element": {
-                "type": "static_select",
-                "action_id": "workspace_select",
-                "placeholder": { "type": "plain_text", "text": "Select workspace" },
-                "options": [
-                  { "text": { "type": "plain_text", "text": "🏢 Chrt" }, "value": "chrt" },
-                  { "text": { "type": "plain_text", "text": "💡 GoodLux" }, "value": "goodlux" },
-                  { "text": { "type": "plain_text", "text": "🏠 Personal" }, "value": "personal" },
-                  { "text": { "type": "plain_text", "text": "🛖 ShedPro" }, "value": "shedpro" }
-                ]
-              },
-              "label": { "type": "plain_text", "text": "Which workspace?" }
-            },
-            {
-              "type": "input",
-              "element": {
-                "type": "plain_text_input",
-                "action_id": "meeting_purpose",
-                "multiline": true,
-                "placeholder": { "type": "plain_text", "text": "e.g., Discovery call with ACME Corp" }
-              },
-              "label": { "type": "plain_text", "text": "Meeting purpose?" }
-            },
-            {
-              "type": "input",
-              "element": {
-                "type": "plain_text_input",
-                "action_id": "focus_areas",
-                "multiline": true,
-                "placeholder": { "type": "plain_text", "text": "e.g., Action items, pain points, budget" }
-              },
-              "label": { "type": "plain_text", "text": "Focus areas? (optional)" },
-              "optional": true
-            },
-            {
-              "type": "actions",
-              "elements": [
-                { "type": "button", "text": { "type": "plain_text", "text": "✨ Process Meeting" }, "style": "primary", "action_id": "submit_meeting" },
-                { "type": "button", "text": { "type": "plain_text", "text": "Skip" }, "action_id": "skip_meeting" }
-              ]
-            }
-          ]
-        },
-        "otherOptions": { "includeLinkToWorkflow": false }
+        "method": "POST",
+        "url": "={{ $env.SLACK_WEBHOOK_URL || 'https://hooks.slack.com/services/YOUR_WEBHOOK' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: '📝 *Processing Meeting...*\\n*Title:* ' + $json.title + '\\n*Duration:* ' + Math.round($json.duration / 60) + ' min\\n*Tokens:* ~' + $json.estimatedTokens.toLocaleString() + '\\n*Workspace:* ' + $json.workspace }) }}",
+        "options": { "timeout": 10000 }
       },
-      "id": "slack-prompt",
-      "name": "Slack: Ask for Context",
-      "type": "n8n-nodes-base.slack",
-      "typeVersion": 2.3,
-      "position": [680, 200],
-      "credentials": {
-        "slackOAuth2Api": { "id": "EBe7rpazmQ7oFc5K", "name": "Slack account" }
-      }
-    },
-    {
-      "parameters": {
-        "resume": "webhook",
-        "options": {
-          "webhookSuffix": "={{ 'slack-response-' + $json.hash }}"
-        }
-      },
-      "id": "wait-slack",
-      "name": "Wait for Slack Response",
-      "type": "n8n-nodes-base.wait",
-      "typeVersion": 1.1,
-      "position": [920, 200],
-      "webhookId": "slack-response"
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose", "version": 2 },
-          "conditions": [
-            {
-              "id": "not-skipped",
-              "leftValue": "={{ $json.body?.actions?.find(a => a.action_id === 'skip_meeting') ? 'skipped' : 'process' }}",
-              "rightValue": "process",
-              "operator": { "type": "string", "operation": "equals" }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "id": "check-skipped",
-      "name": "Skipped?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [1160, 200]
-    },
-    {
-      "parameters": {
-        "jsCode": "// Combine original meeting data with Slack response\nconst meeting = $('Extract Meeting Data').first().json;\nconst slack = $input.first().json.body || $input.first().json;\n\n// Parse Slack state values\nconst state = slack.state?.values || {};\nlet workspace = 'chrt';\nlet purpose = '';\nlet focus = '';\n\nfor (const blockId in state) {\n  const block = state[blockId];\n  if (block.workspace_select) workspace = block.workspace_select.selected_option?.value || workspace;\n  if (block.meeting_purpose) purpose = block.meeting_purpose.value || '';\n  if (block.focus_areas) focus = block.focus_areas.value || '';\n}\n\n// Prepare attendee list\nconst attendees = meeting.attendees.map(a => a.name || a.displayName || a.email || 'Unknown').join(', ');\n\n// Build filename\nconst dateStr = new Date(meeting.date).toISOString().split('T')[0];\nconst safeTitle = meeting.title.replace(/[^a-zA-Z0-9 -]/g, '').trim().substring(0, 50);\nconst fileName = `${dateStr}: ${safeTitle}.md`;\n\n// Split transcript into batches if needed\nconst MAX_CHARS = 100000; // ~25k tokens\nlet transcriptBatches = [];\nif (meeting.transcript.length > MAX_CHARS) {\n  // Split by sentence boundaries\n  const sentences = meeting.transcript.split(/(?<=[.!?])\\s+/);\n  let currentBatch = '';\n  for (const sentence of sentences) {\n    if ((currentBatch + sentence).length > MAX_CHARS) {\n      transcriptBatches.push(currentBatch.trim());\n      currentBatch = sentence;\n    } else {\n      currentBatch += ' ' + sentence;\n    }\n  }\n  if (currentBatch.trim()) transcriptBatches.push(currentBatch.trim());\n} else {\n  transcriptBatches = [meeting.transcript];\n}\n\nreturn [{\n  json: {\n    ...meeting,\n    workspace,\n    folder: workspace,\n    purpose,\n    focusAreas: focus,\n    attendeeList: attendees,\n    dateStr,\n    fileName,\n    transcriptBatches,\n    batchCount: transcriptBatches.length,\n    needsBatching: transcriptBatches.length > 1\n  }\n}];"
-      },
-      "id": "prepare-data",
-      "name": "Prepare Data",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [1400, 100]
+      "id": "slack-start",
+      "name": "Slack: Processing",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [660, 200]
     },
     {
       "parameters": {
@@ -173,25 +69,25 @@
         "url": "http://srv1230891.hstgr.cloud:3849/select-model",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ task: 'meeting_analysis', inputTokens: $json.estimatedTokens, needsStructuredOutput: true }) }}",
+        "jsonBody": "={{ JSON.stringify({ task: 'meeting_analysis', inputTokens: $json.estimatedTokens }) }}",
         "options": { "timeout": 10000 }
       },
       "id": "select-model",
-      "name": "Select Best Gemini Model",
+      "name": "Select Gemini Model",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1640, 100],
+      "position": [900, 200],
       "onError": "continueErrorOutput"
     },
     {
       "parameters": {
-        "jsCode": "// Use selected model or fallback\nconst modelResponse = $input.first().json;\nconst prepData = $('Prepare Data').first().json;\n\nconst model = modelResponse.model || 'gemini-2.0-flash';\nconst reason = modelResponse.reason || 'Default selection';\n\nreturn [{\n  json: {\n    ...prepData,\n    selectedModel: model,\n    modelReason: reason\n  }\n}];"
+        "jsCode": "// Apply model selection\nconst modelResponse = $input.first().json;\nconst meeting = $('Extract Meeting Data').first().json;\n\nconst model = modelResponse.model || 'gemini-2.0-flash';\n\nreturn [{\n  json: {\n    ...meeting,\n    selectedModel: model,\n    modelReason: modelResponse.reason || 'Default'\n  }\n}];"
       },
       "id": "apply-model",
-      "name": "Apply Model Selection",
+      "name": "Apply Model",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1880, 100]
+      "position": [1140, 200]
     },
     {
       "parameters": {
@@ -199,25 +95,25 @@
         "url": "=https://generativelanguage.googleapis.com/v1beta/models/{{ $json.selectedModel }}:generateContent?key=AIzaSyBYVujCEbmqmcHc_mH0OofmQISnzXiRQGg",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ contents: [{ parts: [{ text: `You are a meeting analysis expert. Analyze this meeting and create a structured Obsidian markdown note.\\n\\n**Meeting:**\\n- Title: ${$json.title}\\n- Date: ${$json.dateStr}\\n- Attendees: ${$json.attendeeList || 'Not specified'}\\n- Purpose: ${$json.purpose || 'Not specified'}\\n- Focus: ${$json.focusAreas || 'None'}\\n\\n**Transcript:**\\n${$json.transcriptBatches[0]}\\n\\n**Output this EXACT format:**\\n\\n---\\nup:\\n  - \"[[Calendar]]\"\\nin:\\n  - \"[[Meetings]]\"\\nrelated:\\ncreated: ${$json.dateStr}\\ntags:\\n  - meeting\\n---\\n# ${$json.title}\\n\\n> [One sentence summary]\\n\\n## Meeting Details\\n| | |\\n|---|---|\\n| **Date** | ${$json.dateStr} |\\n| **Attendees** | ${$json.attendeeList || 'Not recorded'} |\\n| **Duration** | ${Math.round($json.duration / 60) || '?'} min |\\n\\n## Summary\\n[3-4 sentence summary]\\n\\n## Key Points\\n- [Point 1]\\n- [Point 2]\\n\\n## Action Items\\n- [ ] [Action with owner] #hudson\\n\\n## Decisions\\n- [Decisions made]\\n\\n## Follow-up\\n- [Next steps]\\n\\n## Notes\\n[Additional details]` }] }], generationConfig: { temperature: 0.3, maxOutputTokens: 4096 } }) }}",
+        "jsonBody": "={{ JSON.stringify({ contents: [{ parts: [{ text: 'You are a meeting analysis expert. Create a structured Obsidian markdown note.\\n\\n**Meeting:**\\n- Title: ' + $json.title + '\\n- Date: ' + $json.dateStr + '\\n- Attendees: ' + ($json.attendees || 'Not specified') + '\\n\\n**Transcript:**\\n' + $json.transcript.substring(0, 80000) + '\\n\\n**Output this EXACT format:**\\n\\n---\\nup:\\n  - \"[[Calendar]]\"\\nin:\\n  - \"[[Meetings]]\"\\nrelated:\\ncreated: ' + $json.dateStr + '\\ntags:\\n  - meeting\\n---\\n# ' + $json.title + '\\n\\n> [One sentence summary]\\n\\n## Meeting Details\\n| | |\\n|---|---|\\n| **Date** | ' + $json.dateStr + ' |\\n| **Attendees** | ' + ($json.attendees || 'Not recorded') + ' |\\n| **Duration** | ' + (Math.round($json.duration / 60) || '?') + ' min |\\n\\n## Summary\\n[3-4 sentence summary]\\n\\n## Key Points\\n- [Point 1]\\n- [Point 2]\\n\\n## Action Items\\n- [ ] [Action with owner] #hudson\\n\\n## Decisions\\n- [Decisions made]\\n\\n## Follow-up\\n- [Next steps]\\n\\n## Notes\\n[Additional details]' }] }], generationConfig: { temperature: 0.3, maxOutputTokens: 4096 } }) }}",
         "options": { "timeout": 120000 }
       },
       "id": "gemini-analyze",
-      "name": "Gemini: Analyze Transcript",
+      "name": "Gemini: Analyze",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2120, 100],
+      "position": [1380, 200],
       "onError": "continueErrorOutput"
     },
     {
       "parameters": {
-        "jsCode": "// Extract and clean Gemini response\nconst gemini = $input.first().json;\nconst prep = $('Apply Model Selection').first().json;\n\n// Extract text from Gemini response\nlet content = '';\ntry {\n  content = gemini.candidates?.[0]?.content?.parts?.[0]?.text || '';\n} catch (e) {\n  content = '';\n}\n\nif (!content) {\n  throw new Error('Gemini returned empty response');\n}\n\n// Remove markdown code fences if present\ncontent = content.replace(/^```(?:markdown)?\\n?/gm, '').replace(/\\n?```$/gm, '').trim();\n\n// Ensure frontmatter\nif (!content.startsWith('---')) {\n  content = `---\\nup:\\n  - \"[[Calendar]]\"\\nin:\\n  - \"[[Meetings]]\"\\nrelated:\\ncreated: ${prep.dateStr}\\ntags:\\n  - meeting\\n---\\n\\n${content}`;\n}\n\nreturn [{\n  json: {\n    content,\n    folder: prep.folder,\n    fileName: prep.fileName,\n    workspace: prep.workspace,\n    title: prep.title,\n    date: prep.dateStr,\n    hash: prep.hash,\n    model: prep.selectedModel\n  }\n}];"
+        "jsCode": "// Extract and clean Gemini response\nconst gemini = $input.first().json;\nconst meeting = $('Apply Model').first().json;\n\nlet content = '';\ntry {\n  content = gemini.candidates?.[0]?.content?.parts?.[0]?.text || '';\n} catch (e) {\n  throw new Error('Gemini parsing error: ' + e.message);\n}\n\nif (!content) {\n  throw new Error('Gemini returned empty response');\n}\n\n// Clean markdown fences\ncontent = content.replace(/^```(?:markdown)?\\n?/gm, '').replace(/\\n?```$/gm, '').trim();\n\n// Ensure frontmatter\nif (!content.startsWith('---')) {\n  content = `---\\nup:\\n  - \"[[Calendar]]\"\\nin:\\n  - \"[[Meetings]]\"\\nrelated:\\ncreated: ${meeting.dateStr}\\ntags:\\n  - meeting\\n---\\n\\n${content}`;\n}\n\nreturn [{\n  json: {\n    content,\n    folder: meeting.folder,\n    fileName: meeting.fileName,\n    workspace: meeting.workspace,\n    title: meeting.title,\n    date: meeting.dateStr,\n    hash: meeting.hash,\n    model: meeting.selectedModel\n  }\n}];"
       },
       "id": "clean-output",
       "name": "Clean Output",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2360, 100]
+      "position": [1620, 200]
     },
     {
       "parameters": {
@@ -231,10 +127,10 @@
         "options": {}
       },
       "id": "github-commit",
-      "name": "GitHub: Commit File",
+      "name": "GitHub: Commit",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2600, 100],
+      "position": [1860, 200],
       "credentials": {
         "githubApi": { "id": "QO1GzHuZN8K3xHku", "name": "GitHub account" }
       },
@@ -242,43 +138,33 @@
     },
     {
       "parameters": {
-        "authentication": "oAuth2",
-        "select": "channel",
-        "channelId": { "__rl": true, "mode": "name", "value": "meetings" },
-        "text": "✅ *Meeting processed!*\n\n📝 *{{ $('Prepare Data').first().json.title }}*\n📁 `{{ $('Prepare Data').first().json.workspace }}/{{ $('Prepare Data').first().json.fileName }}`\n🤖 Model: {{ $('Apply Model Selection').first().json.selectedModel }}\n\n_Run `sync-meetings` to pull to Obsidian_"
+        "method": "POST",
+        "url": "={{ $env.SLACK_WEBHOOK_URL || 'https://hooks.slack.com/services/YOUR_WEBHOOK' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: '✅ *Meeting processed!*\\n\\n📝 *' + $json.title + '*\\n📁 `' + $json.workspace + '/' + $json.fileName + '`\\n🤖 Model: ' + $json.model + '\\n\\n_Run `sync-meetings` to pull to Obsidian_' }) }}",
+        "options": {}
       },
       "id": "slack-success",
       "name": "Slack: Success",
-      "type": "n8n-nodes-base.slack",
-      "typeVersion": 2.3,
-      "position": [2840, 0],
-      "credentials": {
-        "slackOAuth2Api": { "id": "EBe7rpazmQ7oFc5K", "name": "Slack account" }
-      }
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2100, 100]
     },
     {
       "parameters": {
-        "authentication": "oAuth2",
-        "select": "channel",
-        "channelId": { "__rl": true, "mode": "name", "value": "meetings" },
-        "text": "⚠️ *Error processing meeting*\n\n{{ $json.error || $json.message || 'Unknown error' }}\n\nCheck n8n execution logs."
+        "method": "POST",
+        "url": "={{ $env.SLACK_WEBHOOK_URL || 'https://hooks.slack.com/services/YOUR_WEBHOOK' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: '⚠️ *Error processing meeting*\\n\\n' + ($json.error || $json.message || JSON.stringify($json).substring(0, 200)) + '\\n\\nCheck n8n execution logs.' }) }}",
+        "options": {}
       },
       "id": "slack-error",
       "name": "Slack: Error",
-      "type": "n8n-nodes-base.slack",
-      "typeVersion": 2.3,
-      "position": [2840, 200],
-      "credentials": {
-        "slackOAuth2Api": { "id": "EBe7rpazmQ7oFc5K", "name": "Slack account" }
-      }
-    },
-    {
-      "parameters": {},
-      "id": "skipped-done",
-      "name": "Skipped - Done",
-      "type": "n8n-nodes-base.noOp",
-      "typeVersion": 1,
-      "position": [1400, 300]
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2100, 300]
     },
     {
       "parameters": {},
@@ -286,7 +172,7 @@
       "name": "Invalid - Done",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
-      "position": [680, 400]
+      "position": [660, 400]
     }
   ],
   "connections": {
@@ -298,44 +184,32 @@
     },
     "Has Valid Transcript?": {
       "main": [
-        [{ "node": "Slack: Ask for Context", "type": "main", "index": 0 }],
+        [{ "node": "Slack: Processing", "type": "main", "index": 0 }],
         [{ "node": "Invalid - Done", "type": "main", "index": 0 }]
       ]
     },
-    "Slack: Ask for Context": {
-      "main": [[{ "node": "Wait for Slack Response", "type": "main", "index": 0 }]]
+    "Slack: Processing": {
+      "main": [[{ "node": "Select Gemini Model", "type": "main", "index": 0 }]]
     },
-    "Wait for Slack Response": {
-      "main": [[{ "node": "Skipped?", "type": "main", "index": 0 }]]
-    },
-    "Skipped?": {
+    "Select Gemini Model": {
       "main": [
-        [{ "node": "Prepare Data", "type": "main", "index": 0 }],
-        [{ "node": "Skipped - Done", "type": "main", "index": 0 }]
+        [{ "node": "Apply Model", "type": "main", "index": 0 }],
+        [{ "node": "Apply Model", "type": "main", "index": 0 }]
       ]
     },
-    "Prepare Data": {
-      "main": [[{ "node": "Select Best Gemini Model", "type": "main", "index": 0 }]]
+    "Apply Model": {
+      "main": [[{ "node": "Gemini: Analyze", "type": "main", "index": 0 }]]
     },
-    "Select Best Gemini Model": {
-      "main": [
-        [{ "node": "Apply Model Selection", "type": "main", "index": 0 }],
-        [{ "node": "Apply Model Selection", "type": "main", "index": 0 }]
-      ]
-    },
-    "Apply Model Selection": {
-      "main": [[{ "node": "Gemini: Analyze Transcript", "type": "main", "index": 0 }]]
-    },
-    "Gemini: Analyze Transcript": {
+    "Gemini: Analyze": {
       "main": [
         [{ "node": "Clean Output", "type": "main", "index": 0 }],
         [{ "node": "Slack: Error", "type": "main", "index": 0 }]
       ]
     },
     "Clean Output": {
-      "main": [[{ "node": "GitHub: Commit File", "type": "main", "index": 0 }]]
+      "main": [[{ "node": "GitHub: Commit", "type": "main", "index": 0 }]]
     },
-    "GitHub: Commit File": {
+    "GitHub: Commit": {
       "main": [
         [{ "node": "Slack: Success", "type": "main", "index": 0 }],
         [{ "node": "Slack: Error", "type": "main", "index": 0 }]
@@ -344,8 +218,7 @@
   },
   "settings": {
     "executionOrder": "v1",
-    "callerPolicy": "workflowsFromSameOwner",
-    "errorWorkflow": "YWP69Qgq0ZlCN7Gj"
+    "callerPolicy": "workflowsFromSameOwner"
   },
   "tags": []
 }
