@@ -1,0 +1,859 @@
+{
+  "updatedAt": "2026-01-02T17:15:58.947Z",
+  "createdAt": "2026-01-02T16:10:15.208Z",
+  "id": "h3NKdjHzulO0Ecn0",
+  "name": "7. Slack Interaction Handler",
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "slack-interactions",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "name": "Slack Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        300
+      ],
+      "webhookId": "slack-interactions",
+      "id": "713b7a73-cf4a-4113-a979-0b1c959d245b"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse Slack interaction payload\nconst body = $input.first().json.body;\nlet payload;\n\nif (typeof body === 'string') {\n  // URL-encoded payload\n  const decoded = decodeURIComponent(body.replace('payload=', ''));\n  payload = JSON.parse(decoded);\n} else if (body?.payload) {\n  payload = typeof body.payload === 'string' ? JSON.parse(body.payload) : body.payload;\n} else {\n  payload = body;\n}\n\n// Extract action info\nconst action = payload.actions?.[0] || {};\nconst hash = action.value || '';\nconst actionId = action.action_id || '';\n\n// Extract form values from state\nconst state = payload.state?.values || {};\nconst workspace = state.workspace_block?.workspace_select?.selected_option?.value || 'chrt';\nconst purpose = state.purpose_block?.purpose_select?.selected_option?.value || 'general';\n\n// Get user info\nconst user = payload.user?.username || payload.user?.name || 'unknown';\nconst responseUrl = payload.response_url || '';\n\nreturn [{ json: { hash, actionId, workspace, purpose, user, responseUrl, rawPayload: payload } }];"
+      },
+      "name": "Parse Slack Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        300
+      ],
+      "id": "c798ed82-6bee-4eca-9695-62cec3b4964b"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ text: '⏳ Processing meeting...' }) }}"
+      },
+      "name": "Respond to Slack",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        440,
+        300
+      ],
+      "id": "f5364513-cb01-4b58-8d09-6cfd06c2534b"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "is-process",
+              "leftValue": "={{ $json.actionId }}",
+              "rightValue": "process_meeting",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "Is Process Action?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        300
+      ],
+      "id": "8de2e68b-8f92-4bca-8fa9-9137dcd15b39"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=http://srv1230891.hstgr.cloud:3852/retrieve/{{ $('Parse Slack Payload').first().json.hash }}",
+        "options": {}
+      },
+      "name": "VPS: Retrieve Meeting",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        200
+      ],
+      "onError": "continueErrorOutput",
+      "id": "9b08c547-29d5-4ea7-b94f-eadd1d67c3a8"
+    },
+    {
+      "parameters": {
+        "jsCode": "const slack = $('Parse Slack Payload').first().json;\nconst meeting = $input.first().json;\n\nif (meeting.error) {\n  throw new Error('Meeting not found: ' + slack.hash);\n}\n\n// Merge Slack form data with meeting\nmeeting.workspace = slack.workspace || meeting.workspace || 'chrt';\nmeeting.purpose = slack.purpose || 'general';\nmeeting.processedBy = slack.user;\n\nreturn [{ json: meeting }];"
+      },
+      "name": "Merge Form Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        200
+      ],
+      "id": "816ff4e9-1662-4ac6-8a0f-0abeaa0c077b"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Parse Slack Payload').first().json.responseUrl }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ replace_original: true, text: '⏳ *Processing: ' + $json.title + '...*\\n\\nAnalyzing with Claude AI...' }) }}",
+        "options": {}
+      },
+      "name": "Slack: Update Message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        200
+      ],
+      "id": "478cee6a-1750-42e1-aef1-9f3937f9551f"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://srv1230891.hstgr.cloud:3851/analyze-meeting",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Merge Form Data').first().json) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "name": "VPS: Analyze",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1540,
+        200
+      ],
+      "onError": "continueErrorOutput",
+      "id": "a616140c-4964-42d3-a975-2299d88e4a82"
+    },
+    {
+      "parameters": {
+        "jsCode": "const ai = $input.first().json;\nconst meeting = $('Merge Form Data').first().json;\n\nlet content = ai.content || '';\nif (!content) throw new Error(ai.error || 'AI returned empty response');\n\n// Add frontmatter\nif (!content.startsWith('---')) {\n  const personLink = meeting.safePerson && meeting.safePerson !== 'General' ? '[[' + meeting.safePerson + ']]' : '';\n  content = '---\\nup:\\n  - \"[[Calendar]]\"\\nin:\\n  - \"[[Meetings]]\"\\nrelated:\\n  - \"' + personLink + '\"\\ncreated: ' + meeting.dateStr + '\\ntags:\\n  - meeting\\n  - ' + meeting.workspace + '\\n---\\n\\n' + content;\n}\n\nconst folder = meeting.workspace + '/people/' + meeting.safePerson;\nconst fileName = meeting.dateStr + ' - ' + meeting.safeTitle + '.md';\n\nreturn [{ json: { content, folder, fileName, workspace: meeting.workspace, title: meeting.title, date: meeting.dateStr, personName: meeting.safePerson, model: ai.model || 'claude', hash: meeting.hash, responseUrl: $('Parse Slack Payload').first().json.responseUrl } }];"
+      },
+      "name": "Clean Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        200
+      ],
+      "id": "9ebb94d7-247c-4adb-a236-ac7cebfe1ecb"
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "operation": "create",
+        "owner": {
+          "__rl": true,
+          "value": "hudsonlorfing",
+          "mode": "list",
+          "cachedResultName": "hudsonlorfing"
+        },
+        "repository": {
+          "__rl": true,
+          "value": "meeting-notes",
+          "mode": "list",
+          "cachedResultName": "meeting-notes"
+        },
+        "filePath": "={{ $json.folder + '/' + $json.fileName }}",
+        "fileContent": "={{ $json.content }}",
+        "commitMessage": "={{ 'Add meeting: ' + $json.title + ' (' + $json.date + ')' }}"
+      },
+      "name": "GitHub: Commit",
+      "type": "n8n-nodes-base.github",
+      "typeVersion": 1,
+      "position": [
+        1980,
+        200
+      ],
+      "credentials": {
+        "githubApi": {
+          "id": "yiGNsTvCmOQmaC7f",
+          "name": "GitHub PAT - Workflows"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "id": "65d1101b-cc99-4542-b198-0452459b2250"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Clean Output').first().json.responseUrl }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ replace_original: true, text: '✅ *Meeting processed!*\\n\\n📝 *' + $('Clean Output').first().json.title + '*\\n👤 ' + $('Clean Output').first().json.personName + '\\n📁 `' + $('Clean Output').first().json.folder + '/' + $('Clean Output').first().json.fileName + '`\\n🤖 Model: ' + $('Clean Output').first().json.model }) }}",
+        "options": {}
+      },
+      "name": "Slack: Success",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2200,
+        100
+      ],
+      "id": "a8e05de6-0049-4101-acf5-e6efe1545694"
+    },
+    {
+      "parameters": {
+        "method": "DELETE",
+        "url": "=http://srv1230891.hstgr.cloud:3852/delete/{{ $('Clean Output').first().json.hash }}",
+        "options": {}
+      },
+      "name": "VPS: Cleanup",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2420,
+        100
+      ],
+      "id": "95b84d49-4652-4058-91e3-104b2a3d02df"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Parse Slack Payload').first().json.responseUrl }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ replace_original: true, text: '❌ *Error processing meeting*\\n\\n' + ($json.error || $json.message || 'Check n8n logs') }) }}",
+        "options": {}
+      },
+      "name": "Slack: Error",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2200,
+        400
+      ],
+      "id": "95c0a66f-65ce-4847-bbba-1114655fa1c5"
+    },
+    {
+      "parameters": {},
+      "name": "Ignore Other Actions",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        880,
+        400
+      ],
+      "id": "e75536a5-42c5-4d24-a560-0a556a8fa9b1"
+    }
+  ],
+  "connections": {
+    "Slack Webhook": {
+      "main": [
+        [
+          {
+            "node": "Parse Slack Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Slack Payload": {
+      "main": [
+        [
+          {
+            "node": "Respond to Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond to Slack": {
+      "main": [
+        [
+          {
+            "node": "Is Process Action?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Process Action?": {
+      "main": [
+        [
+          {
+            "node": "VPS: Retrieve Meeting",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ignore Other Actions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "VPS: Retrieve Meeting": {
+      "main": [
+        [
+          {
+            "node": "Merge Form Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Slack: Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Form Data": {
+      "main": [
+        [
+          {
+            "node": "Slack: Update Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack: Update Message": {
+      "main": [
+        [
+          {
+            "node": "VPS: Analyze",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "VPS: Analyze": {
+      "main": [
+        [
+          {
+            "node": "Clean Output",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Slack: Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clean Output": {
+      "main": [
+        [
+          {
+            "node": "GitHub: Commit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GitHub: Commit": {
+      "main": [
+        [
+          {
+            "node": "Slack: Success",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Slack: Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack: Success": {
+      "main": [
+        [
+          {
+            "node": "VPS: Cleanup",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false,
+    "errorWorkflow": "YWP69Qgq0ZlCN7Gj"
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": null,
+  "versionId": "6b3700d5-9a40-4d3b-a321-31e61ed35dfa",
+  "activeVersionId": "6b3700d5-9a40-4d3b-a321-31e61ed35dfa",
+  "triggerCount": 1,
+  "shared": [
+    {
+      "updatedAt": "2026-01-02T17:08:12.560Z",
+      "createdAt": "2026-01-02T17:08:12.560Z",
+      "role": "workflow:owner",
+      "workflowId": "h3NKdjHzulO0Ecn0",
+      "projectId": "O7lTivDfRl72aS23"
+    }
+  ],
+  "activeVersion": {
+    "updatedAt": "2026-01-02T17:15:58.949Z",
+    "createdAt": "2026-01-02T17:15:58.949Z",
+    "versionId": "6b3700d5-9a40-4d3b-a321-31e61ed35dfa",
+    "workflowId": "h3NKdjHzulO0Ecn0",
+    "nodes": [
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "slack-interactions",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "name": "Slack Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          0,
+          300
+        ],
+        "webhookId": "slack-interactions",
+        "id": "713b7a73-cf4a-4113-a979-0b1c959d245b"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Parse Slack interaction payload\nconst body = $input.first().json.body;\nlet payload;\n\nif (typeof body === 'string') {\n  // URL-encoded payload\n  const decoded = decodeURIComponent(body.replace('payload=', ''));\n  payload = JSON.parse(decoded);\n} else if (body?.payload) {\n  payload = typeof body.payload === 'string' ? JSON.parse(body.payload) : body.payload;\n} else {\n  payload = body;\n}\n\n// Extract action info\nconst action = payload.actions?.[0] || {};\nconst hash = action.value || '';\nconst actionId = action.action_id || '';\n\n// Extract form values from state\nconst state = payload.state?.values || {};\nconst workspace = state.workspace_block?.workspace_select?.selected_option?.value || 'chrt';\nconst purpose = state.purpose_block?.purpose_select?.selected_option?.value || 'general';\n\n// Get user info\nconst user = payload.user?.username || payload.user?.name || 'unknown';\nconst responseUrl = payload.response_url || '';\n\nreturn [{ json: { hash, actionId, workspace, purpose, user, responseUrl, rawPayload: payload } }];"
+        },
+        "name": "Parse Slack Payload",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          220,
+          300
+        ],
+        "id": "c798ed82-6bee-4eca-9695-62cec3b4964b"
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ JSON.stringify({ text: '⏳ Processing meeting...' }) }}"
+        },
+        "name": "Respond to Slack",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [
+          440,
+          300
+        ],
+        "id": "f5364513-cb01-4b58-8d09-6cfd06c2534b"
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "loose",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "is-process",
+                "leftValue": "={{ $json.actionId }}",
+                "rightValue": "process_meeting",
+                "operator": {
+                  "type": "string",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "name": "Is Process Action?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          660,
+          300
+        ],
+        "id": "8de2e68b-8f92-4bca-8fa9-9137dcd15b39"
+      },
+      {
+        "parameters": {
+          "method": "GET",
+          "url": "=http://srv1230891.hstgr.cloud:3852/retrieve/{{ $('Parse Slack Payload').first().json.hash }}",
+          "options": {}
+        },
+        "name": "VPS: Retrieve Meeting",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          880,
+          200
+        ],
+        "onError": "continueErrorOutput",
+        "id": "9b08c547-29d5-4ea7-b94f-eadd1d67c3a8"
+      },
+      {
+        "parameters": {
+          "jsCode": "const slack = $('Parse Slack Payload').first().json;\nconst meeting = $input.first().json;\n\nif (meeting.error) {\n  throw new Error('Meeting not found: ' + slack.hash);\n}\n\n// Merge Slack form data with meeting\nmeeting.workspace = slack.workspace || meeting.workspace || 'chrt';\nmeeting.purpose = slack.purpose || 'general';\nmeeting.processedBy = slack.user;\n\nreturn [{ json: meeting }];"
+        },
+        "name": "Merge Form Data",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1100,
+          200
+        ],
+        "id": "816ff4e9-1662-4ac6-8a0f-0abeaa0c077b"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "={{ $('Parse Slack Payload').first().json.responseUrl }}",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ replace_original: true, text: '⏳ *Processing: ' + $json.title + '...*\\n\\nAnalyzing with Claude AI...' }) }}",
+          "options": {}
+        },
+        "name": "Slack: Update Message",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1320,
+          200
+        ],
+        "id": "478cee6a-1750-42e1-aef1-9f3937f9551f"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "http://srv1230891.hstgr.cloud:3851/analyze-meeting",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify($('Merge Form Data').first().json) }}",
+          "options": {
+            "timeout": 120000
+          }
+        },
+        "name": "VPS: Analyze",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1540,
+          200
+        ],
+        "onError": "continueErrorOutput",
+        "id": "a616140c-4964-42d3-a975-2299d88e4a82"
+      },
+      {
+        "parameters": {
+          "jsCode": "const ai = $input.first().json;\nconst meeting = $('Merge Form Data').first().json;\n\nlet content = ai.content || '';\nif (!content) throw new Error(ai.error || 'AI returned empty response');\n\n// Add frontmatter\nif (!content.startsWith('---')) {\n  const personLink = meeting.safePerson && meeting.safePerson !== 'General' ? '[[' + meeting.safePerson + ']]' : '';\n  content = '---\\nup:\\n  - \"[[Calendar]]\"\\nin:\\n  - \"[[Meetings]]\"\\nrelated:\\n  - \"' + personLink + '\"\\ncreated: ' + meeting.dateStr + '\\ntags:\\n  - meeting\\n  - ' + meeting.workspace + '\\n---\\n\\n' + content;\n}\n\nconst folder = meeting.workspace + '/people/' + meeting.safePerson;\nconst fileName = meeting.dateStr + ' - ' + meeting.safeTitle + '.md';\n\nreturn [{ json: { content, folder, fileName, workspace: meeting.workspace, title: meeting.title, date: meeting.dateStr, personName: meeting.safePerson, model: ai.model || 'claude', hash: meeting.hash, responseUrl: $('Parse Slack Payload').first().json.responseUrl } }];"
+        },
+        "name": "Clean Output",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1760,
+          200
+        ],
+        "id": "9ebb94d7-247c-4adb-a236-ac7cebfe1ecb"
+      },
+      {
+        "parameters": {
+          "resource": "file",
+          "operation": "create",
+          "owner": {
+            "__rl": true,
+            "value": "hudsonlorfing",
+            "mode": "list",
+            "cachedResultName": "hudsonlorfing"
+          },
+          "repository": {
+            "__rl": true,
+            "value": "meeting-notes",
+            "mode": "list",
+            "cachedResultName": "meeting-notes"
+          },
+          "filePath": "={{ $json.folder + '/' + $json.fileName }}",
+          "fileContent": "={{ $json.content }}",
+          "commitMessage": "={{ 'Add meeting: ' + $json.title + ' (' + $json.date + ')' }}"
+        },
+        "name": "GitHub: Commit",
+        "type": "n8n-nodes-base.github",
+        "typeVersion": 1,
+        "position": [
+          1980,
+          200
+        ],
+        "credentials": {
+          "githubApi": {
+            "id": "yiGNsTvCmOQmaC7f",
+            "name": "GitHub PAT - Workflows"
+          }
+        },
+        "onError": "continueErrorOutput",
+        "id": "65d1101b-cc99-4542-b198-0452459b2250"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "={{ $('Clean Output').first().json.responseUrl }}",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ replace_original: true, text: '✅ *Meeting processed!*\\n\\n📝 *' + $('Clean Output').first().json.title + '*\\n👤 ' + $('Clean Output').first().json.personName + '\\n📁 `' + $('Clean Output').first().json.folder + '/' + $('Clean Output').first().json.fileName + '`\\n🤖 Model: ' + $('Clean Output').first().json.model }) }}",
+          "options": {}
+        },
+        "name": "Slack: Success",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          2200,
+          100
+        ],
+        "id": "a8e05de6-0049-4101-acf5-e6efe1545694"
+      },
+      {
+        "parameters": {
+          "method": "DELETE",
+          "url": "=http://srv1230891.hstgr.cloud:3852/delete/{{ $('Clean Output').first().json.hash }}",
+          "options": {}
+        },
+        "name": "VPS: Cleanup",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          2420,
+          100
+        ],
+        "id": "95b84d49-4652-4058-91e3-104b2a3d02df"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "={{ $('Parse Slack Payload').first().json.responseUrl }}",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ replace_original: true, text: '❌ *Error processing meeting*\\n\\n' + ($json.error || $json.message || 'Check n8n logs') }) }}",
+          "options": {}
+        },
+        "name": "Slack: Error",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          2200,
+          400
+        ],
+        "id": "95c0a66f-65ce-4847-bbba-1114655fa1c5"
+      },
+      {
+        "parameters": {},
+        "name": "Ignore Other Actions",
+        "type": "n8n-nodes-base.noOp",
+        "typeVersion": 1,
+        "position": [
+          880,
+          400
+        ],
+        "id": "e75536a5-42c5-4d24-a560-0a556a8fa9b1"
+      }
+    ],
+    "connections": {
+      "Slack Webhook": {
+        "main": [
+          [
+            {
+              "node": "Parse Slack Payload",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Parse Slack Payload": {
+        "main": [
+          [
+            {
+              "node": "Respond to Slack",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Respond to Slack": {
+        "main": [
+          [
+            {
+              "node": "Is Process Action?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Is Process Action?": {
+        "main": [
+          [
+            {
+              "node": "VPS: Retrieve Meeting",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Ignore Other Actions",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "VPS: Retrieve Meeting": {
+        "main": [
+          [
+            {
+              "node": "Merge Form Data",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Slack: Error",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Merge Form Data": {
+        "main": [
+          [
+            {
+              "node": "Slack: Update Message",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Slack: Update Message": {
+        "main": [
+          [
+            {
+              "node": "VPS: Analyze",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "VPS: Analyze": {
+        "main": [
+          [
+            {
+              "node": "Clean Output",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Slack: Error",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Clean Output": {
+        "main": [
+          [
+            {
+              "node": "GitHub: Commit",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "GitHub: Commit": {
+        "main": [
+          [
+            {
+              "node": "Slack: Success",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Slack: Error",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Slack: Success": {
+        "main": [
+          [
+            {
+              "node": "VPS: Cleanup",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "authors": "Hudson Lorfing",
+    "name": null,
+    "description": null
+  },
+  "tags": [],
+  "_folderPath": "",
+  "_fileName": "7.-slack-interaction-handler.json"
+}
