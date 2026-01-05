@@ -30,3 +30,12 @@ execution-*.json
 # Debug logs directory
 debug-logs/
 archive/
+
+# Sensitive patterns - NEVER commit these
+**/secrets.json
+**/*-credentials.json
+**/*.pem
+**/*.key
+
+# Workflow files that may contain webhooks (use download for latest)
+# Note: workflow files are allowed but pre-commit hook scans for secrets

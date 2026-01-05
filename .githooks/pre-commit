@@ -1,0 +1,78 @@
+#!/bin/bash
+
+# Pre-commit hook to prevent accidental API key commits
+# Install: git config core.hooksPath .githooks
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
+echo -e "${YELLOW}🔍 Scanning for secrets...${NC}"
+
+# Patterns to detect (regex)
+PATTERNS=(
+    'AIza[0-9A-Za-z_-]{35}'                    # Google/Gemini API keys
+    'sk-[a-zA-Z0-9]{48}'                       # OpenAI API keys
+    'sk-proj-[a-zA-Z0-9]{48}'                  # OpenAI project keys
+    'xox[baprs]-[0-9A-Za-z-]+'                 # Slack tokens
+    'hooks\.slack\.com/services/[A-Z0-9/]+'   # Slack webhooks
+    'ghp_[a-zA-Z0-9]{36}'                      # GitHub PAT (new format)
+    'gho_[a-zA-Z0-9]{36}'                      # GitHub OAuth
+    'github_pat_[a-zA-Z0-9_]{82}'              # GitHub PAT (fine-grained)
+    'AKIA[0-9A-Z]{16}'                         # AWS Access Key ID
+    'sk_live_[0-9a-zA-Z]{24}'                  # Stripe live key
+    'sk_test_[0-9a-zA-Z]{24}'                  # Stripe test key
+)
+
+# Files to check (staged for commit)
+FILES=$(git diff --cached --name-only --diff-filter=ACM)
+
+if [ -z "$FILES" ]; then
+    echo -e "${GREEN}✓ No files staged${NC}"
+    exit 0
+fi
+
+FOUND_SECRETS=0
+
+for file in $FILES; do
+    # Skip binary files and certain extensions
+    if [[ "$file" =~ \.(png|jpg|jpeg|gif|pdf|zip|tar|gz)$ ]]; then
+        continue
+    fi
+    
+    # Skip if file doesn't exist (deleted)
+    if [ ! -f "$file" ]; then
+        continue
+    fi
+    
+    for pattern in "${PATTERNS[@]}"; do
+        if grep -qE "$pattern" "$file" 2>/dev/null; then
+            echo -e "${RED}❌ BLOCKED: Potential secret found in $file${NC}"
+            echo -e "   Pattern: $pattern"
+            grep -nE "$pattern" "$file" | head -3 | while read line; do
+                echo -e "   ${YELLOW}$line${NC}"
+            done
+            FOUND_SECRETS=1
+        fi
+    done
+done
+
+if [ $FOUND_SECRETS -eq 1 ]; then
+    echo ""
+    echo -e "${RED}═══════════════════════════════════════════════════════════════${NC}"
+    echo -e "${RED}  COMMIT BLOCKED: Potential secrets detected!${NC}"
+    echo -e "${RED}═══════════════════════════════════════════════════════════════${NC}"
+    echo ""
+    echo -e "Options:"
+    echo -e "  1. Remove the secrets and use environment variables"
+    echo -e "  2. Add file to .gitignore if it shouldn't be tracked"
+    echo -e "  3. Use placeholder values: {{ SECRET_NAME }}"
+    echo ""
+    echo -e "To bypass (use with caution): git commit --no-verify"
+    exit 1
+fi
+
+echo -e "${GREEN}✓ No secrets detected${NC}"
+exit 0
+
