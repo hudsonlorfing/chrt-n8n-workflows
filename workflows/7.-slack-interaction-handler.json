@@ -186,7 +186,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Create Person notes for each participant\nconst prep = $('Prepare Content').first().json;\nconst workspace = prep.workspace;\nconst dateStr = prep.date;\nconst participants = prep.participantNames || [];\n\n// Generate Person note content for each participant\nconst personNotes = participants.map(p => {\n  const personContent = `---\\nin:\\n  - \"[[People]]\"\\ncreated: ${dateStr}\\ntags:\\n  - person\\n  - ${workspace}\\nname: ${p.name}\\ncompany: ${p.company || ''}\\nrole: \\nemail: ${p.email || ''}\\nsegment: \\npeopleType: \\npeopleDomain: \\n---\\n\\n# ${p.name}\\n\\n| Field | Value |\\n|-------|-------|\\n| **Company** | \\`=this.company\\` |\\n| **Role** | \\`=this.role\\` |\\n| **Email** | \\`=this.email\\` |\\n\\n---\\n\\n## Notes\\n\\n---\\n\\n## Meetings\\n\\n`;\n\n  return {\n    fileName: `👤${p.name}.md`,\n    filePath: `${workspace}/people/👤${p.name}.md`,\n    content: personContent,\n    name: p.name\n  };\n});\n\n// Return meeting data plus person notes to create\nreturn [{ json: { ...prep, personNotes } }];"
+        "jsCode": "// Skip person note creation - people already exist in Obsidian vaults\n// Just pass through the prep data\nconst prep = $('Prepare Content').first().json;\nreturn [{ json: { ...prep, personNotes: [] } }];"
       },
       "name": "Prepare Person Notes",
       "type": "n8n-nodes-base.code",
