@@ -22,7 +22,10 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 // CONFIGURATION LOADING
 // =============================================================================
 
-const CONFIG_DIR = path.join(__dirname, '../../configs');
+// Config directory - use local 'configs' if it exists, otherwise look up two levels
+const CONFIG_DIR = fs.existsSync(path.join(__dirname, 'configs')) 
+  ? path.join(__dirname, 'configs') 
+  : path.join(__dirname, '../../configs');
 
 function loadJsonFile(filePath) {
   try {
@@ -289,10 +292,36 @@ function buildPrompt(workspace, apps, customContext, transcript, meetingData) {
   const ws = WORKSPACES[workspace] || WORKSPACES['chrt'];
   const parts = [];
   
+  // Recording type and detail level
+  const recordingType = meetingData.recordingType || 'normal';
+  const detailLevel = meetingData.detailLevel || 'standard';
+  
   // Workspace context
   parts.push(`# Context\n`);
   parts.push(`You are analyzing a meeting for ${ws.display_name || ws.name}.`);
   parts.push(`Role: ${ws.role === 'sales' ? 'Sales analyst' : 'Advisory meeting analyst'}`);
+  
+  // Handle singular recording (recorded conversation without actual meeting attendees)
+  if (recordingType === 'singular') {
+    parts.push(`\n**IMPORTANT: Singular Recording Mode**`);
+    parts.push(`This is a recorded conversation where the speaker(s) did not join as meeting participants.`);
+    parts.push(`The attendee list may only show the recorder. Focus on identifying all speakers from voice/context.`);
+    parts.push(`Attribute quotes and insights to the correct speaker based on conversation context.\n`);
+  }
+  
+  // Handle context meeting (detailed notes needed)
+  if (detailLevel === 'context') {
+    parts.push(`\n**IMPORTANT: Context Meeting - Detailed Notes Required**`);
+    parts.push(`This meeting provides important context that needs comprehensive documentation.`);
+    parts.push(`Capture MORE detail than usual:`);
+    parts.push(`- Document specific examples, stories, and anecdotes mentioned`);
+    parts.push(`- Preserve nuanced opinions and perspectives with exact quotes`);
+    parts.push(`- Note any background information, history, or context shared`);
+    parts.push(`- Capture institutional knowledge and tribal wisdom`);
+    parts.push(`- Include tangential but potentially valuable insights`);
+    parts.push(`- Record any numbers, metrics, dates, or specific data points\n`);
+  }
+  
   if (ws.analysis_context) {
     parts.push(ws.analysis_context);
   }
@@ -348,11 +377,22 @@ function buildPrompt(workspace, apps, customContext, transcript, meetingData) {
   parts.push(`# Output Format`);
   parts.push(`Format your response as a structured Obsidian markdown note with frontmatter.`);
   parts.push(`Include:`);
-  parts.push(`- Executive summary (2-3 sentences)`);
-  parts.push(`- Key points by topic`);
-  parts.push(`- Action items with owners (use #hudson, #aaron, #kyle tags)`);
-  parts.push(`- Any scoring/rubric results`);
-  parts.push(`- Follow-up recommendations`);
+  if (detailLevel === 'context') {
+    parts.push(`- Comprehensive executive summary (4-6 sentences)`);
+    parts.push(`- Detailed key points organized by topic with supporting quotes`);
+    parts.push(`- Background context and institutional knowledge captured`);
+    parts.push(`- Specific examples, stories, and anecdotes with attribution`);
+    parts.push(`- All numbers, metrics, dates, and data points mentioned`);
+    parts.push(`- Action items with owners (use #hudson, #aaron, #kyle tags)`);
+    parts.push(`- Key quotes worth preserving (with speaker attribution)`);
+    parts.push(`- Follow-up recommendations and open questions`);
+  } else {
+    parts.push(`- Executive summary (2-3 sentences)`);
+    parts.push(`- Key points by topic`);
+    parts.push(`- Action items with owners (use #hudson, #aaron, #kyle tags)`);
+    parts.push(`- Any scoring/rubric results`);
+    parts.push(`- Follow-up recommendations`);
+  }
   parts.push('');
   
   // Meeting metadata
