@@ -1,0 +1,101 @@
+{
+  "version": "1.0.0",
+  "description": "AI Apps library for meeting analysis - inspired by Fireflies.ai and Gong",
+  
+  "categories": [
+    {"id": "sales", "name": "Sales", "icon": "💰", "description": "Sales qualification, coaching, and deal intelligence"},
+    {"id": "customer_success", "name": "Customer Success", "icon": "🤝", "description": "Retention, health scoring, and expansion"},
+    {"id": "recruiting", "name": "Recruiting", "icon": "👤", "description": "Interview scoring and candidate evaluation"},
+    {"id": "product", "name": "Product Management", "icon": "📦", "description": "User research and requirements gathering"},
+    {"id": "engineering", "name": "Engineering", "icon": "⚙️", "description": "Sprint ceremonies and technical discussions"},
+    {"id": "internal", "name": "Internal", "icon": "🏢", "description": "Team syncs, 1:1s, and general internal meetings"},
+    {"id": "general", "name": "General", "icon": "📝", "description": "Generic meeting notes and summaries"}
+  ],
+  
+  "apps": [
+    "discovery-scorecard",
+    "demo-scorecard", 
+    "spiced-analyzer",
+    "objection-handler",
+    "competitor-tracker",
+    "churn-risk-analyzer",
+    "qbr-analyzer",
+    "onboarding-review",
+    "interview-scorecard",
+    "customer-interview",
+    "user-research",
+    "sprint-retro",
+    "team-sync",
+    "one-on-one",
+    "general-notes"
+  ],
+  
+  "common_combinations": [
+    {
+      "name": "Sales Discovery",
+      "apps": [
+        {"id": "discovery-scorecard", "weight": 0.5},
+        {"id": "spiced-analyzer", "weight": 0.3},
+        {"id": "competitor-tracker", "weight": 0.2}
+      ],
+      "trigger": {"external": true, "title_keywords": ["discovery", "intro", "initial", "first call"]}
+    },
+    {
+      "name": "Sales Demo",
+      "apps": [
+        {"id": "demo-scorecard", "weight": 0.6},
+        {"id": "objection-handler", "weight": 0.25},
+        {"id": "competitor-tracker", "weight": 0.15}
+      ],
+      "trigger": {"external": true, "title_keywords": ["demo", "presentation", "walkthrough", "platform overview"]}
+    },
+    {
+      "name": "Customer Check-in",
+      "apps": [
+        {"id": "churn-risk-analyzer", "weight": 0.4},
+        {"id": "qbr-analyzer", "weight": 0.4},
+        {"id": "general-notes", "weight": 0.2}
+      ],
+      "trigger": {"external": true, "title_keywords": ["qbr", "quarterly", "check-in", "review", "catch up"]}
+    },
+    {
+      "name": "Customer Onboarding",
+      "apps": [
+        {"id": "onboarding-review", "weight": 0.7},
+        {"id": "general-notes", "weight": 0.3}
+      ],
+      "trigger": {"external": true, "title_keywords": ["onboarding", "kickoff", "implementation", "setup"]}
+    },
+    {
+      "name": "Customer Research",
+      "apps": [
+        {"id": "customer-interview", "weight": 0.6},
+        {"id": "user-research", "weight": 0.4}
+      ],
+      "trigger": {"external": true, "title_keywords": ["research", "interview", "feedback", "user interview"]}
+    },
+    {
+      "name": "Candidate Interview",
+      "apps": [
+        {"id": "interview-scorecard", "weight": 1.0}
+      ],
+      "trigger": {"external": true, "title_keywords": ["interview", "screen", "candidate", "hiring"]}
+    },
+    {
+      "name": "Team Sync",
+      "apps": [
+        {"id": "team-sync", "weight": 0.7},
+        {"id": "sprint-retro", "weight": 0.3}
+      ],
+      "trigger": {"external": false, "title_keywords": ["standup", "sync", "team meeting", "weekly"]}
+    },
+    {
+      "name": "One-on-One",
+      "apps": [
+        {"id": "one-on-one", "weight": 1.0}
+      ],
+      "trigger": {"external": false, "title_keywords": ["1:1", "1-1", "one on one", "check-in"]}
+    }
+  ]
+}
+

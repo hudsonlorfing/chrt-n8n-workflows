@@ -1,0 +1,44 @@
+{
+  "id": "general-notes",
+  "name": "General Meeting Notes",
+  "category": "general",
+  "icon": "📝",
+  "description": "Generic meeting notes for any meeting type",
+  
+  "auto_detect": {
+    "fallback": true
+  },
+  
+  "extraction_targets": [
+    {"field": "summary", "prompt": "Provide a concise executive summary (2-3 sentences)"},
+    {"field": "key_points", "prompt": "List the main points discussed"},
+    {"field": "decisions", "prompt": "List any decisions made"},
+    {"field": "action_items", "prompt": "List all action items with owner if mentioned"},
+    {"field": "next_steps", "prompt": "What are the agreed next steps?"},
+    {"field": "open_questions", "prompt": "What questions remain unanswered?"}
+  ],
+  
+  "output_schema": {
+    "format": "markdown",
+    "sections": [
+      "## Meeting Notes: {{title}}",
+      "**Date:** {{date}}",
+      "**Participants:** {{participants}}",
+      "### Summary",
+      "{{summary}}",
+      "### Key Points",
+      "{{key_points}}",
+      "### Decisions",
+      "{{decisions}}",
+      "### Action Items",
+      "{{action_items}}",
+      "### Next Steps",
+      "{{next_steps}}",
+      "### Open Questions",
+      "{{open_questions}}"
+    ]
+  },
+  
+  "system_prompt": "You are a professional meeting analyst. Create clear, structured notes from this meeting.\n\nFocus on:\n1. Concise summary\n2. Key points and decisions\n3. Clear action items with owners\n4. Next steps\n\nBe professional and actionable. Output valid JSON."
+}
+

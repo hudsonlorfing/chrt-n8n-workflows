@@ -1,0 +1,92 @@
+{
+  "name": "8. Google Sheets Reader (Claude Tool)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "sheets-reader",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300],
+      "webhookId": "sheets-reader-webhook"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $json.body.sheetId || '1jXRlG0UNlkAi-mHoaS3jLjVx5Je9zIBrCjgDiB2rBI4' }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "={{ $json.body.tabName || '' }}",
+          "mode": "name"
+        },
+        "options": {
+          "outputFormatting": true,
+          "dateTimeRenderOption": "FORMATTED_STRING",
+          "valueRenderOption": "FORMATTED_VALUE"
+        }
+      },
+      "id": "google-sheets",
+      "name": "Read Sheet Data",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [470, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "hf9VoWnqYNXhUZsn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {\n  success: true,\n  sheetId: $('Webhook').item.json.body.sheetId || '1jXRlG0UNlkAi-mHoaS3jLjVx5Je9zIBrCjgDiB2rBI4',\n  tabName: $('Webhook').item.json.body.tabName || 'Default',\n  rowCount: $input.all().length,\n  columns: Object.keys($input.first().json),\n  data: $input.all().map(item => item.json)\n} }}",
+        "options": {}
+      },
+      "id": "respond-webhook",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [690, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Read Sheet Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Sheet Data": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": []
+}

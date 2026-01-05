@@ -1,0 +1,53 @@
+{
+  "id": "onboarding-review",
+  "name": "Onboarding Review",
+  "category": "customer_success",
+  "icon": "🚀",
+  "description": "Track customer onboarding progress and time-to-value",
+  
+  "auto_detect": {
+    "title_keywords": ["onboarding", "kickoff", "implementation", "setup", "getting started", "training"],
+    "external_required": true,
+    "content_signals": ["getting started", "setup", "training", "go live", "launch"]
+  },
+  
+  "extraction_targets": [
+    {"field": "onboarding_stage", "prompt": "What stage of onboarding is the customer in?"},
+    {"field": "progress_made", "prompt": "What progress was made in this session?"},
+    {"field": "blockers", "prompt": "What blockers or obstacles are slowing onboarding?"},
+    {"field": "training_needs", "prompt": "What additional training does the customer need?"},
+    {"field": "go_live_timeline", "prompt": "What's the target go-live date?"},
+    {"field": "stakeholder_engagement", "prompt": "How engaged are the key stakeholders?"},
+    {"field": "quick_wins", "prompt": "What quick wins have been achieved?"},
+    {"field": "at_risk_items", "prompt": "What items are at risk of delaying go-live?"},
+    {"field": "next_steps", "prompt": "What are the next steps?"}
+  ],
+  
+  "output_schema": {
+    "format": "markdown",
+    "sections": [
+      "## Onboarding Review: {{customer_name}}",
+      "**Date:** {{date}}",
+      "**Stage:** {{onboarding_stage}}",
+      "### Progress Made",
+      "{{progress_made}}",
+      "### Quick Wins",
+      "{{quick_wins}}",
+      "### Blockers",
+      "{{blockers}}",
+      "### Training Needs",
+      "{{training_needs}}",
+      "### Go-Live Timeline",
+      "{{go_live_timeline}}",
+      "### At-Risk Items",
+      "{{at_risk_items}}",
+      "### Stakeholder Engagement",
+      "{{stakeholder_engagement}}",
+      "### Next Steps",
+      "{{next_steps}}"
+    ]
+  },
+  
+  "system_prompt": "You are a customer success analyst tracking onboarding progress. Focus on:\n\n1. Time-to-value metrics\n2. Blockers preventing progress\n3. Stakeholder engagement levels\n4. Risk of delayed go-live\n\nIdentify actions to accelerate time-to-value. Output valid JSON."
+}
+

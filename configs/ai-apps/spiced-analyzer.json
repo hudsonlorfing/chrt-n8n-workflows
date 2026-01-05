@@ -1,0 +1,67 @@
+{
+  "id": "spiced-analyzer",
+  "name": "SPICED Analyzer",
+  "category": "sales",
+  "icon": "🌶️",
+  "description": "Extract and score SPICED qualification framework elements",
+  
+  "auto_detect": {
+    "title_keywords": ["discovery", "qualification", "sales", "prospect"],
+    "external_required": true,
+    "content_signals": ["situation", "problem", "impact", "timeline", "decision"]
+  },
+  
+  "scoring": {
+    "enabled": true,
+    "max_score": 6,
+    "pass_threshold": 4,
+    "criteria": [
+      {"id": "situation", "name": "Situation", "weight": 1, "question": "Is the prospect's current situation/context clearly understood?"},
+      {"id": "pain", "name": "Pain", "weight": 1, "question": "Are specific pain points identified and quantified?"},
+      {"id": "impact", "name": "Impact", "weight": 1, "question": "Is the business impact of the pain understood (cost, time, risk)?"},
+      {"id": "critical_event", "name": "Critical Event", "weight": 1, "question": "Is there a compelling event or deadline driving urgency?"},
+      {"id": "decision", "name": "Decision", "weight": 1, "question": "Is the decision criteria understood (what matters most)?"},
+      {"id": "decision_process", "name": "Decision Process", "weight": 1, "question": "Is the decision process mapped (who, steps, timeline)?"}
+    ]
+  },
+  
+  "extraction_targets": [
+    {"field": "situation", "prompt": "Describe the prospect's current situation, environment, and context. What's their business? What tools/processes are they using?"},
+    {"field": "pain", "prompt": "List all pain points with severity. What are they struggling with? What's broken or frustrating?"},
+    {"field": "impact", "prompt": "Quantify the impact of the pain. Cost? Time wasted? Revenue lost? Risk exposure?"},
+    {"field": "critical_event", "prompt": "What's the compelling event? Deadline? Trigger? Why now?"},
+    {"field": "decision_criteria", "prompt": "What criteria will they use to make the decision? What matters most?"},
+    {"field": "decision_process", "prompt": "Who's involved? What are the steps? Timeline? Budget approval process?"},
+    {"field": "champion", "prompt": "Is there an internal champion? Who's advocating for change?"}
+  ],
+  
+  "output_schema": {
+    "format": "markdown",
+    "sections": [
+      "## SPICED Score: {{score}}/6",
+      "### Framework Analysis",
+      "| Element | Status | Confidence | Notes |",
+      "|---------|--------|------------|-------|",
+      "{{spiced_table}}",
+      "### S - Situation",
+      "{{situation}}",
+      "### P - Pain",
+      "{{pain}}",
+      "### I - Impact",
+      "{{impact}}",
+      "### C - Critical Event",
+      "{{critical_event}}",
+      "### E - Decision Criteria",
+      "{{decision_criteria}}",
+      "### D - Decision Process",
+      "{{decision_process}}",
+      "### Champion Status",
+      "{{champion}}",
+      "### Gaps to Address",
+      "{{gaps}}"
+    ]
+  },
+  
+  "system_prompt": "You are a SPICED methodology expert analyzing a sales conversation. Extract each SPICED element with supporting evidence.\n\nFor each element:\n- Status: Confirmed / Partially Confirmed / Unknown / Not Discussed\n- Confidence: High / Medium / Low\n- Evidence: Specific quotes or context\n\nIdentify gaps where the rep should probe deeper in follow-up calls. Output valid JSON."
+}
+

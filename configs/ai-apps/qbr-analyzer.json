@@ -1,0 +1,57 @@
+{
+  "id": "qbr-analyzer",
+  "name": "QBR Analyzer",
+  "category": "customer_success",
+  "icon": "📊",
+  "description": "Analyze Quarterly Business Reviews for account health and expansion",
+  
+  "auto_detect": {
+    "title_keywords": ["qbr", "quarterly", "business review", "account review", "executive briefing"],
+    "external_required": true,
+    "content_signals": ["last quarter", "metrics", "roadmap", "roi", "value", "renewal"]
+  },
+  
+  "extraction_targets": [
+    {"field": "account_overview", "prompt": "Brief overview of the account status"},
+    {"field": "value_delivered", "prompt": "What value/ROI was demonstrated?"},
+    {"field": "usage_metrics", "prompt": "What usage or adoption metrics were discussed?"},
+    {"field": "customer_feedback", "prompt": "What feedback did the customer provide?"},
+    {"field": "success_stories", "prompt": "Any wins or success stories shared?"},
+    {"field": "challenges_raised", "prompt": "What challenges or concerns were raised?"},
+    {"field": "roadmap_items", "prompt": "What product roadmap items were discussed?"},
+    {"field": "expansion_opportunities", "prompt": "Any expansion or upsell opportunities?"},
+    {"field": "renewal_status", "prompt": "What's the renewal timeline and sentiment?"},
+    {"field": "action_items", "prompt": "What commitments were made?"}
+  ],
+  
+  "output_schema": {
+    "format": "markdown",
+    "sections": [
+      "## QBR Summary: {{account_name}}",
+      "**Date:** {{date}}",
+      "**Attendees:** {{attendees}}",
+      "### Account Health: {{health_score}}",
+      "### Value Delivered",
+      "{{value_delivered}}",
+      "### Usage & Adoption",
+      "{{usage_metrics}}",
+      "### Customer Feedback",
+      "{{customer_feedback}}",
+      "### Success Stories",
+      "{{success_stories}}",
+      "### Challenges",
+      "{{challenges_raised}}",
+      "### Roadmap Discussion",
+      "{{roadmap_items}}",
+      "### Expansion Opportunities",
+      "{{expansion_opportunities}}",
+      "### Renewal Status",
+      "{{renewal_status}}",
+      "### Action Items",
+      "{{action_items}}"
+    ]
+  },
+  
+  "system_prompt": "You are a customer success analyst reviewing a QBR. Extract insights about account health, value delivered, and growth opportunities.\n\nPay attention to:\n1. Customer satisfaction signals\n2. Adoption and usage patterns\n3. Expansion opportunities\n4. Renewal risk factors\n\nBe thorough and strategic. Output valid JSON."
+}
+

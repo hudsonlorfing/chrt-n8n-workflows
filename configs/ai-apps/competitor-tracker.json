@@ -1,0 +1,49 @@
+{
+  "id": "competitor-tracker",
+  "name": "Competitor Tracker",
+  "category": "sales",
+  "icon": "🎯",
+  "description": "Track competitor mentions and comparison insights",
+  
+  "auto_detect": {
+    "title_keywords": ["discovery", "demo", "evaluation", "comparison"],
+    "external_required": true,
+    "content_signals": ["using", "looked at", "compared", "alternative", "competitor"]
+  },
+  
+  "extraction_targets": [
+    {"field": "competitors_mentioned", "prompt": "List all competitors mentioned by name"},
+    {"field": "current_solution", "prompt": "What solution is the prospect currently using?"},
+    {"field": "comparison_points", "prompt": "What specific features or capabilities were compared?"},
+    {"field": "competitor_strengths", "prompt": "What did the prospect say competitors do well?"},
+    {"field": "competitor_weaknesses", "prompt": "What frustrations did they express about competitors?"},
+    {"field": "switching_barriers", "prompt": "What barriers to switching were mentioned?"},
+    {"field": "differentiation_opportunities", "prompt": "Where can we differentiate based on this conversation?"}
+  ],
+  
+  "output_schema": {
+    "format": "markdown",
+    "sections": [
+      "## Competitor Intelligence",
+      "### Competitors Mentioned",
+      "{{competitors_list}}",
+      "### Current Solution",
+      "{{current_solution}}",
+      "### Comparison Matrix",
+      "| Feature/Capability | Us | Competitor | Prospect Preference |",
+      "|-------------------|-----|------------|---------------------|",
+      "{{comparison_table}}",
+      "### Competitor Strengths",
+      "{{competitor_strengths}}",
+      "### Competitor Weaknesses (Our Opportunities)",
+      "{{competitor_weaknesses}}",
+      "### Switching Barriers",
+      "{{switching_barriers}}",
+      "### Battle Card Insights",
+      "{{differentiation_opportunities}}"
+    ]
+  },
+  
+  "system_prompt": "You are a competitive intelligence analyst. Extract all competitor-related insights from this sales conversation.\n\nListen for:\n- Direct competitor mentions\n- Feature comparisons\n- Pricing comparisons\n- Satisfaction/dissatisfaction with current solution\n- Switching considerations\n\nProvide actionable insights for differentiation. Output valid JSON."
+}
+

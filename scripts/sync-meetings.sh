@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # sync-meetings.sh - Sync meeting notes from GitHub to local Obsidian vaults
-# Run this manually or set up a cron job for automatic sync
+# Compatible with bash 3.x (macOS default)
 
 set -e
 
@@ -18,13 +18,6 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-# Vault paths mapping
-declare -A VAULT_PATHS
-VAULT_PATHS["chrt"]="$BUSINESS_DIR/Chrt/obsidian/Calendar/Notes/Meetings"
-VAULT_PATHS["goodlux"]="$BUSINESS_DIR/GoodLux/obsidian/Calendar/Notes/Meetings"
-VAULT_PATHS["personal"]="$BUSINESS_DIR/_personal/obsidian/Calendar/Notes/Meetings"
-VAULT_PATHS["shedpro"]="$BUSINESS_DIR/ShedPro/obsidian/Calendar/Notes/Meetings"
-
 echo -e "${BLUE}============================================${NC}"
 echo -e "${BLUE}Meeting Notes Sync${NC}"
 echo -e "${BLUE}$(date)${NC}"
@@ -40,38 +33,55 @@ else
     git pull origin main
 fi
 
-# Ensure vault directories exist
-for folder in "${!VAULT_PATHS[@]}"; do
-    target_dir="${VAULT_PATHS[$folder]}"
-    if [ ! -d "$target_dir" ]; then
-        echo -e "${YELLOW}Creating directory: $target_dir${NC}"
-        mkdir -p "$target_dir"
-    fi
-done
-
-# Sync each folder to its corresponding vault
-echo -e "\n${YELLOW}Syncing meeting notes to Obsidian vaults...${NC}"
-
-synced_count=0
-for folder in "${!VAULT_PATHS[@]}"; do
-    source_dir="$MEETINGS_REPO/$folder"
-    target_dir="${VAULT_PATHS[$folder]}"
+# Vault paths (bash 3 compatible - no associative arrays)
+sync_folder() {
+    local folder=$1
+    local target_dir=$2
+    local source_dir="$MEETINGS_REPO/$folder"
     
     if [ -d "$source_dir" ]; then
+        # Ensure target directory exists
+        mkdir -p "$target_dir"
+        
         # Count new files
         new_files=$(rsync -avn --ignore-existing "$source_dir/" "$target_dir/" 2>/dev/null | grep "\.md$" | wc -l | tr -d ' ')
         
         if [ "$new_files" -gt 0 ]; then
             echo -e "${GREEN}  ✓ $folder: $new_files new meeting(s)${NC}"
             rsync -av --ignore-existing "$source_dir/" "$target_dir/"
-            synced_count=$((synced_count + new_files))
+            return $new_files
         else
             echo -e "  ○ $folder: up to date"
+            return 0
         fi
     else
         echo -e "  - $folder: no source folder yet"
+        return 0
     fi
-done
+}
+
+echo -e "\n${YELLOW}Syncing meeting notes to Obsidian vaults...${NC}"
+
+synced_count=0
+
+# Sync each workspace to its Obsidian vault
+# Format: sync_folder "repo_folder" "obsidian_vault_path"
+
+# Chrt meetings
+sync_folder "chrt" "$BUSINESS_DIR/Chrt/obsidian/Calendar/Notes/Meetings"
+synced_count=$((synced_count + $?))
+
+# ShedPro meetings
+sync_folder "shedpro" "$BUSINESS_DIR/ShedPro/obsidian/Calendar/Notes/Meetings"
+synced_count=$((synced_count + $?))
+
+# GoodLux meetings
+sync_folder "goodlux" "$BUSINESS_DIR/GoodLux/obsidian/Calendar/Notes/Meetings"
+synced_count=$((synced_count + $?))
+
+# Personal meetings
+sync_folder "personal" "$BUSINESS_DIR/_personal/obsidian/Calendar/Notes/Meetings"
+synced_count=$((synced_count + $?))
 
 echo -e "\n${GREEN}============================================${NC}"
 if [ "$synced_count" -gt 0 ]; then
@@ -82,11 +92,10 @@ fi
 echo -e "${GREEN}============================================${NC}"
 
 # Show recent meetings
-echo -e "\n${BLUE}Recent meetings (last 5):${NC}"
-find "$MEETINGS_REPO" -name "*.md" -type f -mtime -7 2>/dev/null | head -5 | while read -r file; do
+echo -e "\n${BLUE}Recent meetings (last 7 days):${NC}"
+find "$MEETINGS_REPO" -name "*.md" -type f -mtime -7 2>/dev/null | grep -v README | head -10 | while read -r file; do
     basename "$file"
 done
 
 echo -e "\n${YELLOW}Tip: Add this to your crontab for automatic sync:${NC}"
 echo "*/5 * * * * $SCRIPT_DIR/sync-meetings.sh >/dev/null 2>&1"
-

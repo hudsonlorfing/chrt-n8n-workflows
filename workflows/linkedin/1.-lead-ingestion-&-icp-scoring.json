@@ -3,6 +3,7 @@
   "createdAt": "2025-12-17T17:08:43.420Z",
   "id": "aLxwvqoSTkZAQ3fq",
   "name": "1. Lead Ingestion & ICP Scoring",
+  "description": null,
   "active": true,
   "isArchived": false,
   "nodes": [
@@ -935,6 +936,7 @@
   "pinData": {},
   "versionId": "eb352e91-f2d1-4ef4-8aaf-51d55831eebc",
   "activeVersionId": "eb352e91-f2d1-4ef4-8aaf-51d55831eebc",
+  "versionCounter": 42,
   "triggerCount": 1,
   "shared": [
     {
@@ -942,7 +944,60 @@
       "createdAt": "2025-12-24T03:18:27.972Z",
       "role": "workflow:owner",
       "workflowId": "aLxwvqoSTkZAQ3fq",
-      "projectId": "O7lTivDfRl72aS23"
+      "projectId": "O7lTivDfRl72aS23",
+      "project": {
+        "updatedAt": "2025-12-24T03:17:11.000Z",
+        "createdAt": "2025-12-23T21:24:31.508Z",
+        "id": "O7lTivDfRl72aS23",
+        "name": "ChrtWorkflows",
+        "type": "team",
+        "icon": {
+          "type": "icon",
+          "value": "layers"
+        },
+        "description": "",
+        "projectRelations": [
+          {
+            "updatedAt": "2025-12-23T21:24:31.510Z",
+            "createdAt": "2025-12-23T21:24:31.510Z",
+            "userId": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4",
+            "projectId": "O7lTivDfRl72aS23",
+            "user": {
+              "updatedAt": "2026-01-02T10:08:33.703Z",
+              "createdAt": "2025-12-17T12:51:53.118Z",
+              "id": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4",
+              "email": "hudson@chrt.com",
+              "firstName": "Hudson",
+              "lastName": "Lorfing",
+              "personalizationAnswers": null,
+              "settings": {
+                "userActivated": true,
+                "userClaimedAiCredits": true,
+                "easyAIWorkflowOnboarded": true,
+                "firstSuccessfulWorkflowId": "kjjYKQEXv67Vl5MS",
+                "userActivatedAt": 1766099344758,
+                "npsSurvey": {
+                  "waitingForResponse": true,
+                  "ignoredCount": 2,
+                  "lastShownAt": 1767348510879
+                }
+              },
+              "disabled": false,
+              "mfaEnabled": false,
+              "lastActiveAt": "2026-01-02",
+              "isPending": false
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "tags": [
+    {
+      "updatedAt": "2025-12-17T14:25:00.955Z",
+      "createdAt": "2025-12-17T14:25:00.955Z",
+      "id": "ST1cKCxkQ4kcD3uk",
+      "name": "linkedin"
     }
   ],
   "activeVersion": {
@@ -1869,16 +1924,16 @@
     },
     "authors": "Hudson Lorfing",
     "name": null,
-    "description": null
-  },
-  "tags": [
-    {
-      "updatedAt": "2025-12-17T14:25:00.955Z",
-      "createdAt": "2025-12-17T14:25:00.955Z",
-      "id": "ST1cKCxkQ4kcD3uk",
-      "name": "linkedin"
-    }
-  ],
-  "_folderPath": "linkedin",
-  "_fileName": "1.-lead-ingestion-&-icp-scoring.json"
+    "description": null,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-01-01T08:36:05.123Z",
+        "id": 50,
+        "workflowId": "aLxwvqoSTkZAQ3fq",
+        "versionId": "eb352e91-f2d1-4ef4-8aaf-51d55831eebc",
+        "event": "activated",
+        "userId": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4"
+      }
+    ]
+  }
 }

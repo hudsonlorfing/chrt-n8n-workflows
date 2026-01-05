@@ -1,0 +1,54 @@
+{
+  "id": "customer-interview",
+  "name": "Customer Interview Analyzer",
+  "category": "product",
+  "icon": "🎤",
+  "description": "Extract insights from customer research interviews",
+  
+  "auto_detect": {
+    "title_keywords": ["research", "interview", "feedback", "user interview", "customer call"],
+    "external_required": true,
+    "content_signals": ["tell me about", "how do you", "what do you think", "walk me through"]
+  },
+  
+  "extraction_targets": [
+    {"field": "interviewee_profile", "prompt": "Who is this person? Role, company, industry, experience level"},
+    {"field": "current_workflow", "prompt": "How do they currently handle this task/problem?"},
+    {"field": "pain_points", "prompt": "List all pain points with severity (high/medium/low) and emotional weight"},
+    {"field": "goals", "prompt": "What are they trying to achieve? What does success look like?"},
+    {"field": "feature_requests", "prompt": "What features or capabilities did they ask for or wish existed?"},
+    {"field": "workarounds", "prompt": "What workarounds or hacks are they using?"},
+    {"field": "quotes", "prompt": "Extract 3-5 powerful verbatim quotes that capture their experience"},
+    {"field": "competitive_insights", "prompt": "What did they say about alternatives or competitors?"}
+  ],
+  
+  "output_schema": {
+    "format": "markdown",
+    "sections": [
+      "## Customer Interview: {{interviewee_name}}",
+      "### Profile",
+      "{{interviewee_profile}}",
+      "### Current Workflow",
+      "{{current_workflow}}",
+      "### Pain Points",
+      "| Pain Point | Severity | Emotional Weight | Quote |",
+      "|------------|----------|------------------|-------|",
+      "{{pain_points_table}}",
+      "### Goals & Success Metrics",
+      "{{goals}}",
+      "### Feature Requests",
+      "{{feature_requests}}",
+      "### Workarounds (Innovation Opportunities)",
+      "{{workarounds}}",
+      "### Key Quotes",
+      "{{quotes}}",
+      "### Competitive Insights",
+      "{{competitive_insights}}",
+      "### Recommended Actions",
+      "{{recommendations}}"
+    ]
+  },
+  
+  "system_prompt": "You are a customer research analyst extracting insights from a research interview. Focus on:\n\n1. Understanding the user's world and context\n2. Identifying pain points with emotional resonance\n3. Extracting verbatim quotes that bring insights to life\n4. Identifying feature opportunities and workarounds\n\nBe empathetic and capture the human element. Output valid JSON."
+}
+

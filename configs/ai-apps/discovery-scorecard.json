@@ -1,0 +1,63 @@
+{
+  "id": "discovery-scorecard",
+  "name": "Discovery Call Scorecard",
+  "category": "sales",
+  "icon": "🔍",
+  "description": "Evaluate discovery call quality with structured scoring rubric",
+  
+  "auto_detect": {
+    "title_keywords": ["discovery", "intro", "initial", "first call", "connect", "learn more"],
+    "title_negative": ["demo", "pricing", "contract", "internal"],
+    "external_required": true,
+    "content_signals": ["tell me about", "current process", "what are you using", "challenges"]
+  },
+  
+  "scoring": {
+    "enabled": true,
+    "max_score": 6,
+    "pass_threshold": 4,
+    "criteria": [
+      {"id": "agenda", "name": "Set Agenda", "weight": 1, "question": "Did the rep clearly set an agenda at the start of the call?"},
+      {"id": "business_need", "name": "Business Need", "weight": 1, "question": "Did the rep spend time understanding the prospect's business need?"},
+      {"id": "pain_point", "name": "Pain Point", "weight": 1, "question": "Did the rep identify and probe on specific pain points?"},
+      {"id": "competitors", "name": "Competitors", "weight": 1, "question": "Did the rep ask about competitors or current solutions?"},
+      {"id": "timeline", "name": "Timeline/Urgency", "weight": 1, "question": "Did the rep establish timeline or urgency?"},
+      {"id": "next_steps", "name": "Next Steps", "weight": 1, "question": "Did the rep set clear, specific next steps?"}
+    ]
+  },
+  
+  "extraction_targets": [
+    {"field": "prospect_situation", "prompt": "Summarize the prospect's current situation and context"},
+    {"field": "pain_points", "prompt": "List all pain points mentioned, with severity (high/medium/low)"},
+    {"field": "current_solution", "prompt": "What solution are they currently using? How satisfied are they?"},
+    {"field": "decision_process", "prompt": "Who else is involved in the decision? What's the process?"},
+    {"field": "timeline", "prompt": "What's their timeline for making a decision or implementing?"},
+    {"field": "budget_signals", "prompt": "Any mentions of budget, pricing sensitivity, or financial constraints?"}
+  ],
+  
+  "output_schema": {
+    "format": "markdown",
+    "sections": [
+      "## Discovery Score: {{score}}/6 {{grade}}",
+      "### Scorecard",
+      "| Criteria | Score | Evidence |",
+      "|----------|-------|----------|",
+      "{{criteria_table}}",
+      "### Situation Summary",
+      "{{prospect_situation}}",
+      "### Pain Points Identified",
+      "{{pain_points}}",
+      "### Current Solution",
+      "{{current_solution}}",
+      "### Decision Process",
+      "{{decision_process}}",
+      "### Timeline & Urgency",
+      "{{timeline}}",
+      "### Coaching Notes",
+      "{{coaching_feedback}}"
+    ]
+  },
+  
+  "system_prompt": "You are an expert sales performance analyst evaluating a discovery call. Your job is to score the call against best practices and extract key qualification data.\n\nFor each scoring criterion, provide:\n- Score: 1 (met) or 0 (not met)\n- Timestamp: When it occurred (if applicable)\n- Evidence: Brief quote or description\n\nBe specific and evidence-based. If something wasn't covered, note it as a coaching opportunity.\n\nOutput valid JSON matching the schema."
+}
+

@@ -1,0 +1,110 @@
+{
+  "id": "chrt",
+  "name": "Chrt",
+  "display_name": "Chrt",
+  "company_type": "B2B SaaS - Time-Critical Logistics",
+  "description": "Real-time visibility and coordination platform for time-critical shipments",
+  "role": "sales",
+  "hubspot_enabled": true,
+  
+  "methodology": {
+    "primary": "SPICED",
+    "framework_details": {
+      "S": "Situation - Current state, context, environment",
+      "P": "Pain - Problems, challenges, frustrations",
+      "I": "Impact - Business consequences, cost of inaction",
+      "C": "Critical Event - Deadline, trigger, compelling event",
+      "E": "Decision - Process, criteria, stakeholders",
+      "D": "Decision Process - Timeline, steps, approvals"
+    },
+    "secondary": ["Bowtie Model", "Revenue Architecture"]
+  },
+  
+  "team": [
+    {"name": "Hudson Lorfing", "email": "hudson@chrt.com", "role": "CEO", "tag": "#hudson"},
+    {"name": "Aaron Carver", "email": "aaron@chrt.com", "role": "Sales", "tag": "#aaron"},
+    {"name": "Kyle Reagan", "email": "kyle@chrt.com", "role": "Sales", "tag": "#kyle"}
+  ],
+  
+  "customer_segments": [
+    {
+      "id": "shipper",
+      "name": "Shipper",
+      "description": "Labs, hospitals, OPOs, pharmaceutical companies",
+      "pain_keywords": ["visibility", "tracking", "compliance", "temperature", "chain of custody", "audit trail", "regulatory"],
+      "industries": ["Life Sciences", "Healthcare", "Pharmaceuticals", "Organ Transplant"]
+    },
+    {
+      "id": "forwarder",
+      "name": "Forwarder",
+      "description": "3PLs, freight brokers, logistics coordinators",
+      "pain_keywords": ["coordination", "margin", "capacity", "carrier management", "quoting", "claims"],
+      "industries": ["Logistics", "Supply Chain", "Transportation"]
+    },
+    {
+      "id": "courier",
+      "name": "Courier",
+      "description": "Medical couriers, last-mile delivery, specialty transport",
+      "pain_keywords": ["routing", "dispatch", "driver communication", "proof of delivery", "compliance", "insurance"],
+      "industries": ["Medical Transport", "Last Mile", "Specialty Logistics"]
+    }
+  ],
+  
+  "industry_verticals": [
+    {"id": "life_sciences", "name": "Life Sciences", "keywords": ["FDA", "GxP", "clinical trials", "specimens", "biologics", "cold chain"]},
+    {"id": "semiconductors", "name": "Semiconductors", "keywords": ["wafer", "fab", "yield", "AOG", "cleanroom", "high-value"]},
+    {"id": "aerospace", "name": "Aerospace", "keywords": ["AOG", "aircraft on ground", "MRO", "parts", "FAA"]},
+    {"id": "automotive", "name": "Automotive", "keywords": ["JIT", "just in time", "line down", "production halt"]},
+    {"id": "healthcare", "name": "Healthcare", "keywords": ["organ", "transplant", "blood", "specimens", "STAT"]}
+  ],
+  
+  "revenue_streams": [
+    {"name": "Platform Subscription", "description": "Core SaaS platform for visibility and coordination"},
+    {"name": "Embedded Insurance", "description": "MTC spike coverage, 10-30% commission per shipment"},
+    {"name": "IoT Tracking", "description": "Hardware devices + data subscription for real-time monitoring"}
+  ],
+  
+  "sales_stages": {
+    "model": "Bowtie",
+    "pre_sale": ["Awareness", "Education", "Selection", "Commit"],
+    "post_sale": ["Onboarding", "Adoption", "Expansion", "Advocacy"]
+  },
+  
+  "key_metrics": {
+    "sales": {
+      "spiced_completeness": "Target: >80% on discovery calls",
+      "demo_to_pilot": "Target: 30%",
+      "pilot_to_close": "Target: 70%",
+      "average_deal_size": "$24,000 ARR"
+    },
+    "customer_success": {
+      "time_to_value": "Target: <14 days",
+      "adoption_rate": "Target: >70% DAU/MAU",
+      "expansion_rate": "Target: 120% NRR"
+    }
+  },
+  
+  "competitors": [
+    {"name": "project44", "type": "Enterprise visibility"},
+    {"name": "FourKites", "type": "Supply chain visibility"},
+    {"name": "MacroPoint", "type": "Carrier tracking"},
+    {"name": "Tive", "type": "IoT tracking"},
+    {"name": "Manual spreadsheets", "type": "Status quo"}
+  ],
+  
+  "default_ai_apps": ["spiced-analyzer", "discovery-scorecard", "competitor-tracker"],
+  
+  "analysis_context": "You are analyzing a sales meeting for Chrt, a B2B SaaS company selling time-critical logistics software. Focus on SPICED qualification, deal progression, competitive intelligence, and sales coaching feedback. Extract action items tagged with team member names.",
+  
+  "terminology": {
+    "MTC": "Motor Truck Cargo insurance",
+    "AOG": "Aircraft on Ground - emergency aerospace shipments",
+    "Spike coverage": "Per-load excess insurance for high-value shipments",
+    "STAT": "Immediate/urgent medical shipment",
+    "Chain of custody": "Documentation trail for regulated shipments",
+    "Cold chain": "Temperature-controlled logistics"
+  },
+  
+  "domain_patterns": ["chrt.com", "getchrt.com"]
+}
+

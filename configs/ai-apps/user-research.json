@@ -1,0 +1,52 @@
+{
+  "id": "user-research",
+  "name": "User Research Recorder",
+  "category": "product",
+  "icon": "🔬",
+  "description": "Extract product insights from user research sessions",
+  
+  "auto_detect": {
+    "title_keywords": ["user research", "usability", "ux research", "user test", "prototype feedback"],
+    "external_required": true,
+    "content_signals": ["how would you", "show me how", "what do you expect", "task"]
+  },
+  
+  "extraction_targets": [
+    {"field": "participant_profile", "prompt": "Who is the research participant? Role, experience, context"},
+    {"field": "tasks_performed", "prompt": "What tasks or scenarios were tested?"},
+    {"field": "usability_issues", "prompt": "What usability issues were observed?"},
+    {"field": "successful_paths", "prompt": "Where did users succeed easily?"},
+    {"field": "confusion_points", "prompt": "Where did users get confused or stuck?"},
+    {"field": "feature_feedback", "prompt": "What feedback was given on specific features?"},
+    {"field": "quotes", "prompt": "Key verbatim quotes from the session"},
+    {"field": "recommendations", "prompt": "UX recommendations based on observations"}
+  ],
+  
+  "output_schema": {
+    "format": "markdown",
+    "sections": [
+      "## User Research: {{session_name}}",
+      "**Date:** {{date}}",
+      "**Participant:** {{participant_profile}}",
+      "### Tasks Tested",
+      "{{tasks_performed}}",
+      "### Usability Issues",
+      "| Issue | Severity | Task | Recommendation |",
+      "|-------|----------|------|----------------|",
+      "{{usability_table}}",
+      "### Successful Paths",
+      "{{successful_paths}}",
+      "### Confusion Points",
+      "{{confusion_points}}",
+      "### Feature Feedback",
+      "{{feature_feedback}}",
+      "### Key Quotes",
+      "{{quotes}}",
+      "### Recommendations",
+      "{{recommendations}}"
+    ]
+  },
+  
+  "system_prompt": "You are a UX researcher documenting a user research session. Focus on:\n\n1. Observable behaviors vs stated preferences\n2. Usability issues with severity ratings\n3. Mental model mismatches\n4. Verbatim quotes that capture insights\n\nBe objective and observational. Output valid JSON."
+}
+

@@ -1,0 +1,69 @@
+{
+  "id": "interview-scorecard",
+  "name": "Interview Scorecard",
+  "category": "recruiting",
+  "icon": "📋",
+  "description": "Evaluate candidate interviews with structured scoring",
+  
+  "auto_detect": {
+    "title_keywords": ["interview", "screen", "candidate", "hiring", "round 1", "round 2", "final round"],
+    "external_required": true,
+    "content_signals": ["tell me about yourself", "experience", "resume", "salary", "notice period"]
+  },
+  
+  "scoring": {
+    "enabled": true,
+    "max_score": 10,
+    "criteria": [
+      {"id": "technical_skills", "name": "Technical Skills", "weight": 2, "question": "Does candidate have required technical skills?"},
+      {"id": "experience", "name": "Relevant Experience", "weight": 2, "question": "Is their experience relevant to the role?"},
+      {"id": "communication", "name": "Communication", "weight": 1, "question": "How well do they communicate complex ideas?"},
+      {"id": "problem_solving", "name": "Problem Solving", "weight": 2, "question": "Did they demonstrate strong problem-solving?"},
+      {"id": "culture_fit", "name": "Culture Fit", "weight": 1, "question": "Do they align with company values and culture?"},
+      {"id": "motivation", "name": "Motivation", "weight": 1, "question": "Are they genuinely interested and motivated?"},
+      {"id": "red_flags", "name": "Red Flags", "weight": 1, "question": "Were there any concerning patterns or inconsistencies?"}
+    ]
+  },
+  
+  "extraction_targets": [
+    {"field": "candidate_summary", "prompt": "Brief summary of the candidate's background"},
+    {"field": "technical_assessment", "prompt": "Assess their technical skills and knowledge"},
+    {"field": "experience_relevance", "prompt": "How relevant is their experience to this role?"},
+    {"field": "strengths", "prompt": "What are their key strengths?"},
+    {"field": "concerns", "prompt": "What concerns or gaps were identified?"},
+    {"field": "questions_asked", "prompt": "What questions did the candidate ask? What does this reveal?"},
+    {"field": "logistics", "prompt": "Notice period, salary expectations, start date availability"},
+    {"field": "recommendation", "prompt": "Hire / Maybe / Pass with reasoning"}
+  ],
+  
+  "output_schema": {
+    "format": "markdown",
+    "sections": [
+      "## Interview Scorecard: {{candidate_name}}",
+      "**Role:** {{role}}",
+      "**Interview Date:** {{date}}",
+      "**Interviewer:** {{interviewer}}",
+      "### Overall Score: {{score}}/10",
+      "### Recommendation: {{recommendation}}",
+      "### Scoring Breakdown",
+      "| Criteria | Score | Notes |",
+      "|----------|-------|-------|",
+      "{{criteria_table}}",
+      "### Candidate Summary",
+      "{{candidate_summary}}",
+      "### Technical Assessment",
+      "{{technical_assessment}}",
+      "### Strengths",
+      "{{strengths}}",
+      "### Concerns",
+      "{{concerns}}",
+      "### Candidate Questions",
+      "{{questions_asked}}",
+      "### Logistics",
+      "{{logistics}}"
+    ]
+  },
+  
+  "system_prompt": "You are an HR analyst creating a structured interview scorecard. Evaluate the candidate objectively based on what was discussed.\n\nUse the STAR method (Situation, Task, Action, Result) to assess behavioral answers. Flag any inconsistencies or concerns.\n\nBe fair and evidence-based. Output valid JSON."
+}
+

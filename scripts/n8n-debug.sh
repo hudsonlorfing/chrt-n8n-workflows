@@ -19,6 +19,7 @@ WORKFLOW_ID="${WORKFLOW_ID:-r4ICnvhdbQwejSdH}"
 # Workflow IDs
 SYNC_WORKFLOW_ID="r4ICnvhdbQwejSdH"
 LINKEDIN_LEAD_WORKFLOW_ID="aLxwvqoSTkZAQ3fq"
+CHRT_PROJECT_ID="O7lTivDfRl72aS23"
 
 # Colors for output
 RED='\033[0;31m'
@@ -119,15 +120,16 @@ deactivate_workflow() {
 import_workflow() {
     check_api_key
     local json_file="${1:-workflows/chrt-github-workflow-sync.json}"
+    local project_id="${2:-$CHRT_PROJECT_ID}"
     
     if [ ! -f "$json_file" ]; then
         echo -e "${RED}Error: File not found: $json_file${NC}"
         exit 1
     fi
     
-    echo -e "${BLUE}Importing new workflow from $json_file...${NC}"
+    echo -e "${BLUE}Importing new workflow from $json_file to project $project_id...${NC}"
     
-    # Filter to only required properties for import
+    # Filter to only required properties for import (projectId is NOT supported in body)
     filtered_json=$(cat "$json_file" | jq '{
         name: .name,
         nodes: .nodes,
@@ -135,6 +137,7 @@ import_workflow() {
         settings: .settings
     }')
     
+    # Create workflow first
     response=$(curl -s -X POST "$N8N_BASE_URL/api/v1/workflows" \
         -H "accept: application/json" \
         -H "Content-Type: application/json" \
@@ -146,11 +149,75 @@ import_workflow() {
     if [ -n "$new_id" ]; then
         echo -e "${GREEN}✓ Workflow imported successfully${NC}"
         echo "$response" | jq -r '.name + " (ID: " + .id + ")"' 2>/dev/null || echo "$response"
+        
+        # Now transfer to the target project
+        if [ -n "$project_id" ]; then
+            echo -e "${BLUE}Transferring to project $project_id...${NC}"
+            transfer_response=$(curl -s -X PUT "$N8N_BASE_URL/api/v1/workflows/$new_id/transfer" \
+                -H "accept: application/json" \
+                -H "Content-Type: application/json" \
+                -H "X-N8N-API-KEY: $N8N_API_KEY" \
+                -d "{\"destinationProjectId\": \"$project_id\"}")
+            
+            # Verify
+            verify=$(curl -s "$N8N_BASE_URL/api/v1/workflows/$new_id" \
+                -H "accept: application/json" \
+                -H "X-N8N-API-KEY: $N8N_API_KEY")
+            
+            actual_project=$(echo "$verify" | jq -r '.projectId // "null"')
+            if [ "$actual_project" = "$project_id" ]; then
+                echo -e "${GREEN}✓ Workflow is in project $project_id${NC}"
+            else
+                echo -e "${YELLOW}⚠ Workflow created but transfer may have failed (project: $actual_project)${NC}"
+            fi
+        fi
+        
         echo "$new_id"
     else
         echo -e "${RED}✗ Failed to import workflow${NC}"
         echo "$response" | jq '.' 2>/dev/null || echo "$response"
         exit 1
+    fi
+}
+
+# Transfer a workflow to a different project
+transfer_workflow() {
+    check_api_key
+    local workflow_id="$1"
+    local destination_project="${2:-$CHRT_PROJECT_ID}"
+    
+    if [ -z "$workflow_id" ]; then
+        echo -e "${RED}Error: Workflow ID required${NC}"
+        echo "Usage: $0 transfer <workflow_id> [project_id]"
+        exit 1
+    fi
+    
+    echo -e "${BLUE}Transferring workflow $workflow_id to project $destination_project...${NC}"
+    
+    response=$(curl -s -X PUT "$N8N_BASE_URL/api/v1/workflows/$workflow_id/transfer" \
+        -H "accept: application/json" \
+        -H "Content-Type: application/json" \
+        -H "X-N8N-API-KEY: $N8N_API_KEY" \
+        -d "{\"destinationProjectId\": \"$destination_project\"}")
+    
+    if [ -z "$response" ] || echo "$response" | grep -q '"message"'; then
+        echo -e "${YELLOW}Transfer response:${NC}"
+        echo "$response" | jq '.' 2>/dev/null || echo "Empty response - may have succeeded"
+        
+        # Verify by fetching the workflow
+        verify=$(curl -s "$N8N_BASE_URL/api/v1/workflows/$workflow_id" \
+            -H "accept: application/json" \
+            -H "X-N8N-API-KEY: $N8N_API_KEY")
+        
+        actual_project=$(echo "$verify" | jq -r '.projectId // "null"')
+        if [ "$actual_project" = "$destination_project" ]; then
+            echo -e "${GREEN}✓ Transfer verified - workflow is in project $destination_project${NC}"
+        else
+            echo -e "${RED}✗ Transfer may have failed - workflow is in project: $actual_project${NC}"
+        fi
+    else
+        echo -e "${GREEN}✓ Transfer response received${NC}"
+        echo "$response" | jq '.' 2>/dev/null || echo "$response"
     fi
 }
 
@@ -337,7 +404,8 @@ usage() {
     echo ""
     echo "Commands:"
     echo "  update <file> [workflow_id]  Update workflow in n8n from local JSON file"
-    echo "  import <file>                Import new workflow from local JSON file"
+    echo "  import <file> [project_id]   Import new workflow from local JSON file (default: ChrtWorkflows)"
+    echo "  transfer <id> [project_id]   Transfer workflow to project (default: ChrtWorkflows)"
     echo "  activate [workflow_id]       Activate the workflow"
     echo "  deactivate [workflow_id]     Deactivate the workflow"
     echo "  trigger                      Trigger the debug webhook"
@@ -373,7 +441,10 @@ case "$1" in
         update_workflow "$2" "$3"
         ;;
     import)
-        import_workflow "$2"
+        import_workflow "$2" "$3"
+        ;;
+    transfer)
+        transfer_workflow "$2" "$3"
         ;;
     activate)
         activate_workflow "$2"

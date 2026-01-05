@@ -1,0 +1,59 @@
+{
+  "id": "objection-handler",
+  "name": "Objection Handler",
+  "category": "sales",
+  "icon": "🛡️",
+  "description": "Detect and analyze objections with response effectiveness scoring",
+  
+  "auto_detect": {
+    "title_keywords": ["demo", "pricing", "negotiation", "proposal", "close"],
+    "external_required": true,
+    "content_signals": ["concern", "worried", "expensive", "competitor", "not sure", "hesitant"]
+  },
+  
+  "scoring": {
+    "enabled": true,
+    "max_score": 5,
+    "criteria": [
+      {"id": "acknowledge", "name": "Acknowledge", "weight": 1, "question": "Did rep acknowledge the objection?"},
+      {"id": "clarify", "name": "Clarify", "weight": 1, "question": "Did rep ask clarifying questions?"},
+      {"id": "respond", "name": "Respond", "weight": 1, "question": "Did rep provide a substantive response?"},
+      {"id": "confirm", "name": "Confirm", "weight": 1, "question": "Did rep confirm the concern was addressed?"},
+      {"id": "advance", "name": "Advance", "weight": 1, "question": "Did rep advance the conversation forward?"}
+    ]
+  },
+  
+  "extraction_targets": [
+    {"field": "objections", "prompt": "List each objection raised with category (Pricing/Competitor/Feature/Trust/Timing/Authority)"},
+    {"field": "rep_responses", "prompt": "How did the rep respond to each objection?"},
+    {"field": "resolution_status", "prompt": "Was each objection resolved, deferred, or left unaddressed?"},
+    {"field": "sentiment_shift", "prompt": "Did the prospect's sentiment change after the response?"}
+  ],
+  
+  "output_schema": {
+    "format": "markdown",
+    "sections": [
+      "## Objection Analysis",
+      "### Objections Detected: {{count}}",
+      "| Category | Objection | Rep Response | Resolution | Effectiveness |",
+      "|----------|-----------|--------------|------------|---------------|",
+      "{{objections_table}}",
+      "### Coaching Tips",
+      "{{coaching_feedback}}",
+      "### Suggested Responses",
+      "{{suggested_responses}}"
+    ]
+  },
+  
+  "objection_categories": [
+    {"id": "pricing", "name": "Pricing", "keywords": ["expensive", "cost", "budget", "price", "cheaper", "discount"]},
+    {"id": "competitor", "name": "Competitor", "keywords": ["using", "competitor", "alternative", "they offer", "compared to"]},
+    {"id": "feature", "name": "Feature Gap", "keywords": ["missing", "doesn't have", "need", "can't do", "limitation"]},
+    {"id": "trust", "name": "Trust/Risk", "keywords": ["unsure", "risk", "proven", "references", "case study", "guarantee"]},
+    {"id": "timing", "name": "Timing", "keywords": ["not now", "later", "next quarter", "busy", "priority"]},
+    {"id": "authority", "name": "Authority", "keywords": ["need to check", "boss", "approval", "committee", "not my decision"]}
+  ],
+  
+  "system_prompt": "You are a sales objection handling expert. Identify every objection in the conversation and analyze how effectively it was handled.\n\nFor each objection:\n1. Category (Pricing/Competitor/Feature/Trust/Timing/Authority)\n2. Exact quote or paraphrase\n3. Rep's response\n4. Resolution status (Resolved/Deferred/Unaddressed)\n5. Effectiveness rating (1-5)\n\nProvide coaching tips for unresolved objections. Output valid JSON."
+}
+

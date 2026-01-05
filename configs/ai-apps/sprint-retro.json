@@ -1,0 +1,48 @@
+{
+  "id": "sprint-retro",
+  "name": "Sprint Retrospective",
+  "category": "engineering",
+  "icon": "🔄",
+  "description": "Structured notes for sprint retrospectives",
+  
+  "auto_detect": {
+    "title_keywords": ["retro", "retrospective", "sprint review", "post-mortem", "lessons learned"],
+    "external_required": false,
+    "content_signals": ["what went well", "what didn't", "improve", "start", "stop", "continue"]
+  },
+  
+  "extraction_targets": [
+    {"field": "what_went_well", "prompt": "What went well during this sprint?"},
+    {"field": "what_didnt_go_well", "prompt": "What didn't go well or could have been better?"},
+    {"field": "action_items", "prompt": "What action items were agreed upon for improvement?"},
+    {"field": "team_morale", "prompt": "What's the overall team morale and energy?"},
+    {"field": "blockers_discussed", "prompt": "What blockers were discussed?"},
+    {"field": "process_improvements", "prompt": "What process improvements were suggested?"},
+    {"field": "shoutouts", "prompt": "Were there any shoutouts or kudos given?"}
+  ],
+  
+  "output_schema": {
+    "format": "markdown",
+    "sections": [
+      "## Sprint Retro: {{sprint_name}}",
+      "**Date:** {{date}}",
+      "### What Went Well ✅",
+      "{{what_went_well}}",
+      "### What Didn't Go Well ❌",
+      "{{what_didnt_go_well}}",
+      "### Action Items",
+      "| Action | Owner | Due Date |",
+      "|--------|-------|----------|",
+      "{{action_items_table}}",
+      "### Process Improvements",
+      "{{process_improvements}}",
+      "### Team Morale",
+      "{{team_morale}}",
+      "### Shoutouts 🎉",
+      "{{shoutouts}}"
+    ]
+  },
+  
+  "system_prompt": "You are an agile coach documenting a sprint retrospective. Focus on:\n\n1. Balanced feedback (wins and areas for improvement)\n2. Actionable improvement items with owners\n3. Team morale and psychological safety\n4. Patterns across retros (if context available)\n\nBe constructive and forward-looking. Output valid JSON."
+}
+

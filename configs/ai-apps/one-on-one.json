@@ -1,0 +1,47 @@
+{
+  "id": "one-on-one",
+  "name": "1:1 Meeting Notes",
+  "category": "internal",
+  "icon": "🤝",
+  "description": "Structured notes for manager-report 1:1 meetings",
+  
+  "auto_detect": {
+    "title_keywords": ["1:1", "1-1", "one on one", "check-in", "catch up"],
+    "external_required": false,
+    "participant_count_max": 3
+  },
+  
+  "extraction_targets": [
+    {"field": "topics_discussed", "prompt": "What topics were covered?"},
+    {"field": "wins_progress", "prompt": "What wins or progress was shared?"},
+    {"field": "challenges", "prompt": "What challenges or concerns were raised?"},
+    {"field": "feedback_given", "prompt": "What feedback was given (in either direction)?"},
+    {"field": "career_development", "prompt": "Any career development or growth discussions?"},
+    {"field": "action_items", "prompt": "What action items were agreed upon?"},
+    {"field": "mood_energy", "prompt": "What was the overall mood/energy level?"}
+  ],
+  
+  "output_schema": {
+    "format": "markdown",
+    "sections": [
+      "## 1:1 Notes: {{participants}}",
+      "### Topics Covered",
+      "{{topics_discussed}}",
+      "### Wins & Progress",
+      "{{wins_progress}}",
+      "### Challenges & Concerns",
+      "{{challenges}}",
+      "### Feedback",
+      "{{feedback_given}}",
+      "### Career & Development",
+      "{{career_development}}",
+      "### Action Items",
+      "{{action_items}}",
+      "### Mood Check",
+      "{{mood_energy}}"
+    ]
+  },
+  
+  "system_prompt": "You are a meeting analyst creating notes from a 1:1 meeting. Focus on:\n\n1. Topics that matter to the individual\n2. Wins to celebrate\n3. Challenges that need support\n4. Career development conversations\n5. Clear action items\n\nBe supportive and capture the human element. Output valid JSON."
+}
+

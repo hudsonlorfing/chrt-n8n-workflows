@@ -1,0 +1,47 @@
+{
+  "name": "7. Slack Interaction Handler",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "slack-interactions",
+        "responseMode": "onReceived",
+        "responseCode": 200,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "name": "Slack Webhook",
+      "webhookId": "slack-interactions"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body; let payload; try { if (typeof body === 'string' && body.includes('payload=')) { const decoded = decodeURIComponent(body.split('payload=')[1]); payload = JSON.parse(decoded); } else if (body && body.payload) { payload = JSON.parse(body.payload); } else { payload = body; } } catch(e) { payload = body || {}; } const hash = (payload.actions && payload.actions[0]) ? payload.actions[0].value : ''; return [{ json: { payload, hash } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300],
+      "name": "Parse Payload"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://chrt.app.n8n.cloud/webhook-waiting/slack-response/{{ $json.hash }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.payload) }}",
+        "options": {"timeout": 30000}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 300],
+      "name": "Forward to Waiting"
+    }
+  ],
+  "connections": {
+    "Slack Webhook": {"main": [[{"node": "Parse Payload", "type": "main", "index": 0}]]},
+    "Parse Payload": {"main": [[{"node": "Forward to Waiting", "type": "main", "index": 0}]]}
+  },
+  "settings": {"executionOrder": "v1"}
+}

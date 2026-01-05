@@ -1,0 +1,68 @@
+{
+  "id": "churn-risk-analyzer",
+  "name": "Churn Risk Analyzer",
+  "category": "customer_success",
+  "icon": "⚠️",
+  "description": "Detect churn signals and customer health indicators",
+  
+  "auto_detect": {
+    "title_keywords": ["check-in", "review", "qbr", "renewal", "support"],
+    "external_required": true,
+    "content_signals": ["cancel", "unhappy", "frustrated", "not using", "looking at", "alternative"]
+  },
+  
+  "scoring": {
+    "enabled": true,
+    "max_score": 10,
+    "type": "health_score",
+    "indicators": {
+      "positive": [
+        {"signal": "Expansion discussion", "points": 2},
+        {"signal": "Referral offer", "points": 2},
+        {"signal": "Positive feedback", "points": 1},
+        {"signal": "High usage mentioned", "points": 1},
+        {"signal": "Long-term planning", "points": 1}
+      ],
+      "negative": [
+        {"signal": "Cancellation mention", "points": -3},
+        {"signal": "Competitor mention", "points": -2},
+        {"signal": "Low usage complaint", "points": -2},
+        {"signal": "Unresolved issue", "points": -1},
+        {"signal": "Budget concerns", "points": -1}
+      ]
+    }
+  },
+  
+  "extraction_targets": [
+    {"field": "sentiment_overall", "prompt": "Rate overall customer sentiment (Positive/Neutral/Negative) with evidence"},
+    {"field": "danger_signals", "prompt": "List any churn risk signals detected"},
+    {"field": "positive_signals", "prompt": "List any positive engagement signals"},
+    {"field": "unresolved_issues", "prompt": "What issues or complaints remain unresolved?"},
+    {"field": "usage_indicators", "prompt": "What did they say about their usage of the product?"},
+    {"field": "expansion_opportunities", "prompt": "Any expansion or upsell opportunities mentioned?"},
+    {"field": "competitor_threats", "prompt": "Any competitor mentions or evaluation hints?"}
+  ],
+  
+  "output_schema": {
+    "format": "markdown",
+    "sections": [
+      "## Customer Health Score: {{score}}/10",
+      "### Risk Level: {{risk_level}}",
+      "### Danger Signals 🚨",
+      "{{danger_signals}}",
+      "### Positive Signals ✅",
+      "{{positive_signals}}",
+      "### Unresolved Issues",
+      "{{unresolved_issues}}",
+      "### Usage Indicators",
+      "{{usage_indicators}}",
+      "### Expansion Opportunities",
+      "{{expansion_opportunities}}",
+      "### Recommended Actions",
+      "{{recommended_actions}}"
+    ]
+  },
+  
+  "system_prompt": "You are a customer success analyst detecting churn risk signals. Analyze the conversation for both danger signals and positive indicators.\n\nRisk Level Definitions:\n- Critical (0-3): Immediate intervention needed\n- At Risk (4-5): Proactive outreach required\n- Healthy (6-7): Monitor and nurture\n- Champion (8-10): Expansion and referral candidate\n\nBe specific about signals detected. Output valid JSON."
+}
+

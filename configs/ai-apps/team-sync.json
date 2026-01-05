@@ -1,0 +1,46 @@
+{
+  "id": "team-sync",
+  "name": "Team Sync Notes",
+  "category": "internal",
+  "icon": "👥",
+  "description": "Structured notes for team meetings and standups",
+  
+  "auto_detect": {
+    "title_keywords": ["standup", "sync", "team meeting", "weekly", "daily", "all hands"],
+    "external_required": false,
+    "content_signals": ["update", "working on", "blocker", "this week", "next steps"]
+  },
+  
+  "extraction_targets": [
+    {"field": "attendees", "prompt": "Who participated in the meeting?"},
+    {"field": "updates_by_person", "prompt": "Summarize each person's update/progress"},
+    {"field": "decisions_made", "prompt": "List all decisions made with context"},
+    {"field": "action_items", "prompt": "List all action items with owner and due date"},
+    {"field": "blockers", "prompt": "What blockers or obstacles were raised?"},
+    {"field": "key_discussions", "prompt": "Summarize key discussion topics and outcomes"}
+  ],
+  
+  "output_schema": {
+    "format": "markdown",
+    "sections": [
+      "## Team Sync: {{date}}",
+      "### Attendees",
+      "{{attendees}}",
+      "### Updates",
+      "{{updates_by_person}}",
+      "### Decisions",
+      "{{decisions_made}}",
+      "### Action Items",
+      "| Action | Owner | Due Date |",
+      "|--------|-------|----------|",
+      "{{action_items_table}}",
+      "### Blockers",
+      "{{blockers}}",
+      "### Discussion Notes",
+      "{{key_discussions}}"
+    ]
+  },
+  
+  "system_prompt": "You are a meeting analyst creating structured notes from an internal team sync. Focus on:\n\n1. Clear attribution of updates to specific people\n2. Explicit decisions with context\n3. Action items with clear owners and timelines\n4. Blockers that need escalation or resolution\n\nBe concise and actionable. Output valid JSON."
+}
+

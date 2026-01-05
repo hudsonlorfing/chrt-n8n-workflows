@@ -1,40 +1,69 @@
 {
-  "updatedAt": "2026-01-02T10:08:29.857Z",
-  "createdAt": "2026-01-02T09:08:28.436Z",
-  "id": "I5qKGljJAwRbPK2e",
   "name": "6. Fireflies Meeting Processor",
-  "description": null,
-  "active": true,
-  "isArchived": false,
   "nodes": [
     {
       "parameters": {
         "httpMethod": "POST",
         "path": "fireflies-meeting",
+        "responseMode": "responseNode",
         "options": {}
       },
-      "name": "Fireflies Webhook",
+      "name": "Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [
-        0,
-        304
-      ],
-      "webhookId": "fireflies-meeting",
-      "id": "dd4e5645-32e9-480d-abff-a30ca71707cd"
+      "position": [0, 300],
+      "webhookId": "fireflies-meeting"
     },
     {
       "parameters": {
-        "jsCode": "const webhook = $input.first().json;\nconst body = webhook.body || webhook;\nconst meetingId = body.meeting_id || body.id || '';\nconst title = body.title || 'Untitled Meeting';\nconst transcript = body.transcript || body.sentences?.map(s => s.speaker_name + ': ' + s.text).join('\\n') || '';\nconst hash = require('crypto').createHash('md5').update(meetingId + title + transcript.substring(0, 500)).digest('hex').substring(0, 12);\nconst transcriptLength = transcript.length;\nconst estimatedTokens = Math.ceil(transcriptLength / 4);\nconst attendees = (body.attendees || body.participants || []).map(a => a.name || a.displayName || a.email || 'Unknown').join(', ');\nconst dateStr = new Date(body.date || body.dateString || new Date()).toISOString().split('T')[0];\nreturn [{ json: { meetingId, hash, title, date: body.date || body.dateString || new Date().toISOString(), dateStr, duration: body.duration || 0, attendees, transcript, transcriptLength, estimatedTokens, firefliesUrl: body.transcript_url || '' } }];"
+        "respondWith": "text",
+        "responseBody": "={{ JSON.stringify({status: 'received', meetingId: $json.meetingId || $json.body?.meetingId || 'unknown'}) }}"
       },
-      "name": "Extract Meeting Data",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [220, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract meetingId from Fireflies webhook payload\n// Fireflies sends: { meetingId, eventType, clientReferenceId }\nconst webhook = $input.first().json;\nconst body = webhook.body || webhook;\nconst meetingId = body.meetingId || body.meeting_id || body.id;\n\nif (!meetingId) {\n  throw new Error('No meetingId in webhook payload: ' + JSON.stringify(body).substring(0, 200));\n}\n\nconsole.log('Received Fireflies webhook for meeting:', meetingId);\n\nreturn [{ json: { meetingId, eventType: body.eventType || 'Transcription completed' } }];"
+      },
+      "name": "Extract Meeting ID",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [
-        224,
-        304
-      ],
-      "id": "08f2bf50-c7a8-4951-8576-ff20f1d81bf5"
+      "position": [440, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.fireflies.ai/graphql",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ query: `{ transcript(id: \"${$json.meetingId}\") { id title date duration organizer_email participants sentences { speaker_name text } summary { overview } } }` }) }}",
+        "options": {}
+      },
+      "name": "Fireflies: Fetch Transcript",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [660, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "E59l4LdE1u7lD39v",
+          "name": "Fireflies API"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst transcript = response.data?.transcript;\n\nif (!transcript) {\n  const error = response.errors?.[0]?.message || 'Transcript not found';\n  throw new Error('Fireflies API error: ' + error);\n}\n\n// Build transcript text from sentences\nconst transcriptText = (transcript.sentences || []).map(s => `${s.speaker_name}: ${s.text}`).join('\\n');\n\n// Parse date (Fireflies uses milliseconds timestamp)\nconst dateMs = transcript.date || Date.now();\nconst dateStr = new Date(dateMs).toISOString().split('T')[0];\n\n// Duration is in minutes from Fireflies\nconst durationMins = Math.round(transcript.duration || 0);\n\n// Generate hash for deduplication\nconst hash = require('crypto').createHash('md5').update(transcript.id + transcript.title).digest('hex').substring(0, 8);\n\nconst title = transcript.title || 'Untitled Meeting';\nconst attendees = transcript.participants || [];\n\n// Extract person name from title\nlet personName = '';\nconst titleLower = title.toLowerCase();\nconst withMatch = title.match(/(?:with|w\\/|and|&|x)\\s+([A-Z][a-z]+(?:\\s+[A-Z][a-z]+)*)/i);\nif (withMatch) {\n  personName = withMatch[1].trim();\n} else {\n  // Try to get non-Hudson attendee\n  personName = attendees.find(a => !a.toLowerCase().includes('hudson')) || '';\n  // Clean up email to name\n  if (personName.includes('@')) {\n    personName = personName.split('@')[0].split('.').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');\n  }\n}\nif (!personName) personName = title.replace(/^(?:chat|call|meeting|sync|1:1|1-1)\\s*/i, '').trim();\n\n// Detect workspace from title\nlet workspace = 'chrt';\nif (titleLower.includes('goodlux')) workspace = 'goodlux';\nelse if (titleLower.includes('shed') || titleLower.includes('shedpro')) workspace = 'shedpro';\nelse if (titleLower.includes('personal') || titleLower.includes('family')) workspace = 'personal';\n\n// Detect meeting type\nlet suggestedType = 'general';\nif (titleLower.includes('internal') || titleLower.includes('standup') || titleLower.includes('sync') || titleLower.includes('team')) {\n  suggestedType = 'internal';\n} else if (titleLower.includes('interview') || titleLower.includes('research') || titleLower.includes('discovery')) {\n  suggestedType = 'research';\n} else if (titleLower.includes('demo') || titleLower.includes('sales') || titleLower.includes('client') || titleLower.includes('customer')) {\n  suggestedType = 'sales';\n} else if (titleLower.includes('onboarding') || titleLower.includes('cfo') || titleLower.includes('kickoff')) {\n  suggestedType = 'internal';\n}\n\nconst safeTitle = title.replace(/[^a-zA-Z0-9 -]/g, '').trim().substring(0, 50);\nconst safePerson = (personName || 'General').replace(/[^a-zA-Z0-9 -]/g, '').trim();\nconst transcriptLength = transcriptText.length;\nconst estimatedTokens = Math.ceil(transcriptLength / 4);\n\nconst firefliesUrl = `https://app.fireflies.ai/view/${transcript.id}`;\n\nreturn [{ json: {\n  meetingId: transcript.id,\n  hash,\n  title,\n  personName,\n  safePerson,\n  date: new Date(dateMs).toISOString(),\n  dateStr,\n  duration: durationMins * 60,\n  durationMins,\n  attendees: attendees.join(', '),\n  transcript: transcriptText,\n  transcriptLength,\n  estimatedTokens,\n  workspace,\n  suggestedType,\n  safeTitle,\n  firefliesUrl,\n  summary: transcript.summary?.overview || ''\n} }];"
+      },
+      "name": "Process Transcript",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 200]
     },
     {
       "parameters": {
@@ -49,7 +78,7 @@
             {
               "id": "has-transcript",
               "leftValue": "={{ $json.transcript.length }}",
-              "rightValue": 100,
+              "rightValue": 50,
               "operator": {
                 "type": "number",
                 "operation": "gte"
@@ -63,740 +92,90 @@
       "name": "Has Valid Transcript?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [
-        448,
-        304
-      ],
-      "id": "0b3d86ee-9c7f-44f5-926d-e704f2ab81cb"
-    },
-    {
-      "parameters": {
-        "authentication": "oAuth2",
-        "select": "channel",
-        "channelId": {
-          "__rl": true,
-          "mode": "id",
-          "value": "C0A79PHB5JL"
-        },
-        "text": ":memo: *Processing Meeting...*\n*Title:* {{ $json.title }}\n*Duration:* {{ Math.round($json.duration / 60) }} min",
-        "otherOptions": {}
-      },
-      "name": "Slack: Processing",
-      "type": "n8n-nodes-base.slack",
-      "typeVersion": 2.3,
-      "position": [
-        672,
-        208
-      ],
-      "id": "7debca0f-a28f-41ea-bd27-14987fd4156e",
-      "webhookId": "03e2ad37-bf0d-46ed-bee3-8af7cce847cf",
-      "credentials": {
-        "slackOAuth2Api": {
-          "id": "EBe7rpazmQ7oFc5K",
-          "name": "Slack account"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "jsCode": "const meeting = $('Extract Meeting Data').first().json;\nconst safeTitle = meeting.title.replace(/[^a-zA-Z0-9 -]/g, '').trim().substring(0, 50);\nconst fileName = meeting.dateStr + ': ' + safeTitle + '.md';\nlet workspace = 'chrt';\nconst titleLower = meeting.title.toLowerCase();\nif (titleLower.includes('goodlux')) workspace = 'goodlux';\nelse if (titleLower.includes('shed')) workspace = 'shedpro';\nelse if (titleLower.includes('personal')) workspace = 'personal';\nreturn [{ json: { ...meeting, workspace, folder: workspace, fileName } }];"
-      },
-      "name": "Prepare Data",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        880,
-        208
-      ],
-      "id": "6eb098a7-f273-44b7-aba9-bc4190f56201"
+      "position": [1100, 200]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "http://srv1230891.hstgr.cloud:3851/analyze-meeting",
+        "url": "http://srv1230891.hstgr.cloud:3852/store",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($json) }}",
-        "options": {
-          "timeout": 120000
-        }
+        "jsonBody": "={{ JSON.stringify({ hash: $json.hash, meeting: $json }) }}",
+        "options": {}
       },
-      "name": "VPS: Analyze",
+      "name": "VPS: Store Meeting",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [
-        1120,
-        208
-      ],
-      "id": "1ab0aea3-1477-456b-9cee-99ce24f0ba08",
-      "onError": "continueErrorOutput"
+      "position": [1320, 100]
     },
     {
       "parameters": {
-        "jsCode": "const ai = $input.first().json;\nconst meeting = $('Prepare Data').first().json;\nlet content = ai.content || '';\nif (!content) throw new Error(ai.error || 'AI returned empty response');\nif (!content.startsWith('---')) {\n  content = '---\\nup:\\n  - \"[[Calendar]]\"\\nin:\\n  - \"[[Meetings]]\"\\nrelated:\\ncreated: ' + meeting.dateStr + '\\ntags:\\n  - meeting\\n---\\n\\n' + content;\n}\nconst contentBase64 = Buffer.from(content).toString('base64');\nreturn [{ json: { content, contentBase64, folder: meeting.folder, fileName: meeting.fileName, workspace: meeting.workspace, title: meeting.title, date: meeting.dateStr, model: ai.model || 'claude' } }];"
+        "method": "POST",
+        "url": "{{ SLACK_WEBHOOK_URL }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ blocks: [ { type: 'header', text: { type: 'plain_text', text: '📝 New Meeting Ready', emoji: true } }, { type: 'section', text: { type: 'mrkdwn', text: '*' + $('Process Transcript').first().json.title + '*\\n👤 ' + ($('Process Transcript').first().json.personName || 'Unknown') + '\\n⏱️ ' + $('Process Transcript').first().json.durationMins + ' min | ~' + $('Process Transcript').first().json.estimatedTokens + ' tokens\\n<' + $('Process Transcript').first().json.firefliesUrl + '|View in Fireflies>' } }, { type: 'input', block_id: 'workspace_block', element: { type: 'static_select', action_id: 'workspace_select', placeholder: { type: 'plain_text', text: 'Select workspace' }, initial_option: { text: { type: 'plain_text', text: $('Process Transcript').first().json.workspace }, value: $('Process Transcript').first().json.workspace }, options: [ { text: { type: 'plain_text', text: 'chrt' }, value: 'chrt' }, { text: { type: 'plain_text', text: 'goodlux' }, value: 'goodlux' }, { text: { type: 'plain_text', text: 'personal' }, value: 'personal' }, { text: { type: 'plain_text', text: 'shedpro' }, value: 'shedpro' } ] }, label: { type: 'plain_text', text: 'Workspace' } }, { type: 'input', block_id: 'meeting_type_block', element: { type: 'static_select', action_id: 'meeting_type_select', placeholder: { type: 'plain_text', text: 'Select meeting type' }, initial_option: { text: { type: 'plain_text', text: $('Process Transcript').first().json.suggestedType === 'sales' ? 'Sales/Client' : $('Process Transcript').first().json.suggestedType === 'internal' ? 'Internal' : $('Process Transcript').first().json.suggestedType === 'research' ? 'Research/Interview' : 'General' }, value: $('Process Transcript').first().json.suggestedType }, options: [ { text: { type: 'plain_text', text: 'Sales/Client' }, value: 'sales' }, { text: { type: 'plain_text', text: 'General' }, value: 'general' }, { text: { type: 'plain_text', text: 'Internal' }, value: 'internal' }, { text: { type: 'plain_text', text: 'Research/Interview' }, value: 'research' } ] }, label: { type: 'plain_text', text: 'Meeting Type' } }, { type: 'actions', block_id: 'actions_block', elements: [ { type: 'button', text: { type: 'plain_text', text: '✅ Process Meeting', emoji: true }, style: 'primary', action_id: 'process_meeting', value: $('Process Transcript').first().json.hash } ] }, { type: 'context', elements: [{ type: 'mrkdwn', text: 'Hash: `' + $('Process Transcript').first().json.hash + '` | Type: ' + $('Process Transcript').first().json.suggestedType }] } ], text: 'New meeting: ' + $('Process Transcript').first().json.title }) }}",
+        "options": {}
       },
-      "name": "Clean Output",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        1360,
-        208
-      ],
-      "id": "944f2c71-1597-48c5-9c86-32349230b5f7"
-    },
-    {
-      "parameters": {
-        "resource": "file",
-        "owner": {
-          "__rl": true,
-          "value": "hudsonlorfing",
-          "mode": "list",
-          "cachedResultName": "hudsonlorfing"
-        },
-        "repository": {
-          "__rl": true,
-          "value": "meeting-notes",
-          "mode": "list",
-          "cachedResultName": "meeting-notes"
-        },
-        "filePath": "={{ $json.folder + '/' + $json.fileName }}",
-        "fileContent": "={{ $json.content }}",
-        "commitMessage": "={{ 'Add meeting: ' + $json.title + ' (' + $json.date + ')' }}"
-      },
-      "name": "GitHub: Commit",
-      "type": "n8n-nodes-base.github",
-      "typeVersion": 1,
-      "position": [
-        1600,
-        208
-      ],
-      "id": "449b3e9d-95bf-48c9-894e-cf6180e66447",
-      "webhookId": "13fd95c8-b5e2-4b91-931e-dbd9285a9e23",
-      "credentials": {
-        "githubApi": {
-          "id": "yiGNsTvCmOQmaC7f",
-          "name": "GitHub PAT - Workflows"
-        }
-      },
-      "onError": "continueErrorOutput"
-    },
-    {
-      "parameters": {
-        "authentication": "oAuth2",
-        "select": "channel",
-        "channelId": {
-          "__rl": true,
-          "mode": "id",
-          "value": "C0A79PHB5JL"
-        },
-        "text": ":white_check_mark: *Meeting processed!*\n\n:memo: *{{ $('Clean Output').first().json.title }}*\n:file_folder: `{{ $('Clean Output').first().json.workspace }}/{{ $('Clean Output').first().json.fileName }}`\n:robot_face: Model: {{ $('Clean Output').first().json.model }}",
-        "otherOptions": {}
-      },
-      "name": "Slack: Success",
-      "type": "n8n-nodes-base.slack",
-      "typeVersion": 2.3,
-      "position": [
-        1840,
-        112
-      ],
-      "id": "a1b1a961-8072-4f8f-b709-39e26a4e42e9",
-      "webhookId": "17277b6c-d5cb-4f20-8a52-3805fd8e3552",
-      "credentials": {
-        "slackOAuth2Api": {
-          "id": "EBe7rpazmQ7oFc5K",
-          "name": "Slack account"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "authentication": "oAuth2",
-        "select": "channel",
-        "channelId": {
-          "__rl": true,
-          "mode": "id",
-          "value": "C0A79PHB5JL"
-        },
-        "text": ":warning: *Error processing meeting*\n\n{{ $json.error || $json.message || 'Check n8n logs' }}",
-        "otherOptions": {}
-      },
-      "name": "Slack: Error",
-      "type": "n8n-nodes-base.slack",
-      "typeVersion": 2.3,
-      "position": [
-        1840,
-        304
-      ],
-      "id": "eace013e-2387-400b-80a9-07fc32ac3c95",
-      "webhookId": "1e51367d-3213-4369-92ec-00c3681ad5f8",
-      "credentials": {
-        "slackOAuth2Api": {
-          "id": "EBe7rpazmQ7oFc5K",
-          "name": "Slack account"
-        }
-      }
+      "name": "Slack: Interactive Form",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1540, 100]
     },
     {
       "parameters": {},
-      "name": "Invalid",
+      "name": "Invalid Transcript",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
-      "position": [
-        672,
-        400
-      ],
-      "id": "8113f095-3527-4031-b742-6120d343a45c"
+      "position": [1320, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "{{ SLACK_WEBHOOK_URL }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: '❌ Fireflies API Error: ' + ($json.error || $json.errors?.[0]?.message || 'Unknown error') + '\\nMeeting ID: ' + $('Extract Meeting ID').first().json.meetingId }) }}",
+        "options": {}
+      },
+      "name": "Slack: API Error",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 400]
     }
   ],
   "connections": {
-    "Fireflies Webhook": {
+    "Webhook": {
+      "main": [[{"node": "Respond OK", "type": "main", "index": 0}]]
+    },
+    "Respond OK": {
+      "main": [[{"node": "Extract Meeting ID", "type": "main", "index": 0}]]
+    },
+    "Extract Meeting ID": {
+      "main": [[{"node": "Fireflies: Fetch Transcript", "type": "main", "index": 0}]]
+    },
+    "Fireflies: Fetch Transcript": {
       "main": [
-        [
-          {
-            "node": "Extract Meeting Data",
-            "type": "main",
-            "index": 0
-          }
-        ]
+        [{"node": "Process Transcript", "type": "main", "index": 0}],
+        [{"node": "Slack: API Error", "type": "main", "index": 0}]
       ]
     },
-    "Extract Meeting Data": {
-      "main": [
-        [
-          {
-            "node": "Has Valid Transcript?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+    "Process Transcript": {
+      "main": [[{"node": "Has Valid Transcript?", "type": "main", "index": 0}]]
     },
     "Has Valid Transcript?": {
       "main": [
-        [
-          {
-            "node": "Slack: Processing",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Invalid",
-            "type": "main",
-            "index": 0
-          }
-        ]
+        [{"node": "VPS: Store Meeting", "type": "main", "index": 0}],
+        [{"node": "Invalid Transcript", "type": "main", "index": 0}]
       ]
     },
-    "Slack: Processing": {
-      "main": [
-        [
-          {
-            "node": "Prepare Data",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Prepare Data": {
-      "main": [
-        [
-          {
-            "node": "VPS: Analyze",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "VPS: Analyze": {
-      "main": [
-        [
-          {
-            "node": "Clean Output",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Slack: Error",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Clean Output": {
-      "main": [
-        [
-          {
-            "node": "GitHub: Commit",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "GitHub: Commit": {
-      "main": [
-        [
-          {
-            "node": "Slack: Success",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Slack: Error",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+    "VPS: Store Meeting": {
+      "main": [[{"node": "Slack: Interactive Form", "type": "main", "index": 0}]]
     }
   },
   "settings": {
     "executionOrder": "v1",
     "callerPolicy": "workflowsFromSameOwner",
-    "errorWorkflow": "YWP69Qgq0ZlCN7Gj",
-    "availableInMCP": false
-  },
-  "staticData": null,
-  "meta": null,
-  "pinData": {},
-  "versionId": "0b4b9b3f-4e0b-482b-ad8a-2debc8062580",
-  "activeVersionId": "0b4b9b3f-4e0b-482b-ad8a-2debc8062580",
-  "versionCounter": 45,
-  "triggerCount": 1,
-  "shared": [
-    {
-      "updatedAt": "2026-01-02T10:08:09.329Z",
-      "createdAt": "2026-01-02T10:08:09.329Z",
-      "role": "workflow:owner",
-      "workflowId": "I5qKGljJAwRbPK2e",
-      "projectId": "O7lTivDfRl72aS23",
-      "project": {
-        "updatedAt": "2025-12-24T03:17:11.000Z",
-        "createdAt": "2025-12-23T21:24:31.508Z",
-        "id": "O7lTivDfRl72aS23",
-        "name": "ChrtWorkflows",
-        "type": "team",
-        "icon": {
-          "type": "icon",
-          "value": "layers"
-        },
-        "description": "",
-        "projectRelations": [
-          {
-            "updatedAt": "2025-12-23T21:24:31.510Z",
-            "createdAt": "2025-12-23T21:24:31.510Z",
-            "userId": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4",
-            "projectId": "O7lTivDfRl72aS23",
-            "user": {
-              "updatedAt": "2026-01-02T10:08:33.703Z",
-              "createdAt": "2025-12-17T12:51:53.118Z",
-              "id": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4",
-              "email": "hudson@chrt.com",
-              "firstName": "Hudson",
-              "lastName": "Lorfing",
-              "personalizationAnswers": null,
-              "settings": {
-                "userActivated": true,
-                "userClaimedAiCredits": true,
-                "easyAIWorkflowOnboarded": true,
-                "firstSuccessfulWorkflowId": "kjjYKQEXv67Vl5MS",
-                "userActivatedAt": 1766099344758,
-                "npsSurvey": {
-                  "waitingForResponse": true,
-                  "ignoredCount": 2,
-                  "lastShownAt": 1767348510879
-                }
-              },
-              "disabled": false,
-              "mfaEnabled": false,
-              "lastActiveAt": "2026-01-02",
-              "isPending": false
-            }
-          }
-        ]
-      }
-    }
-  ],
-  "tags": [],
-  "activeVersion": {
-    "updatedAt": "2026-01-02T10:08:36.000Z",
-    "createdAt": "2026-01-02T10:08:29.859Z",
-    "versionId": "0b4b9b3f-4e0b-482b-ad8a-2debc8062580",
-    "workflowId": "I5qKGljJAwRbPK2e",
-    "nodes": [
-      {
-        "parameters": {
-          "httpMethod": "POST",
-          "path": "fireflies-meeting",
-          "options": {}
-        },
-        "name": "Fireflies Webhook",
-        "type": "n8n-nodes-base.webhook",
-        "typeVersion": 2,
-        "position": [
-          0,
-          304
-        ],
-        "webhookId": "fireflies-meeting",
-        "id": "dd4e5645-32e9-480d-abff-a30ca71707cd"
-      },
-      {
-        "parameters": {
-          "jsCode": "const webhook = $input.first().json;\nconst body = webhook.body || webhook;\nconst meetingId = body.meeting_id || body.id || '';\nconst title = body.title || 'Untitled Meeting';\nconst transcript = body.transcript || body.sentences?.map(s => s.speaker_name + ': ' + s.text).join('\\n') || '';\nconst hash = require('crypto').createHash('md5').update(meetingId + title + transcript.substring(0, 500)).digest('hex').substring(0, 12);\nconst transcriptLength = transcript.length;\nconst estimatedTokens = Math.ceil(transcriptLength / 4);\nconst attendees = (body.attendees || body.participants || []).map(a => a.name || a.displayName || a.email || 'Unknown').join(', ');\nconst dateStr = new Date(body.date || body.dateString || new Date()).toISOString().split('T')[0];\nreturn [{ json: { meetingId, hash, title, date: body.date || body.dateString || new Date().toISOString(), dateStr, duration: body.duration || 0, attendees, transcript, transcriptLength, estimatedTokens, firefliesUrl: body.transcript_url || '' } }];"
-        },
-        "name": "Extract Meeting Data",
-        "type": "n8n-nodes-base.code",
-        "typeVersion": 2,
-        "position": [
-          224,
-          304
-        ],
-        "id": "08f2bf50-c7a8-4951-8576-ff20f1d81bf5"
-      },
-      {
-        "parameters": {
-          "conditions": {
-            "options": {
-              "caseSensitive": true,
-              "leftValue": "",
-              "typeValidation": "loose",
-              "version": 2
-            },
-            "conditions": [
-              {
-                "id": "has-transcript",
-                "leftValue": "={{ $json.transcript.length }}",
-                "rightValue": 100,
-                "operator": {
-                  "type": "number",
-                  "operation": "gte"
-                }
-              }
-            ],
-            "combinator": "and"
-          },
-          "options": {}
-        },
-        "name": "Has Valid Transcript?",
-        "type": "n8n-nodes-base.if",
-        "typeVersion": 2.2,
-        "position": [
-          448,
-          304
-        ],
-        "id": "0b3d86ee-9c7f-44f5-926d-e704f2ab81cb"
-      },
-      {
-        "parameters": {
-          "authentication": "oAuth2",
-          "select": "channel",
-          "channelId": {
-            "__rl": true,
-            "mode": "id",
-            "value": "C0A79PHB5JL"
-          },
-          "text": ":memo: *Processing Meeting...*\n*Title:* {{ $json.title }}\n*Duration:* {{ Math.round($json.duration / 60) }} min",
-          "otherOptions": {}
-        },
-        "name": "Slack: Processing",
-        "type": "n8n-nodes-base.slack",
-        "typeVersion": 2.3,
-        "position": [
-          672,
-          208
-        ],
-        "id": "7debca0f-a28f-41ea-bd27-14987fd4156e",
-        "webhookId": "03e2ad37-bf0d-46ed-bee3-8af7cce847cf",
-        "credentials": {
-          "slackOAuth2Api": {
-            "id": "EBe7rpazmQ7oFc5K",
-            "name": "Slack account"
-          }
-        }
-      },
-      {
-        "parameters": {
-          "jsCode": "const meeting = $('Extract Meeting Data').first().json;\nconst safeTitle = meeting.title.replace(/[^a-zA-Z0-9 -]/g, '').trim().substring(0, 50);\nconst fileName = meeting.dateStr + ': ' + safeTitle + '.md';\nlet workspace = 'chrt';\nconst titleLower = meeting.title.toLowerCase();\nif (titleLower.includes('goodlux')) workspace = 'goodlux';\nelse if (titleLower.includes('shed')) workspace = 'shedpro';\nelse if (titleLower.includes('personal')) workspace = 'personal';\nreturn [{ json: { ...meeting, workspace, folder: workspace, fileName } }];"
-        },
-        "name": "Prepare Data",
-        "type": "n8n-nodes-base.code",
-        "typeVersion": 2,
-        "position": [
-          880,
-          208
-        ],
-        "id": "6eb098a7-f273-44b7-aba9-bc4190f56201"
-      },
-      {
-        "parameters": {
-          "method": "POST",
-          "url": "http://srv1230891.hstgr.cloud:3851/analyze-meeting",
-          "sendBody": true,
-          "specifyBody": "json",
-          "jsonBody": "={{ JSON.stringify($json) }}",
-          "options": {
-            "timeout": 120000
-          }
-        },
-        "name": "VPS: Analyze",
-        "type": "n8n-nodes-base.httpRequest",
-        "typeVersion": 4.2,
-        "position": [
-          1120,
-          208
-        ],
-        "id": "1ab0aea3-1477-456b-9cee-99ce24f0ba08",
-        "onError": "continueErrorOutput"
-      },
-      {
-        "parameters": {
-          "jsCode": "const ai = $input.first().json;\nconst meeting = $('Prepare Data').first().json;\nlet content = ai.content || '';\nif (!content) throw new Error(ai.error || 'AI returned empty response');\nif (!content.startsWith('---')) {\n  content = '---\\nup:\\n  - \"[[Calendar]]\"\\nin:\\n  - \"[[Meetings]]\"\\nrelated:\\ncreated: ' + meeting.dateStr + '\\ntags:\\n  - meeting\\n---\\n\\n' + content;\n}\nconst contentBase64 = Buffer.from(content).toString('base64');\nreturn [{ json: { content, contentBase64, folder: meeting.folder, fileName: meeting.fileName, workspace: meeting.workspace, title: meeting.title, date: meeting.dateStr, model: ai.model || 'claude' } }];"
-        },
-        "name": "Clean Output",
-        "type": "n8n-nodes-base.code",
-        "typeVersion": 2,
-        "position": [
-          1360,
-          208
-        ],
-        "id": "944f2c71-1597-48c5-9c86-32349230b5f7"
-      },
-      {
-        "parameters": {
-          "resource": "file",
-          "owner": {
-            "__rl": true,
-            "value": "hudsonlorfing",
-            "mode": "list",
-            "cachedResultName": "hudsonlorfing"
-          },
-          "repository": {
-            "__rl": true,
-            "value": "meeting-notes",
-            "mode": "list",
-            "cachedResultName": "meeting-notes"
-          },
-          "filePath": "={{ $json.folder + '/' + $json.fileName }}",
-          "fileContent": "={{ $json.content }}",
-          "commitMessage": "={{ 'Add meeting: ' + $json.title + ' (' + $json.date + ')' }}"
-        },
-        "name": "GitHub: Commit",
-        "type": "n8n-nodes-base.github",
-        "typeVersion": 1,
-        "position": [
-          1600,
-          208
-        ],
-        "id": "449b3e9d-95bf-48c9-894e-cf6180e66447",
-        "webhookId": "13fd95c8-b5e2-4b91-931e-dbd9285a9e23",
-        "credentials": {
-          "githubApi": {
-            "id": "yiGNsTvCmOQmaC7f",
-            "name": "GitHub PAT - Workflows"
-          }
-        },
-        "onError": "continueErrorOutput"
-      },
-      {
-        "parameters": {
-          "authentication": "oAuth2",
-          "select": "channel",
-          "channelId": {
-            "__rl": true,
-            "mode": "id",
-            "value": "C0A79PHB5JL"
-          },
-          "text": ":white_check_mark: *Meeting processed!*\n\n:memo: *{{ $('Clean Output').first().json.title }}*\n:file_folder: `{{ $('Clean Output').first().json.workspace }}/{{ $('Clean Output').first().json.fileName }}`\n:robot_face: Model: {{ $('Clean Output').first().json.model }}",
-          "otherOptions": {}
-        },
-        "name": "Slack: Success",
-        "type": "n8n-nodes-base.slack",
-        "typeVersion": 2.3,
-        "position": [
-          1840,
-          112
-        ],
-        "id": "a1b1a961-8072-4f8f-b709-39e26a4e42e9",
-        "webhookId": "17277b6c-d5cb-4f20-8a52-3805fd8e3552",
-        "credentials": {
-          "slackOAuth2Api": {
-            "id": "EBe7rpazmQ7oFc5K",
-            "name": "Slack account"
-          }
-        }
-      },
-      {
-        "parameters": {
-          "authentication": "oAuth2",
-          "select": "channel",
-          "channelId": {
-            "__rl": true,
-            "mode": "id",
-            "value": "C0A79PHB5JL"
-          },
-          "text": ":warning: *Error processing meeting*\n\n{{ $json.error || $json.message || 'Check n8n logs' }}",
-          "otherOptions": {}
-        },
-        "name": "Slack: Error",
-        "type": "n8n-nodes-base.slack",
-        "typeVersion": 2.3,
-        "position": [
-          1840,
-          304
-        ],
-        "id": "eace013e-2387-400b-80a9-07fc32ac3c95",
-        "webhookId": "1e51367d-3213-4369-92ec-00c3681ad5f8",
-        "credentials": {
-          "slackOAuth2Api": {
-            "id": "EBe7rpazmQ7oFc5K",
-            "name": "Slack account"
-          }
-        }
-      },
-      {
-        "parameters": {},
-        "name": "Invalid",
-        "type": "n8n-nodes-base.noOp",
-        "typeVersion": 1,
-        "position": [
-          672,
-          400
-        ],
-        "id": "8113f095-3527-4031-b742-6120d343a45c"
-      }
-    ],
-    "connections": {
-      "Fireflies Webhook": {
-        "main": [
-          [
-            {
-              "node": "Extract Meeting Data",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "Extract Meeting Data": {
-        "main": [
-          [
-            {
-              "node": "Has Valid Transcript?",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "Has Valid Transcript?": {
-        "main": [
-          [
-            {
-              "node": "Slack: Processing",
-              "type": "main",
-              "index": 0
-            }
-          ],
-          [
-            {
-              "node": "Invalid",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "Slack: Processing": {
-        "main": [
-          [
-            {
-              "node": "Prepare Data",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "Prepare Data": {
-        "main": [
-          [
-            {
-              "node": "VPS: Analyze",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "VPS: Analyze": {
-        "main": [
-          [
-            {
-              "node": "Clean Output",
-              "type": "main",
-              "index": 0
-            }
-          ],
-          [
-            {
-              "node": "Slack: Error",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "Clean Output": {
-        "main": [
-          [
-            {
-              "node": "GitHub: Commit",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "GitHub: Commit": {
-        "main": [
-          [
-            {
-              "node": "Slack: Success",
-              "type": "main",
-              "index": 0
-            }
-          ],
-          [
-            {
-              "node": "Slack: Error",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      }
-    },
-    "authors": "Hudson Lorfing",
-    "name": "Version 0b4b9b3f",
-    "description": "",
-    "workflowPublishHistory": [
-      {
-        "createdAt": "2026-01-02T10:08:36.536Z",
-        "id": 75,
-        "workflowId": "I5qKGljJAwRbPK2e",
-        "versionId": "0b4b9b3f-4e0b-482b-ad8a-2debc8062580",
-        "event": "activated",
-        "userId": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4"
-      }
-    ]
+    "errorWorkflow": "YWP69Qgq0ZlCN7Gj"
   }
 }

@@ -1,0 +1,63 @@
+{
+  "id": "demo-scorecard",
+  "name": "Demo Scorecard",
+  "category": "sales",
+  "icon": "🎯",
+  "description": "Evaluate demo performance against best practices rubric",
+  
+  "auto_detect": {
+    "title_keywords": ["demo", "presentation", "walkthrough", "platform overview", "show", "product tour"],
+    "title_negative": ["discovery", "internal", "sync"],
+    "external_required": true,
+    "content_signals": ["let me show you", "this is how", "here you can see", "feature"]
+  },
+  
+  "scoring": {
+    "enabled": true,
+    "max_score": 6,
+    "pass_threshold": 4,
+    "criteria": [
+      {"id": "agenda", "name": "Set Agenda", "weight": 1, "question": "Did the rep set an agenda for the demo?"},
+      {"id": "business_need", "name": "Business Need", "weight": 1, "question": "Did the rep confirm/revisit the business need before demoing?"},
+      {"id": "pain_point", "name": "Pain Point", "weight": 1, "question": "Did the rep tie features back to the prospect's specific pain points?"},
+      {"id": "competitors", "name": "Competitors", "weight": 1, "question": "Did the rep ask about or address competitor comparisons?"},
+      {"id": "pricing", "name": "Pricing", "weight": 1, "question": "Did the rep discuss pricing or investment?"},
+      {"id": "clarifying_qs", "name": "Clarifying Questions", "weight": 1, "question": "Did the rep ask clarifying questions during the demo?"}
+    ]
+  },
+  
+  "extraction_targets": [
+    {"field": "features_shown", "prompt": "List all features demonstrated with prospect reactions"},
+    {"field": "objections_raised", "prompt": "List any objections or concerns raised during the demo"},
+    {"field": "questions_asked", "prompt": "What questions did the prospect ask? What does this reveal about their priorities?"},
+    {"field": "engagement_level", "prompt": "Rate prospect engagement (high/medium/low) with evidence"},
+    {"field": "buying_signals", "prompt": "Identify any buying signals or expressions of interest"},
+    {"field": "next_steps", "prompt": "What next steps were agreed upon?"}
+  ],
+  
+  "output_schema": {
+    "format": "markdown",
+    "sections": [
+      "## Demo Score: {{score}}/6 {{grade}}",
+      "### Scorecard",
+      "| Criteria | Score | Timestamp | Evidence |",
+      "|----------|-------|-----------|----------|",
+      "{{criteria_table}}",
+      "### Features Demonstrated",
+      "{{features_shown}}",
+      "### Objections & Concerns",
+      "{{objections_raised}}",
+      "### Prospect Questions",
+      "{{questions_asked}}",
+      "### Buying Signals",
+      "{{buying_signals}}",
+      "### Next Steps",
+      "{{next_steps}}",
+      "### Coaching Notes",
+      "{{coaching_feedback}}"
+    ]
+  },
+  
+  "system_prompt": "You are an expert sales coach evaluating a product demo. Score the demo against the rubric and identify coaching opportunities.\n\nFocus on:\n1. Did the rep customize the demo to the prospect's needs?\n2. Did the rep handle objections effectively?\n3. Did the rep create urgency and move toward next steps?\n\nBe specific with timestamps and quotes. Output valid JSON."
+}
+
