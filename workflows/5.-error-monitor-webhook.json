@@ -142,6 +142,32 @@
         1320,
         0
       ]
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "C0A79PHB5JL"
+        },
+        "text": "={{ '🚨 *Workflow Error*\\n\\n*Workflow:* ' + $json.details.workflow.name + '\\n*Node:* ' + $json.details.error.node + '\\n*Error:* ' + $json.details.error.message.substring(0, 200) + '\\n\\n<https://chrt.app.n8n.cloud/workflow/' + $json.details.workflow.id + '/executions/' + $json.details.execution.id + '|View Execution>' }}",
+        "otherOptions": {}
+      },
+      "id": "slack-error-notify",
+      "name": "Slack: Error Alert",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        880,
+        -300
+      ],
+      "credentials": {
+        "slackApi": {
+          "id": "wkLpZSqhXl2iesnC",
+          "name": "Slack Bot - Chrt"
+        }
+      }
     }
   ],
   "connections": {
@@ -190,6 +216,11 @@
         [
           {
             "node": "Call VPS Auto-Fix",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Slack: Error Alert",
             "type": "main",
             "index": 0
           }
