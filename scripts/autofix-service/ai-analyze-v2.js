@@ -17,6 +17,7 @@ const path = require('path');
 
 const PORT = 3853;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 
 // =============================================================================
 // CONFIGURATION LOADING
@@ -476,6 +477,109 @@ async function callGemini(systemPrompt, userPrompt, model) {
 }
 
 // =============================================================================
+// CLAUDE API (FALLBACK)
+// =============================================================================
+
+async function callClaude(systemPrompt, userPrompt) {
+  return new Promise((resolve, reject) => {
+    if (!ANTHROPIC_API_KEY) {
+      reject(new Error('ANTHROPIC_API_KEY not configured'));
+      return;
+    }
+
+    const body = JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 8192,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userPrompt }]
+    });
+
+    const req = https.request({
+      hostname: 'api.anthropic.com',
+      path: '/v1/messages',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01'
+      }
+    }, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try {
+          const json = JSON.parse(data);
+          if (json.error) {
+            reject(new Error(json.error.message));
+          } else if (json.content?.[0]?.text) {
+            resolve(json.content[0].text);
+          } else {
+            reject(new Error('Unexpected Claude response: ' + JSON.stringify(json).substring(0, 300)));
+          }
+        } catch (e) {
+          reject(new Error('Parse error: ' + e.message));
+        }
+      });
+    });
+    req.on('error', reject);
+    req.setTimeout(180000, () => { req.destroy(); reject(new Error('Timeout')); });
+    req.write(body);
+    req.end();
+  });
+}
+
+// Call with Gemini, fallback to Claude if error
+async function callAI(systemPrompt, userPrompt, model) {
+  let usedModel = model;
+  let keyRotationNeeded = false;
+  
+  // Try Gemini first
+  if (GEMINI_API_KEY) {
+    try {
+      const result = await callGemini(systemPrompt, userPrompt, model);
+      return { content: result, model: usedModel, keyRotationNeeded: false };
+    } catch (geminiError) {
+      console.error(`[AI] Gemini failed: ${geminiError.message}`);
+      
+      // Check if it's an API key issue
+      if (geminiError.message.includes('API key') || 
+          geminiError.message.includes('401') || 
+          geminiError.message.includes('403') ||
+          geminiError.message.includes('invalid') ||
+          geminiError.message.includes('expired')) {
+        keyRotationNeeded = true;
+        console.error('[AI] ⚠️ GEMINI API KEY MAY NEED ROTATION');
+      }
+      
+      // Fall back to Claude
+      if (ANTHROPIC_API_KEY) {
+        console.log('[AI] Falling back to Claude...');
+        try {
+          const result = await callClaude(systemPrompt, userPrompt);
+          return { 
+            content: result, 
+            model: 'claude-sonnet-4', 
+            keyRotationNeeded,
+            fallbackUsed: true,
+            fallbackReason: geminiError.message
+          };
+        } catch (claudeError) {
+          throw new Error(`Both APIs failed. Gemini: ${geminiError.message}, Claude: ${claudeError.message}`);
+        }
+      } else {
+        throw geminiError;
+      }
+    }
+  } else if (ANTHROPIC_API_KEY) {
+    // No Gemini key, use Claude directly
+    const result = await callClaude(systemPrompt, userPrompt);
+    return { content: result, model: 'claude-sonnet-4', keyRotationNeeded: false };
+  } else {
+    throw new Error('No API keys configured (GEMINI_API_KEY or ANTHROPIC_API_KEY)');
+  }
+}
+
+// =============================================================================
 // HTTP SERVER
 // =============================================================================
 
@@ -500,10 +604,12 @@ const server = http.createServer(async (req, res) => {
     return sendJson(200, {
       status: 'ok',
       service: 'ai-analyze-v2',
-      version: '2.0.0',
+      version: '2.1.0',
       workspaces: Object.keys(WORKSPACES),
       apps: Object.keys(AI_APPS).filter(k => !k.startsWith('_')).length,
-      apiKeyConfigured: !!GEMINI_API_KEY
+      geminiKeyConfigured: !!GEMINI_API_KEY,
+      claudeKeyConfigured: !!ANTHROPIC_API_KEY,
+      fallbackAvailable: !!ANTHROPIC_API_KEY
     });
   }
 
@@ -585,34 +691,43 @@ const server = http.createServer(async (req, res) => {
           // Meta-prompting: first generate prompt, then execute
           console.log(`[Analyze] Custom mode - generating meta-prompt...`);
           const metaPrompt = buildMetaPrompt(customContext);
-          const generatedPrompt = await callGemini(
+          const metaResult = await callAI(
             'You are an expert prompt engineer.',
             metaPrompt,
             'gemini-2.0-flash'
           );
-          systemPrompt = generatedPrompt;
+          systemPrompt = metaResult.content;
           userPrompt = `# Meeting: ${title}\nDate: ${dateStr}\nAttendees: ${attendees}\n\n# Transcript\n${transcript}`;
         } else {
           // Standard mode - use app configs
-          const meetingData = { title, dateStr, attendees, durationMins };
+          const meetingData = { title, dateStr, attendees, durationMins, recordingType, detailLevel };
           const fullPrompt = buildPrompt(workspace, apps, customContext, transcript, meetingData);
           systemPrompt = 'You are an expert meeting analyst. Analyze the following and produce structured Obsidian markdown output.';
           userPrompt = fullPrompt;
         }
         
-        const result = await callGemini(systemPrompt, userPrompt, model);
+        const result = await callAI(systemPrompt, userPrompt, model);
         
         // Clean markdown fences
-        let content = result.replace(/^```(?:markdown)?\n?/gm, '').replace(/\n?```$/gm, '').trim();
+        let content = result.content.replace(/^```(?:markdown)?\n?/gm, '').replace(/\n?```$/gm, '').trim();
         
-        console.log(`[Analyze] Complete | model: ${model} | output: ${content.length} chars`);
+        // Add key rotation warning if needed
+        if (result.keyRotationNeeded) {
+          content = `> [!warning] ⚠️ GEMINI API KEY NEEDS ROTATION\n> The Gemini API key appears to be invalid or expired. Please rotate the key.\n> Fallback to Claude was used for this analysis.\n\n` + content;
+        } else if (result.fallbackUsed) {
+          content = `> [!info] Used Claude fallback\n> Reason: ${result.fallbackReason}\n\n` + content;
+        }
+        
+        console.log(`[Analyze] Complete | model: ${result.model} | output: ${content.length} chars`);
         
         return sendJson(200, {
           content,
-          model,
+          model: result.model,
           workspace,
           apps: apps.map(a => a.id),
-          mode
+          mode,
+          keyRotationNeeded: result.keyRotationNeeded || false,
+          fallbackUsed: result.fallbackUsed || false
         });
       } catch (e) {
         console.error('[Analyze] Error:', e.message);
@@ -654,15 +769,20 @@ const server = http.createServer(async (req, res) => {
           data
         );
         
-        const result = await callGemini(
+        const result = await callAI(
           'You are an expert meeting analyst.',
           fullPrompt,
           model
         );
         
-        let content = result.replace(/^```(?:markdown)?\n?/gm, '').replace(/\n?```$/gm, '').trim();
+        let content = result.content.replace(/^```(?:markdown)?\n?/gm, '').replace(/\n?```$/gm, '').trim();
         
-        return sendJson(200, { content, model, meetingType });
+        // Add key rotation warning if needed
+        if (result.keyRotationNeeded) {
+          content = `> [!warning] ⚠️ GEMINI API KEY NEEDS ROTATION\n> Please rotate the Gemini API key.\n\n` + content;
+        }
+        
+        return sendJson(200, { content, model: result.model, meetingType, keyRotationNeeded: result.keyRotationNeeded || false });
       } catch (e) {
         console.error('[Analyze Legacy] Error:', e.message);
         return sendJson(500, { error: e.message });
