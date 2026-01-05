@@ -149,7 +149,7 @@
         "channelId": {
           "__rl": true,
           "mode": "id",
-          "value": "C0A79PHB5JL"
+          "value": "C0A6ES56MU2"
         },
         "text": "={{ '🚨 *Workflow Error*\\n\\n*Workflow:* ' + $json.details.workflow.name + '\\n*Node:* ' + $json.details.error.node + '\\n*Error:* ' + $json.details.error.message.substring(0, 200) + '\\n\\n<https://chrt.app.n8n.cloud/workflow/' + $json.details.workflow.id + '/executions/' + $json.details.execution.id + '|View Execution>' }}",
         "otherOptions": {}
