@@ -1,15 +1,10 @@
 {
-  "updatedAt": "2026-01-02T17:15:58.947Z",
-  "createdAt": "2026-01-02T16:10:15.208Z",
-  "id": "h3NKdjHzulO0Ecn0",
   "name": "7. Slack Interaction Handler",
-  "active": false,
-  "isArchived": false,
   "nodes": [
     {
       "parameters": {
         "httpMethod": "POST",
-        "path": "slack-interactions",
+        "path": "meeting-intel-action",
         "responseMode": "responseNode",
         "options": {}
       },
@@ -20,12 +15,11 @@
         0,
         300
       ],
-      "webhookId": "slack-interactions",
-      "id": "713b7a73-cf4a-4113-a979-0b1c959d245b"
+      "webhookId": "meeting-intel-action"
     },
     {
       "parameters": {
-        "jsCode": "// Parse Slack interaction payload\nconst body = $input.first().json.body;\nlet payload;\n\nif (typeof body === 'string') {\n  // URL-encoded payload\n  const decoded = decodeURIComponent(body.replace('payload=', ''));\n  payload = JSON.parse(decoded);\n} else if (body?.payload) {\n  payload = typeof body.payload === 'string' ? JSON.parse(body.payload) : body.payload;\n} else {\n  payload = body;\n}\n\n// Extract action info\nconst action = payload.actions?.[0] || {};\nconst hash = action.value || '';\nconst actionId = action.action_id || '';\n\n// Extract form values from state\nconst state = payload.state?.values || {};\nconst workspace = state.workspace_block?.workspace_select?.selected_option?.value || 'chrt';\nconst purpose = state.purpose_block?.purpose_select?.selected_option?.value || 'general';\n\n// Get user info\nconst user = payload.user?.username || payload.user?.name || 'unknown';\nconst responseUrl = payload.response_url || '';\n\nreturn [{ json: { hash, actionId, workspace, purpose, user, responseUrl, rawPayload: payload } }];"
+        "jsCode": "// Parse Slack interaction payload\nconst body = $input.first().json.body;\nlet payload;\n\nif (typeof body === 'string') {\n  const decoded = decodeURIComponent(body.replace('payload=', ''));\n  payload = JSON.parse(decoded);\n} else if (body?.payload) {\n  payload = typeof body.payload === 'string' ? JSON.parse(body.payload) : body.payload;\n} else {\n  payload = body;\n}\n\nconst action = payload.actions?.[0] || {};\nconst hash = action.value || '';\nconst actionId = action.action_id || '';\n\nconst state = payload.state?.values || {};\n\nconst workspaceOverride = state.workspace_block?.workspace_select?.selected_option?.value || null;\n\nconst selectedApps = state.apps_block?.apps_select?.selected_options || [];\nlet appsOverride = null;\nif (selectedApps.length > 0) {\n  const weight = 1.0 / selectedApps.length;\n  appsOverride = selectedApps.map(opt => ({ id: opt.value, weight: Math.round(weight * 100) / 100 }));\n}\n\nconst customContext = state.custom_context_block?.custom_context_input?.value || '';\nconst user = payload.user?.username || payload.user?.name || 'unknown';\nconst responseUrl = payload.response_url || '';\n\nreturn [{ json: { hash, actionId, workspaceOverride, appsOverride, customContext, user, responseUrl } }];"
       },
       "name": "Parse Slack Payload",
       "type": "n8n-nodes-base.code",
@@ -33,13 +27,12 @@
       "position": [
         220,
         300
-      ],
-      "id": "c798ed82-6bee-4eca-9695-62cec3b4964b"
+      ]
     },
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ JSON.stringify({ text: '⏳ Processing meeting...' }) }}"
+        "responseBody": "={{ JSON.stringify({ text: '⏳ Processing...' }) }}"
       },
       "name": "Respond to Slack",
       "type": "n8n-nodes-base.respondToWebhook",
@@ -47,8 +40,7 @@
       "position": [
         440,
         300
-      ],
-      "id": "f5364513-cb01-4b58-8d09-6cfd06c2534b"
+      ]
     },
     {
       "parameters": {
@@ -61,9 +53,9 @@
           },
           "conditions": [
             {
-              "id": "is-process",
+              "id": "is-analyze-action",
               "leftValue": "={{ $json.actionId }}",
-              "rightValue": "process_meeting",
+              "rightValue": "analyze_meeting_v2",
               "operator": {
                 "type": "string",
                 "operation": "equals"
@@ -74,14 +66,13 @@
         },
         "options": {}
       },
-      "name": "Is Process Action?",
+      "name": "Is Analyze Action?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
         660,
         300
-      ],
-      "id": "8de2e68b-8f92-4bca-8fa9-9137dcd15b39"
+      ]
     },
     {
       "parameters": {
@@ -96,21 +87,19 @@
         880,
         200
       ],
-      "onError": "continueErrorOutput",
-      "id": "9b08c547-29d5-4ea7-b94f-eadd1d67c3a8"
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
-        "jsCode": "const slack = $('Parse Slack Payload').first().json;\nconst meeting = $input.first().json;\n\nif (meeting.error) {\n  throw new Error('Meeting not found: ' + slack.hash);\n}\n\n// Merge Slack form data with meeting\nmeeting.workspace = slack.workspace || meeting.workspace || 'chrt';\nmeeting.purpose = slack.purpose || 'general';\nmeeting.processedBy = slack.user;\n\nreturn [{ json: meeting }];"
+        "jsCode": "const meeting = $input.first().json;\nconst slack = $('Parse Slack Payload').first().json;\n\nconst workspace = slack.workspaceOverride || meeting.workspace || 'chrt';\nconst apps = slack.appsOverride || meeting.suggestedApps || [{ id: 'general-notes', weight: 1.0 }];\n\nreturn [{ json: {\n  ...meeting,\n  finalWorkspace: workspace,\n  finalApps: apps,\n  customContext: slack.customContext,\n  user: slack.user,\n  responseUrl: slack.responseUrl\n} }];"
       },
-      "name": "Merge Form Data",
+      "name": "Merge Overrides",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
         1100,
         200
-      ],
-      "id": "816ff4e9-1662-4ac6-8a0f-0abeaa0c077b"
+      ]
     },
     {
       "parameters": {
@@ -118,51 +107,48 @@
         "url": "={{ $('Parse Slack Payload').first().json.responseUrl }}",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ replace_original: true, text: '⏳ *Processing: ' + $json.title + '...*\\n\\nAnalyzing with Claude AI...' }) }}",
+        "jsonBody": "={{ JSON.stringify({ replace_original: true, text: '⏳ *Analyzing:* ' + $json.title + '\\n\\n🤖 Using: ' + $json.finalApps.map(a => a.id + ' (' + Math.round(a.weight * 100) + '%)').join(', ') + '\\n📂 Workspace: ' + $json.finalWorkspace }) }}",
         "options": {}
       },
-      "name": "Slack: Update Message",
+      "name": "Slack: Processing",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
         1320,
         200
-      ],
-      "id": "478cee6a-1750-42e1-aef1-9f3937f9551f"
+      ]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "http://srv1230891.hstgr.cloud:3851/analyze-meeting",
+        "url": "http://srv1230891.hstgr.cloud:3853/analyze-meeting-v2",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($('Merge Form Data').first().json) }}",
+        "jsonBody": "={{ JSON.stringify({ title: $('Merge Overrides').first().json.title, dateStr: $('Merge Overrides').first().json.dateStr, attendees: $('Merge Overrides').first().json.attendees, durationMins: $('Merge Overrides').first().json.durationMins, transcript: $('Merge Overrides').first().json.transcript, workspace: $('Merge Overrides').first().json.finalWorkspace, apps: $('Merge Overrides').first().json.finalApps, mode: $('Merge Overrides').first().json.customContext ? 'custom' : 'standard', customContext: $('Merge Overrides').first().json.customContext }) }}",
         "options": {
-          "timeout": 120000
+          "timeout": 180000
         }
       },
-      "name": "VPS: Analyze",
+      "name": "VPS: AI Analyze v2",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
         1540,
         200
       ],
-      "onError": "continueErrorOutput",
-      "id": "a616140c-4964-42d3-a975-2299d88e4a82"
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
-        "jsCode": "const ai = $input.first().json;\nconst meeting = $('Merge Form Data').first().json;\n\nlet content = ai.content || '';\nif (!content) throw new Error(ai.error || 'AI returned empty response');\n\n// Add frontmatter\nif (!content.startsWith('---')) {\n  const personLink = meeting.safePerson && meeting.safePerson !== 'General' ? '[[' + meeting.safePerson + ']]' : '';\n  content = '---\\nup:\\n  - \"[[Calendar]]\"\\nin:\\n  - \"[[Meetings]]\"\\nrelated:\\n  - \"' + personLink + '\"\\ncreated: ' + meeting.dateStr + '\\ntags:\\n  - meeting\\n  - ' + meeting.workspace + '\\n---\\n\\n' + content;\n}\n\nconst folder = meeting.workspace + '/people/' + meeting.safePerson;\nconst fileName = meeting.dateStr + ' - ' + meeting.safeTitle + '.md';\n\nreturn [{ json: { content, folder, fileName, workspace: meeting.workspace, title: meeting.title, date: meeting.dateStr, personName: meeting.safePerson, model: ai.model || 'claude', hash: meeting.hash, responseUrl: $('Parse Slack Payload').first().json.responseUrl } }];"
+        "jsCode": "const merged = $('Merge Overrides').first().json;\nconst analysis = $input.first().json;\n\nif (analysis.error) {\n  throw new Error('AI analysis failed: ' + analysis.error);\n}\n\nconst content = analysis.content || '';\nconst dateStr = merged.dateStr || new Date().toISOString().split('T')[0];\nconst workspace = merged.finalWorkspace;\n\nconst attendeeList = (merged.attendees || '').split(',').map(a => a.trim()).filter(Boolean);\nconst externalAttendees = attendeeList.filter(a => !a.toLowerCase().includes('hudson') && !a.toLowerCase().includes('chrt.com'));\n\nlet personName = merged.personName || '';\nif (!personName || personName === 'Unknown') {\n  if (externalAttendees.length > 0) {\n    const email = externalAttendees[0];\n    if (email.includes('@')) {\n      personName = email.split('@')[0].split('.').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');\n    } else {\n      personName = email;\n    }\n  } else {\n    personName = 'Team';\n  }\n}\nconst safePerson = personName.replace(/[^a-zA-Z0-9 -]/g, '').trim();\n\n// Build people list for Person note creation\nconst participantNames = [];\nattendeeList.forEach(a => {\n  let name, email = '', company = '';\n  if (a.includes('@')) {\n    email = a;\n    const domain = a.split('@')[1];\n    company = domain ? domain.split('.')[0].charAt(0).toUpperCase() + domain.split('.')[0].slice(1) : '';\n    name = a.split('@')[0].split('.').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');\n  } else {\n    name = a;\n  }\n  const safeName = name.replace(/[^a-zA-Z0-9 -]/g, '').trim();\n  if (safeName && safeName.toLowerCase() !== 'hudson lorfing') {\n    participantNames.push({ name: safeName, email, company });\n  }\n});\n\nconst participants = participantNames.map(p => `\"[[👤${p.name}]]\"`);\n\nconst displayTitle = `${dateStr}꞉ Meeting with ${safePerson}`;\nconst fileName = `${displayTitle}.md`;\nconst filePath = `${workspace}/${fileName}`;\n\nconst apps = merged.finalApps;\nconst appsUsed = apps.map(a => a.id).join(', ');\nconst frontmatter = `---\\nup: \\nin:\\n  - \"[[Meetings]]\"\\nrelated: \\ncreated: ${dateStr}\\ntags:\\n  - meeting\\n  - ${workspace}\\nmeeting_date: ${dateStr}\\nmeeting_with: \"[[👤${safePerson}]]\"\\nparticipants:\\n${participants.map(p => `  - ${p}`).join('\\n')}\\nworkspace: ${workspace}\\nanalysis_apps: [${appsUsed}]\\nmodel: ${analysis.model || 'gemini'}\\nprocessed_by: ${merged.user}\\none-liner: \\n---\\n\\n# ${displayTitle}\\n*Meeting on ${dateStr}*\\n\\n## Participants\\n${participants.map(p => `- ${p}`).join('\\n')}\\n\\n`;\n\nconst fullContent = frontmatter + content;\nconst primaryEmail = externalAttendees.find(a => a.includes('@')) || '';\nconst summary = content.substring(0, 500) + (content.length > 500 ? '...' : '');\nconst useHubSpot = workspace === 'chrt' && merged.isExternal;\n\nreturn [{ json: { filePath, fileName, content: fullContent, title: merged.title, displayTitle, date: dateStr, workspace, primaryEmail, summary, personName: safePerson, useHubSpot, apps, model: analysis.model, responseUrl: merged.responseUrl, participantNames } }];"
       },
-      "name": "Clean Output",
+      "name": "Prepare Content",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
         1760,
         200
-      ],
-      "id": "9ebb94d7-247c-4adb-a236-ac7cebfe1ecb"
+      ]
     },
     {
       "parameters": {
@@ -170,23 +156,22 @@
         "operation": "create",
         "owner": {
           "__rl": true,
-          "value": "hudsonlorfing",
-          "mode": "list",
-          "cachedResultName": "hudsonlorfing"
+          "mode": "name",
+          "value": "hudsonlorfing"
         },
         "repository": {
           "__rl": true,
-          "value": "meeting-notes",
-          "mode": "list",
-          "cachedResultName": "meeting-notes"
+          "mode": "name",
+          "value": "meeting-notes"
         },
-        "filePath": "={{ $json.folder + '/' + $json.fileName }}",
+        "filePath": "={{ $json.filePath }}",
         "fileContent": "={{ $json.content }}",
-        "commitMessage": "={{ 'Add meeting: ' + $json.title + ' (' + $json.date + ')' }}"
+        "commitMessage": "={{ 'Add meeting (' + $json.workspace + '): ' + $json.displayTitle }}",
+        "additionalParameters": {}
       },
-      "name": "GitHub: Commit",
+      "name": "GitHub: Commit Meeting",
       "type": "n8n-nodes-base.github",
-      "typeVersion": 1,
+      "typeVersion": 1.1,
       "position": [
         1980,
         200
@@ -197,41 +182,213 @@
           "name": "GitHub PAT - Workflows"
         }
       },
-      "onError": "continueErrorOutput",
-      "id": "65d1101b-cc99-4542-b198-0452459b2250"
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Create Person notes for each participant\nconst prep = $('Prepare Content').first().json;\nconst workspace = prep.workspace;\nconst dateStr = prep.date;\nconst participants = prep.participantNames || [];\n\n// Generate Person note content for each participant\nconst personNotes = participants.map(p => {\n  const personContent = `---\\nin:\\n  - \"[[People]]\"\\ncreated: ${dateStr}\\ntags:\\n  - person\\n  - ${workspace}\\nname: ${p.name}\\ncompany: ${p.company || ''}\\nrole: \\nemail: ${p.email || ''}\\nsegment: \\npeopleType: \\npeopleDomain: \\n---\\n\\n# ${p.name}\\n\\n| Field | Value |\\n|-------|-------|\\n| **Company** | \\`=this.company\\` |\\n| **Role** | \\`=this.role\\` |\\n| **Email** | \\`=this.email\\` |\\n\\n---\\n\\n## Notes\\n\\n---\\n\\n## Meetings\\n\\n`;\n\n  return {\n    fileName: `👤${p.name}.md`,\n    filePath: `${workspace}/people/👤${p.name}.md`,\n    content: personContent,\n    name: p.name\n  };\n});\n\n// Return meeting data plus person notes to create\nreturn [{ json: { ...prep, personNotes } }];"
+      },
+      "name": "Prepare Person Notes",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Create person notes one at a time via GitHub API\nconst data = $input.first().json;\nconst personNotes = data.personNotes || [];\n\nif (personNotes.length === 0) {\n  return [{ json: { ...data, peopleCreated: 0 } }];\n}\n\n// We'll use the GitHub API directly to create files\n// This node outputs the person notes for the next node to process\nconst outputs = personNotes.map(note => ({\n  json: {\n    ...data,\n    currentPerson: note\n  }\n}));\n\n// If no people to create, just pass through\nif (outputs.length === 0) {\n  return [{ json: { ...data, peopleCreated: 0 } }];\n}\n\nreturn outputs;"
+      },
+      "name": "Split Person Notes",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "operation": "create",
+        "owner": {
+          "__rl": true,
+          "mode": "name",
+          "value": "hudsonlorfing"
+        },
+        "repository": {
+          "__rl": true,
+          "mode": "name",
+          "value": "meeting-notes"
+        },
+        "filePath": "={{ $json.currentPerson?.filePath || 'skip.md' }}",
+        "fileContent": "={{ $json.currentPerson?.content || '' }}",
+        "commitMessage": "={{ 'Add person: ' + ($json.currentPerson?.name || 'unknown') }}",
+        "additionalParameters": {}
+      },
+      "name": "GitHub: Create Person",
+      "type": "n8n-nodes-base.github",
+      "typeVersion": 1.1,
+      "position": [
+        2640,
+        200
+      ],
+      "credentials": {
+        "githubApi": {
+          "id": "yiGNsTvCmOQmaC7f",
+          "name": "GitHub PAT - Workflows"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "use-hubspot",
+              "leftValue": "={{ $('Prepare Content').first().json.useHubSpot }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "Use HubSpot?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2860,
+        200
+      ]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $('Clean Output').first().json.responseUrl }}",
+        "url": "https://api.hubapi.com/crm/v3/objects/contacts/search",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ replace_original: true, text: '✅ *Meeting processed!*\\n\\n📝 *' + $('Clean Output').first().json.title + '*\\n👤 ' + $('Clean Output').first().json.personName + '\\n📁 `' + $('Clean Output').first().json.folder + '/' + $('Clean Output').first().json.fileName + '`\\n🤖 Model: ' + $('Clean Output').first().json.model }) }}",
+        "jsonBody": "={{ JSON.stringify({ filterGroups: [{ filters: [{ propertyName: 'email', operator: 'CONTAINS_TOKEN', value: $('Prepare Content').first().json.primaryEmail || '*' }] }], properties: ['email', 'firstname', 'lastname', 'company'] }) }}",
+        "options": {}
+      },
+      "name": "HubSpot: Search Contact",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3080,
+        100
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "hubspot-api",
+          "name": "HubSpot API"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "has-contact",
+              "leftValue": "={{ $json.results?.length > 0 }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "Has Contact?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3300,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/notes",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ properties: { hs_note_body: '## ' + $('Prepare Content').first().json.title + '\\n\\n**Apps:** ' + $('Prepare Content').first().json.apps.map(a => a.id).join(', ') + '\\n**Date:** ' + $('Prepare Content').first().json.date + '\\n\\n' + $('Prepare Content').first().json.summary + '\\n\\n[View Full Notes](https://github.com/hudsonlorfing/meeting-notes/blob/main/' + $('Prepare Content').first().json.filePath.replace(/ /g, '%20') + ')', hs_timestamp: new Date($('Prepare Content').first().json.date).getTime() }, associations: [{ to: { id: $('HubSpot: Search Contact').first().json.results[0].id }, types: [{ associationCategory: 'HUBSPOT_DEFINED', associationTypeId: 10 }] }] }) }}",
+        "options": {}
+      },
+      "name": "HubSpot: Create Note",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3520,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "hubspot-api",
+          "name": "HubSpot API"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Prepare Content').first().json.responseUrl }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ replace_original: true, text: '✅ *Meeting Analyzed!*\\n\\n📝 ' + $('Prepare Content').first().json.displayTitle + '\\n📂 ' + $('Prepare Content').first().json.workspace + '\\n🤖 Apps: ' + $('Prepare Content').first().json.apps.map(a => a.id).join(', ') + '\\n👥 People: ' + ($('Prepare Content').first().json.participantNames || []).map(p => p.name).join(', ') + '\\n📁 ' + $('Prepare Content').first().json.filePath + ($('Prepare Content').first().json.useHubSpot ? '\\n🔗 HubSpot: ' + ($('HubSpot: Search Contact').first()?.json?.results?.length > 0 ? 'Note added' : 'No contact match') : '') + '\\n\\n<https://github.com/hudsonlorfing/meeting-notes/blob/main/' + encodeURIComponent($('Prepare Content').first().json.filePath) + '|View on GitHub>' }) }}",
         "options": {}
       },
       "name": "Slack: Success",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2200,
-        100
-      ],
-      "id": "a8e05de6-0049-4101-acf5-e6efe1545694"
+        3740,
+        200
+      ]
     },
     {
       "parameters": {
         "method": "DELETE",
-        "url": "=http://srv1230891.hstgr.cloud:3852/delete/{{ $('Clean Output').first().json.hash }}",
+        "url": "=http://srv1230891.hstgr.cloud:3852/delete/{{ $('Parse Slack Payload').first().json.hash }}",
         "options": {}
       },
       "name": "VPS: Cleanup",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2420,
-        100
+        3960,
+        200
       ],
-      "id": "95b84d49-4652-4058-91e3-104b2a3d02df"
+      "continueOnFail": true
     },
     {
       "parameters": {
@@ -239,17 +396,16 @@
         "url": "={{ $('Parse Slack Payload').first().json.responseUrl }}",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ replace_original: true, text: '❌ *Error processing meeting*\\n\\n' + ($json.error || $json.message || 'Check n8n logs') }) }}",
+        "jsonBody": "={{ JSON.stringify({ replace_original: true, text: '❌ *Analysis Error*\\n\\n' + ($json.error || $json.message || 'Unknown error. Check n8n logs.') }) }}",
         "options": {}
       },
       "name": "Slack: Error",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2200,
+        1760,
         400
-      ],
-      "id": "95c0a66f-65ce-4847-bbba-1114655fa1c5"
+      ]
     },
     {
       "parameters": {},
@@ -259,8 +415,27 @@
       "position": [
         880,
         400
-      ],
-      "id": "e75536a5-42c5-4d24-a560-0a556a8fa9b1"
+      ]
+    },
+    {
+      "parameters": {},
+      "name": "Skip HubSpot",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        3080,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "name": "No Contact",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        3520,
+        200
+      ]
     }
   ],
   "connections": {
@@ -290,14 +465,14 @@
       "main": [
         [
           {
-            "node": "Is Process Action?",
+            "node": "Is Analyze Action?",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Is Process Action?": {
+    "Is Analyze Action?": {
       "main": [
         [
           {
@@ -319,7 +494,7 @@
       "main": [
         [
           {
-            "node": "Merge Form Data",
+            "node": "Merge Overrides",
             "type": "main",
             "index": 0
           }
@@ -333,33 +508,33 @@
         ]
       ]
     },
-    "Merge Form Data": {
+    "Merge Overrides": {
       "main": [
         [
           {
-            "node": "Slack: Update Message",
+            "node": "Slack: Processing",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Slack: Update Message": {
+    "Slack: Processing": {
       "main": [
         [
           {
-            "node": "VPS: Analyze",
+            "node": "VPS: AI Analyze v2",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "VPS: Analyze": {
+    "VPS: AI Analyze v2": {
       "main": [
         [
           {
-            "node": "Clean Output",
+            "node": "Prepare Content",
             "type": "main",
             "index": 0
           }
@@ -373,18 +548,109 @@
         ]
       ]
     },
-    "Clean Output": {
+    "Prepare Content": {
       "main": [
         [
           {
-            "node": "GitHub: Commit",
+            "node": "GitHub: Commit Meeting",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "GitHub: Commit": {
+    "GitHub: Commit Meeting": {
+      "main": [
+        [
+          {
+            "node": "Prepare Person Notes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Person Notes": {
+      "main": [
+        [
+          {
+            "node": "Split Person Notes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Person Notes": {
+      "main": [
+        [
+          {
+            "node": "GitHub: Create Person",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GitHub: Create Person": {
+      "main": [
+        [
+          {
+            "node": "Use HubSpot?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Use HubSpot?": {
+      "main": [
+        [
+          {
+            "node": "HubSpot: Search Contact",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Skip HubSpot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HubSpot: Search Contact": {
+      "main": [
+        [
+          {
+            "node": "Has Contact?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Contact?": {
+      "main": [
+        [
+          {
+            "node": "HubSpot: Create Note",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HubSpot: Create Note": {
       "main": [
         [
           {
@@ -392,10 +658,25 @@
             "type": "main",
             "index": 0
           }
-        ],
+        ]
+      ]
+    },
+    "No Contact": {
+      "main": [
         [
           {
-            "node": "Slack: Error",
+            "node": "Slack: Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip HubSpot": {
+      "main": [
+        [
+          {
+            "node": "Slack: Success",
             "type": "main",
             "index": 0
           }
@@ -417,26 +698,6 @@
   "settings": {
     "executionOrder": "v1",
     "callerPolicy": "workflowsFromSameOwner",
-    "availableInMCP": false,
     "errorWorkflow": "YWP69Qgq0ZlCN7Gj"
-  },
-  "staticData": null,
-  "meta": null,
-  "pinData": null,
-  "versionId": "6b3700d5-9a40-4d3b-a321-31e61ed35dfa",
-  "activeVersionId": null,
-  "triggerCount": 1,
-  "shared": [
-    {
-      "updatedAt": "2026-01-02T17:08:12.560Z",
-      "createdAt": "2026-01-02T17:08:12.560Z",
-      "role": "workflow:owner",
-      "workflowId": "h3NKdjHzulO0Ecn0",
-      "projectId": "O7lTivDfRl72aS23"
-    }
-  ],
-  "activeVersion": null,
-  "tags": [],
-  "_folderPath": "",
-  "_fileName": "7.-slack-interaction-handler.json"
+  }
 }

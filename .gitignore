@@ -29,3 +29,4 @@ execution-*.json
 
 # Debug logs directory
 debug-logs/
+archive/
