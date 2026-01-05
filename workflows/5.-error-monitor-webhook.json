@@ -1,1 +1,253 @@
-{"updatedAt":"2026-01-02T07:49:31.407Z","createdAt":"2025-12-27T02:10:18.332Z","id":"YWP69Qgq0ZlCN7Gj","name":"5. Error Monitor Webhook","description":null,"active":false,"isArchived":false,"nodes":[{"parameters":{},"id":"error-trigger","name":"Error Trigger","type":"n8n-nodes-base.errorTrigger","typeVersion":1,"position":[0,0]},{"parameters":{"jsCode":"// Parse error data from Error Trigger node\nconst data = $input.first().json;\n\n// Error Trigger provides data directly (not nested like webhooks)\nconst execution = data.execution || {};\nconst workflow = data.workflow || {};\n\n// Check if this was a manual trigger - skip those\nconst mode = execution.mode || '';\nif (mode === 'manual') {\n  return [{ json: { skip: true, reason: 'Manual trigger - not monitoring' } }];\n}\n\n// Extract error details from Error Trigger format\nconst workflowId = workflow.id || 'unknown';\nconst workflowName = workflow.name || 'Unknown Workflow';\nconst executionId = execution.id || 'unknown';\nconst errorMessage = execution.error?.message || 'Unknown error';\nconst errorNode = execution.error?.node?.name || execution.lastNodeExecuted || 'Unknown node';\nconst errorStack = execution.error?.stack || '';\nconst startedAt = execution.startedAt || new Date().toISOString();\n\nreturn [{\n  json: {\n    skip: false,\n    workflowId,\n    workflowName,\n    executionId,\n    errorMessage,\n    errorNode,\n    errorStack,\n    startedAt,\n    mode,\n    timestamp: new Date().toISOString()\n  }\n}];"},"id":"parse-error","name":"Parse Error Data","type":"n8n-nodes-base.code","typeVersion":2,"position":[220,0]},{"parameters":{"conditions":{"options":{"caseSensitive":true,"leftValue":"","typeValidation":"strict","version":2},"conditions":[{"id":"not-skip","leftValue":"={{ $json.skip }}","rightValue":false,"operator":{"type":"boolean","operation":"equals"}}],"combinator":"and"},"options":{}},"id":"check-should-process","name":"Should Process?","type":"n8n-nodes-base.if","typeVersion":2.2,"position":[440,0]},{"parameters":{"jsCode":"// Format error for logging and notification\nconst error = $input.first().json;\n\nconst formattedError = {\n  summary: `Error in ${error.workflowName} at node '${error.errorNode}'`,\n  details: {\n    workflow: {\n      id: error.workflowId,\n      name: error.workflowName\n    },\n    execution: {\n      id: error.executionId,\n      startedAt: error.startedAt,\n      mode: error.mode\n    },\n    error: {\n      node: error.errorNode,\n      message: error.errorMessage,\n      stack: (error.errorStack || '').substring(0, 500)\n    }\n  },\n  debugContext: {\n    workflowId: error.workflowId,\n    executionId: error.executionId,\n    errorNode: error.errorNode,\n    errorMessage: error.errorMessage\n  },\n  debugCommand: `cd /Users/hudsonlorfing/Documents/Business/Chrt/workflows/chrt-n8n-workflows && ./scripts/auto-debug.sh analyze ${error.executionId}`,\n  timestamp: error.timestamp\n};\n\nreturn [{ json: formattedError }];"},"id":"format-error","name":"Format Error","type":"n8n-nodes-base.code","typeVersion":2,"position":[660,-100]},{"parameters":{"method":"POST","url":"http://srv1230891.hstgr.cloud:3848/auto-fix","sendBody":true,"specifyBody":"json","jsonBody":"={{ JSON.stringify({ workflowId: $json.details.workflow.id, workflowName: $json.details.workflow.name, executionId: $json.details.execution.id, errorNode: $json.details.error.node, errorMessage: $json.details.error.message, errorStack: $json.details.error.stack }) }}","options":{"timeout":10000}},"id":"notify-vps-autofix","name":"Call VPS Auto-Fix","type":"n8n-nodes-base.httpRequest","typeVersion":4.2,"position":[880,-100],"onError":"continueErrorOutput"},{"parameters":{"jsCode":"// Log that local debugger wasn't available\nconst error = $('Format Error').first().json;\n\nconst logEntry = {\n  status: 'logged_locally',\n  message: 'Local debugger not available. Error logged in n8n execution history.',\n  summary: error.summary,\n  debugCommand: error.debugCommand,\n  n8nUrl: `https://chrt.app.n8n.cloud/workflow/${error.details.workflow.id}/executions/${error.details.execution.id}`,\n  timestamp: new Date().toISOString()\n};\n\nreturn [{ json: logEntry }];"},"id":"log-error","name":"Log Error","type":"n8n-nodes-base.code","typeVersion":2,"position":[1100,0]},{"parameters":{},"id":"done-success","name":"Done (Auto-Fix Started)","type":"n8n-nodes-base.noOp","typeVersion":1,"position":[1100,-200]},{"parameters":{},"id":"done-skipped","name":"Done (Skipped)","type":"n8n-nodes-base.noOp","typeVersion":1,"position":[660,100]},{"parameters":{},"id":"done-logged","name":"Done (Logged)","type":"n8n-nodes-base.noOp","typeVersion":1,"position":[1320,0]}],"connections":{"Error Trigger":{"main":[[{"node":"Parse Error Data","type":"main","index":0}]]},"Parse Error Data":{"main":[[{"node":"Should Process?","type":"main","index":0}]]},"Should Process?":{"main":[[{"node":"Format Error","type":"main","index":0}],[{"node":"Done (Skipped)","type":"main","index":0}]]},"Format Error":{"main":[[{"node":"Call VPS Auto-Fix","type":"main","index":0}]]},"Call VPS Auto-Fix":{"main":[[{"node":"Done (Auto-Fix Started)","type":"main","index":0}],[{"node":"Log Error","type":"main","index":0}]]},"Log Error":{"main":[[{"node":"Done (Logged)","type":"main","index":0}]]}},"settings":{"executionOrder":"v1","callerPolicy":"workflowsFromSameOwner","availableInMCP":false},"staticData":null,"meta":null,"pinData":null,"versionId":"63f76b41-8d21-470d-8072-f97de6008392","activeVersionId":null,"versionCounter":29,"triggerCount":0,"shared":[{"updatedAt":"2026-01-01T08:23:49.208Z","createdAt":"2026-01-01T08:23:49.208Z","role":"workflow:owner","workflowId":"YWP69Qgq0ZlCN7Gj","projectId":"O7lTivDfRl72aS23","project":{"updatedAt":"2025-12-24T03:17:11.000Z","createdAt":"2025-12-23T21:24:31.508Z","id":"O7lTivDfRl72aS23","name":"ChrtWorkflows","type":"team","icon":{"type":"icon","value":"layers"},"description":"","projectRelations":[{"updatedAt":"2025-12-23T21:24:31.510Z","createdAt":"2025-12-23T21:24:31.510Z","userId":"3f98abd2-ede1-4e1f-985d-ae50bbfbeda4","projectId":"O7lTivDfRl72aS23","user":{"updatedAt":"2026-01-02T10:08:33.703Z","createdAt":"2025-12-17T12:51:53.118Z","id":"3f98abd2-ede1-4e1f-985d-ae50bbfbeda4","email":"hudson@chrt.com","firstName":"Hudson","lastName":"Lorfing","personalizationAnswers":null,"settings":{"userActivated":true,"userClaimedAiCredits":true,"easyAIWorkflowOnboarded":true,"firstSuccessfulWorkflowId":"kjjYKQEXv67Vl5MS","userActivatedAt":1766099344758,"npsSurvey":{"waitingForResponse":true,"ignoredCount":2,"lastShownAt":1767348510879}},"disabled":false,"mfaEnabled":false,"lastActiveAt":"2026-01-02","isPending":false}}]}}],"tags":[],"activeVersion":null}
+{
+  "updatedAt": "2026-01-02T07:49:31.407Z",
+  "createdAt": "2025-12-27T02:10:18.332Z",
+  "id": "YWP69Qgq0ZlCN7Gj",
+  "name": "5. Error Monitor Webhook",
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "error-trigger",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse error data from Error Trigger node\nconst data = $input.first().json;\n\n// Error Trigger provides data directly (not nested like webhooks)\nconst execution = data.execution || {};\nconst workflow = data.workflow || {};\n\n// Check if this was a manual trigger - skip those\nconst mode = execution.mode || '';\nif (mode === 'manual') {\n  return [{ json: { skip: true, reason: 'Manual trigger - not monitoring' } }];\n}\n\n// Extract error details from Error Trigger format\nconst workflowId = workflow.id || 'unknown';\nconst workflowName = workflow.name || 'Unknown Workflow';\nconst executionId = execution.id || 'unknown';\nconst errorMessage = execution.error?.message || 'Unknown error';\nconst errorNode = execution.error?.node?.name || execution.lastNodeExecuted || 'Unknown node';\nconst errorStack = execution.error?.stack || '';\nconst startedAt = execution.startedAt || new Date().toISOString();\n\nreturn [{\n  json: {\n    skip: false,\n    workflowId,\n    workflowName,\n    executionId,\n    errorMessage,\n    errorNode,\n    errorStack,\n    startedAt,\n    mode,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "parse-error",
+      "name": "Parse Error Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "not-skip",
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-should-process",
+      "name": "Should Process?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format error for logging and notification\nconst error = $input.first().json;\n\nconst formattedError = {\n  summary: `Error in ${error.workflowName} at node '${error.errorNode}'`,\n  details: {\n    workflow: {\n      id: error.workflowId,\n      name: error.workflowName\n    },\n    execution: {\n      id: error.executionId,\n      startedAt: error.startedAt,\n      mode: error.mode\n    },\n    error: {\n      node: error.errorNode,\n      message: error.errorMessage,\n      stack: (error.errorStack || '').substring(0, 500)\n    }\n  },\n  debugContext: {\n    workflowId: error.workflowId,\n    executionId: error.executionId,\n    errorNode: error.errorNode,\n    errorMessage: error.errorMessage\n  },\n  debugCommand: `cd /Users/hudsonlorfing/Documents/Business/Chrt/workflows/chrt-n8n-workflows && ./scripts/auto-debug.sh analyze ${error.executionId}`,\n  timestamp: error.timestamp\n};\n\nreturn [{ json: formattedError }];"
+      },
+      "id": "format-error",
+      "name": "Format Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://srv1230891.hstgr.cloud:3848/auto-fix",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ workflowId: $json.details.workflow.id, workflowName: $json.details.workflow.name, executionId: $json.details.execution.id, errorNode: $json.details.error.node, errorMessage: $json.details.error.message, errorStack: $json.details.error.stack }) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "notify-vps-autofix",
+      "name": "Call VPS Auto-Fix",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        -100
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Log that local debugger wasn't available\nconst error = $('Format Error').first().json;\n\nconst logEntry = {\n  status: 'logged_locally',\n  message: 'Local debugger not available. Error logged in n8n execution history.',\n  summary: error.summary,\n  debugCommand: error.debugCommand,\n  n8nUrl: `https://chrt.app.n8n.cloud/workflow/${error.details.workflow.id}/executions/${error.details.execution.id}`,\n  timestamp: new Date().toISOString()\n};\n\nreturn [{ json: logEntry }];"
+      },
+      "id": "log-error",
+      "name": "Log Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        0
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "done-success",
+      "name": "Done (Auto-Fix Started)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        -200
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "done-skipped",
+      "name": "Done (Skipped)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        660,
+        100
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "done-logged",
+      "name": "Done (Logged)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1320,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Parse Error Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Error Data": {
+      "main": [
+        [
+          {
+            "node": "Should Process?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Should Process?": {
+      "main": [
+        [
+          {
+            "node": "Format Error",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Done (Skipped)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Error": {
+      "main": [
+        [
+          {
+            "node": "Call VPS Auto-Fix",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call VPS Auto-Fix": {
+      "main": [
+        [
+          {
+            "node": "Done (Auto-Fix Started)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Error": {
+      "main": [
+        [
+          {
+            "node": "Done (Logged)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": null,
+  "versionId": "63f76b41-8d21-470d-8072-f97de6008392",
+  "activeVersionId": null,
+  "triggerCount": 0,
+  "shared": [
+    {
+      "updatedAt": "2026-01-01T08:23:49.208Z",
+      "createdAt": "2026-01-01T08:23:49.208Z",
+      "role": "workflow:owner",
+      "workflowId": "YWP69Qgq0ZlCN7Gj",
+      "projectId": "O7lTivDfRl72aS23"
+    }
+  ],
+  "activeVersion": null,
+  "tags": [],
+  "_folderPath": "",
+  "_fileName": "5.-error-monitor-webhook.json"
+}
