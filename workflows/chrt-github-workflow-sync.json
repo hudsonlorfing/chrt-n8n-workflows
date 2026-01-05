@@ -9,6 +9,19 @@
   "nodes": [
     {
       "parameters": {
+        "jsCode": "// Replace placeholders with secrets from static data (for new workflows)\nconst staticData = $getWorkflowStaticData('global');\nconst workflow = $input.first().json;\n\n// Secret mappings from n8n static data\nconst secrets = {\n  '{{ SLACK_WEBHOOK_URL }}': staticData.SLACK_WEBHOOK_URL || '',\n  '{{ FIREFLIES_API_KEY }}': staticData.FIREFLIES_API_KEY || '',\n  '{{ GEMINI_API_KEY }}': staticData.GEMINI_API_KEY || ''\n};\n\n// Convert to string to do replacements\nlet workflowStr = JSON.stringify(workflow);\nlet replacementsMade = [];\n\n// Replace all placeholders\nfor (const [placeholder, value] of Object.entries(secrets)) {\n  if (value && workflowStr.includes(placeholder)) {\n    workflowStr = workflowStr.split(placeholder).join(value);\n    replacementsMade.push(placeholder.replace(/[{}\\s]/g, ''));\n  }\n}\n\n// Log what was replaced (for debugging)\nif (replacementsMade.length > 0) {\n  console.log(`Replaced placeholders for new workflow: ${replacementsMade.join(', ')}`);\n}\n\n// Parse back and return\nreturn [{ json: JSON.parse(workflowStr) }];"
+      },
+      "id": "replace-placeholders-create",
+      "name": "Replace Placeholders Create",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1192,
+        10288
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
         "operation": "create",
         "workflowObject": "={{ $json.toJsonString()  }}",
         "requestOptions": {}
@@ -59,6 +72,36 @@
         9984
       ],
       "webhookId": "sync-debug-webhook",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "sync-set-secrets",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "set-secrets-webhook",
+      "name": "Set Secrets Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        -624,
+        10192
+      ],
+      "webhookId": "sync-set-secrets",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "// Set secrets in the sync workflow's static data\nconst staticData = $getWorkflowStaticData('global');\n\n// Get secrets from query params or body\nconst input = $input.first().json;\nconst slackUrl = input.query?.slack_url || input.body?.slack_url;\nconst firefliesKey = input.query?.fireflies_key || input.body?.fireflies_key;\nconst geminiKey = input.query?.gemini_key || input.body?.gemini_key;\n\nlet updated = [];\n\nif (slackUrl) {\n  staticData.SLACK_WEBHOOK_URL = slackUrl;\n  updated.push('SLACK_WEBHOOK_URL');\n}\n\nif (firefliesKey) {\n  staticData.FIREFLIES_API_KEY = firefliesKey;\n  updated.push('FIREFLIES_API_KEY');\n}\n\nif (geminiKey) {\n  staticData.GEMINI_API_KEY = geminiKey;\n  updated.push('GEMINI_API_KEY');\n}\n\n// Also display current state (masked)\nconst current = {\n  SLACK_WEBHOOK_URL: staticData.SLACK_WEBHOOK_URL ? '****' + staticData.SLACK_WEBHOOK_URL.slice(-10) : 'NOT SET',\n  FIREFLIES_API_KEY: staticData.FIREFLIES_API_KEY ? '****' + staticData.FIREFLIES_API_KEY.slice(-6) : 'NOT SET',\n  GEMINI_API_KEY: staticData.GEMINI_API_KEY ? '****' + staticData.GEMINI_API_KEY.slice(-6) : 'NOT SET'\n};\n\nreturn [{\n  json: {\n    success: true,\n    updated: updated,\n    message: updated.length > 0 ? `Updated: ${updated.join(', ')}` : 'No updates (provide slack_url, fireflies_key, or gemini_key in body)',\n    current: current\n  }\n}];"
+      },
+      "id": "set-secrets-code",
+      "name": "Set Secrets Code",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -400,
+        10192
+      ],
       "typeVersion": 2
     },
     {
@@ -358,6 +401,19 @@
     },
     {
       "parameters": {
+        "jsCode": "// Replace placeholders with secrets from static data\nconst staticData = $getWorkflowStaticData('global');\nconst workflow = $input.first().json.dataset || $input.first().json;\n\n// Secret mappings from n8n static data\nconst secrets = {\n  '{{ SLACK_WEBHOOK_URL }}': staticData.SLACK_WEBHOOK_URL || '',\n  '{{ FIREFLIES_API_KEY }}': staticData.FIREFLIES_API_KEY || '',\n  '{{ GEMINI_API_KEY }}': staticData.GEMINI_API_KEY || ''\n};\n\n// Convert to string to do replacements\nlet workflowStr = JSON.stringify(workflow);\nlet replacementsMade = [];\n\n// Replace all placeholders\nfor (const [placeholder, value] of Object.entries(secrets)) {\n  if (value && workflowStr.includes(placeholder)) {\n    workflowStr = workflowStr.split(placeholder).join(value);\n    replacementsMade.push(placeholder.replace(/[{}\\s]/g, ''));\n  }\n}\n\n// Log what was replaced (for debugging)\nif (replacementsMade.length > 0) {\n  console.log(`Replaced placeholders: ${replacementsMade.join(', ')}`);\n}\n\n// Parse back and return\nreturn [{ json: { dataset: JSON.parse(workflowStr), _replacedSecrets: replacementsMade } }];"
+      },
+      "id": "replace-placeholders-update",
+      "name": "Replace Placeholders",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1880,
+        9808
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
         "operation": "update",
         "workflowId": {
           "__rl": true,
@@ -371,7 +427,7 @@
       "name": "Update workflow in n8n",
       "type": "n8n-nodes-base.n8n",
       "position": [
-        1984,
+        2088,
         9808
       ],
       "typeVersion": 1,
@@ -978,6 +1034,17 @@
       "main": [
         [
           {
+            "node": "Replace Placeholders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Replace Placeholders": {
+      "main": [
+        [
+          {
             "node": "Update workflow in n8n",
             "type": "main",
             "index": 0
@@ -1002,6 +1069,17 @@
             "index": 0
           }
         ],
+        [
+          {
+            "node": "Replace Placeholders Create",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Replace Placeholders Create": {
+      "main": [
         [
           {
             "node": "Create new workflow in n8n",
@@ -1082,6 +1160,17 @@
         [
           {
             "node": "Set GitHub Details",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Secrets Webhook": {
+      "main": [
+        [
+          {
+            "node": "Set Secrets Code",
             "type": "main",
             "index": 0
           }
@@ -1245,6 +1334,19 @@
     "nodes": [
       {
         "parameters": {
+          "jsCode": "// Replace placeholders with secrets from static data (for new workflows)\nconst staticData = $getWorkflowStaticData('global');\nconst workflow = $input.first().json;\n\n// Secret mappings from n8n static data\nconst secrets = {\n  '{{ SLACK_WEBHOOK_URL }}': staticData.SLACK_WEBHOOK_URL || '',\n  '{{ FIREFLIES_API_KEY }}': staticData.FIREFLIES_API_KEY || '',\n  '{{ GEMINI_API_KEY }}': staticData.GEMINI_API_KEY || ''\n};\n\n// Convert to string to do replacements\nlet workflowStr = JSON.stringify(workflow);\nlet replacementsMade = [];\n\n// Replace all placeholders\nfor (const [placeholder, value] of Object.entries(secrets)) {\n  if (value && workflowStr.includes(placeholder)) {\n    workflowStr = workflowStr.split(placeholder).join(value);\n    replacementsMade.push(placeholder.replace(/[{}\\s]/g, ''));\n  }\n}\n\n// Log what was replaced (for debugging)\nif (replacementsMade.length > 0) {\n  console.log(`Replaced placeholders for new workflow: ${replacementsMade.join(', ')}`);\n}\n\n// Parse back and return\nreturn [{ json: JSON.parse(workflowStr) }];"
+        },
+        "id": "replace-placeholders-create",
+        "name": "Replace Placeholders Create",
+        "type": "n8n-nodes-base.code",
+        "position": [
+          1192,
+          10288
+        ],
+        "typeVersion": 2
+      },
+      {
+        "parameters": {
           "operation": "create",
           "workflowObject": "={{ $json.toJsonString()  }}",
           "requestOptions": {}
@@ -1295,6 +1397,36 @@
           9984
         ],
         "webhookId": "sync-debug-webhook",
+        "typeVersion": 2
+      },
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "sync-set-secrets",
+          "responseMode": "lastNode",
+          "options": {}
+        },
+        "id": "set-secrets-webhook",
+        "name": "Set Secrets Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "position": [
+          -624,
+          10192
+        ],
+        "webhookId": "sync-set-secrets",
+        "typeVersion": 2
+      },
+      {
+        "parameters": {
+          "jsCode": "// Set secrets in the sync workflow's static data\nconst staticData = $getWorkflowStaticData('global');\n\n// Get secrets from query params or body\nconst input = $input.first().json;\nconst slackUrl = input.query?.slack_url || input.body?.slack_url;\nconst firefliesKey = input.query?.fireflies_key || input.body?.fireflies_key;\nconst geminiKey = input.query?.gemini_key || input.body?.gemini_key;\n\nlet updated = [];\n\nif (slackUrl) {\n  staticData.SLACK_WEBHOOK_URL = slackUrl;\n  updated.push('SLACK_WEBHOOK_URL');\n}\n\nif (firefliesKey) {\n  staticData.FIREFLIES_API_KEY = firefliesKey;\n  updated.push('FIREFLIES_API_KEY');\n}\n\nif (geminiKey) {\n  staticData.GEMINI_API_KEY = geminiKey;\n  updated.push('GEMINI_API_KEY');\n}\n\n// Also display current state (masked)\nconst current = {\n  SLACK_WEBHOOK_URL: staticData.SLACK_WEBHOOK_URL ? '****' + staticData.SLACK_WEBHOOK_URL.slice(-10) : 'NOT SET',\n  FIREFLIES_API_KEY: staticData.FIREFLIES_API_KEY ? '****' + staticData.FIREFLIES_API_KEY.slice(-6) : 'NOT SET',\n  GEMINI_API_KEY: staticData.GEMINI_API_KEY ? '****' + staticData.GEMINI_API_KEY.slice(-6) : 'NOT SET'\n};\n\nreturn [{\n  json: {\n    success: true,\n    updated: updated,\n    message: updated.length > 0 ? `Updated: ${updated.join(', ')}` : 'No updates (provide slack_url, fireflies_key, or gemini_key in body)',\n    current: current\n  }\n}];"
+        },
+        "id": "set-secrets-code",
+        "name": "Set Secrets Code",
+        "type": "n8n-nodes-base.code",
+        "position": [
+          -400,
+          10192
+        ],
         "typeVersion": 2
       },
       {
@@ -1594,6 +1726,19 @@
       },
       {
         "parameters": {
+          "jsCode": "// Replace placeholders with secrets from static data\nconst staticData = $getWorkflowStaticData('global');\nconst workflow = $input.first().json.dataset || $input.first().json;\n\n// Secret mappings from n8n static data\nconst secrets = {\n  '{{ SLACK_WEBHOOK_URL }}': staticData.SLACK_WEBHOOK_URL || '',\n  '{{ FIREFLIES_API_KEY }}': staticData.FIREFLIES_API_KEY || '',\n  '{{ GEMINI_API_KEY }}': staticData.GEMINI_API_KEY || ''\n};\n\n// Convert to string to do replacements\nlet workflowStr = JSON.stringify(workflow);\nlet replacementsMade = [];\n\n// Replace all placeholders\nfor (const [placeholder, value] of Object.entries(secrets)) {\n  if (value && workflowStr.includes(placeholder)) {\n    workflowStr = workflowStr.split(placeholder).join(value);\n    replacementsMade.push(placeholder.replace(/[{}\\s]/g, ''));\n  }\n}\n\n// Log what was replaced (for debugging)\nif (replacementsMade.length > 0) {\n  console.log(`Replaced placeholders: ${replacementsMade.join(', ')}`);\n}\n\n// Parse back and return\nreturn [{ json: { dataset: JSON.parse(workflowStr), _replacedSecrets: replacementsMade } }];"
+        },
+        "id": "replace-placeholders-update",
+        "name": "Replace Placeholders",
+        "type": "n8n-nodes-base.code",
+        "position": [
+          1880,
+          9808
+        ],
+        "typeVersion": 2
+      },
+      {
+        "parameters": {
           "operation": "update",
           "workflowId": {
             "__rl": true,
@@ -1607,7 +1752,7 @@
         "name": "Update workflow in n8n",
         "type": "n8n-nodes-base.n8n",
         "position": [
-          1984,
+          2088,
           9808
         ],
         "typeVersion": 1,
@@ -2214,6 +2359,17 @@
         "main": [
           [
             {
+              "node": "Replace Placeholders",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Replace Placeholders": {
+        "main": [
+          [
+            {
               "node": "Update workflow in n8n",
               "type": "main",
               "index": 0
@@ -2238,6 +2394,17 @@
               "index": 0
             }
           ],
+          [
+            {
+              "node": "Replace Placeholders Create",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Replace Placeholders Create": {
+        "main": [
           [
             {
               "node": "Create new workflow in n8n",
@@ -2318,6 +2485,17 @@
           [
             {
               "node": "Set GitHub Details",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Set Secrets Webhook": {
+        "main": [
+          [
+            {
+              "node": "Set Secrets Code",
               "type": "main",
               "index": 0
             }

@@ -1,5 +1,10 @@
 {
+  "updatedAt": "2026-01-05T10:10:07.647Z",
+  "createdAt": "2026-01-05T08:02:32.274Z",
+  "id": "D8nDH8ECyadToNHp",
   "name": "6. Fireflies Meeting Processor",
+  "description": null,
+  "active": true,
   "nodes": [
     {
       "parameters": {
@@ -15,7 +20,8 @@
         0,
         300
       ],
-      "webhookId": "meeting-intel"
+      "webhookId": "meeting-intel",
+      "id": "4b3d66fb-7345-4a91-bbda-9582887fe2f3"
     },
     {
       "parameters": {
@@ -28,7 +34,8 @@
       "position": [
         220,
         300
-      ]
+      ],
+      "id": "8cdc14c9-588c-4a24-800d-0560c6a6deb0"
     },
     {
       "parameters": {
@@ -40,7 +47,8 @@
       "position": [
         440,
         300
-      ]
+      ],
+      "id": "3ab5003b-f0fd-4847-a86f-88e0f4312d5d"
     },
     {
       "parameters": {
@@ -66,7 +74,8 @@
           "name": "Fireflies API"
         }
       },
-      "onError": "continueErrorOutput"
+      "onError": "continueErrorOutput",
+      "id": "fbc729ff-e7a0-4d53-8f38-29602655580d"
     },
     {
       "parameters": {
@@ -78,7 +87,8 @@
       "position": [
         880,
         200
-      ]
+      ],
+      "id": "37b5849c-d20a-4d97-b5bd-4b5fa094d115"
     },
     {
       "parameters": {
@@ -110,7 +120,8 @@
       "position": [
         1100,
         200
-      ]
+      ],
+      "id": "dcb68a11-9050-4886-a05d-3b741d8845ff"
     },
     {
       "parameters": {
@@ -129,7 +140,8 @@
       "position": [
         1320,
         100
-      ]
+      ],
+      "id": "3c9f7f87-60cc-4ef2-99f3-05dec98ad5cb"
     },
     {
       "parameters": {
@@ -141,7 +153,8 @@
       "position": [
         1540,
         100
-      ]
+      ],
+      "id": "bfe90c61-c321-4d09-b651-5d76889ac6af"
     },
     {
       "parameters": {
@@ -158,7 +171,8 @@
       "position": [
         1760,
         100
-      ]
+      ],
+      "id": "3c7c5cb1-7223-4ce3-81a7-d332c16845a6"
     },
     {
       "parameters": {
@@ -175,7 +189,8 @@
       "position": [
         1980,
         100
-      ]
+      ],
+      "id": "aaee7e6c-553c-4dc2-8fbd-d6d97dba2d4b"
     },
     {
       "parameters": {},
@@ -185,7 +200,8 @@
       "position": [
         1320,
         300
-      ]
+      ],
+      "id": "ea802433-ef50-4b3c-9280-4eea935dc3a9"
     },
     {
       "parameters": {
@@ -202,7 +218,8 @@
       "position": [
         880,
         400
-      ]
+      ],
+      "id": "7b68c755-369e-4974-a3bb-0c645fcee945"
     }
   ],
   "connections": {
@@ -323,6 +340,9 @@
   "settings": {
     "executionOrder": "v1",
     "callerPolicy": "workflowsFromSameOwner",
-    "errorWorkflow": "YWP69Qgq0ZlCN7Gj"
-  }
+    "errorWorkflow": "YWP69Qgq0ZlCN7Gj",
+    "availableInMCP": false
+  },
+  "meta": null,
+  "versionId": "8e8d0796-c521-47f0-ba63-376085a04945"
 }
