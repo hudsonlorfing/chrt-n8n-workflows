@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-01-05T06:53:50.641Z",
+  "updatedAt": "2026-01-19T20:53:02.043Z",
   "createdAt": "2025-12-17T17:34:32.062Z",
   "id": "kjjYKQEXv67Vl5MS",
   "name": "2. LinkedIn Outreach (PhantomBuster)",
@@ -82,7 +82,7 @@
     },
     {
       "parameters": {
-        "maxItems": "={{ Math.floor(Math.random()*2)+6 }}"
+        "maxItems": "={{ Math.floor(Math.random()*2)+8 }}"
       },
       "id": "f25d40b4-754d-42da-b306-ede874c46532",
       "name": "Limit to 10/run (20/day)",
@@ -893,8 +893,8 @@
     "templateCredsSetupCompleted": true
   },
   "pinData": {},
-  "versionId": "b8d6ab6a-dcc8-4d8e-8f90-c21c071b893b",
-  "activeVersionId": "b8d6ab6a-dcc8-4d8e-8f90-c21c071b893b",
+  "versionId": "781b50a1-885a-4aba-b998-10370f431f47",
+  "activeVersionId": "781b50a1-885a-4aba-b998-10370f431f47",
   "triggerCount": 1,
   "shared": [
     {
@@ -906,9 +906,9 @@
     }
   ],
   "activeVersion": {
-    "updatedAt": "2026-01-05T06:54:17.000Z",
-    "createdAt": "2026-01-05T06:53:50.643Z",
-    "versionId": "b8d6ab6a-dcc8-4d8e-8f90-c21c071b893b",
+    "updatedAt": "2026-01-19T20:53:14.000Z",
+    "createdAt": "2026-01-19T20:53:02.045Z",
+    "versionId": "781b50a1-885a-4aba-b998-10370f431f47",
     "workflowId": "kjjYKQEXv67Vl5MS",
     "nodes": [
       {
@@ -987,7 +987,7 @@
       },
       {
         "parameters": {
-          "maxItems": "={{ Math.floor(Math.random()*2)+6 }}"
+          "maxItems": "={{ Math.floor(Math.random()*2)+8 }}"
         },
         "id": "f25d40b4-754d-42da-b306-ede874c46532",
         "name": "Limit to 10/run (20/day)",
@@ -1780,8 +1780,8 @@
       }
     },
     "authors": "Hudson Lorfing",
-    "name": "Version b8d6ab6a",
-    "description": "Increased the limit on daily connections to min of 6 max of 8 per run (2x per day)"
+    "name": "Version 781b50a1",
+    "description": "updated to max of 20, min of 16"
   },
   "tags": [
     {
