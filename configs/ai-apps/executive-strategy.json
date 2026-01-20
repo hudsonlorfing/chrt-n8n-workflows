@@ -1,0 +1,66 @@
+{
+  "id": "executive-strategy",
+  "name": "Executive Strategy Session",
+  "category": "strategy",
+  "icon": "🎯",
+  "description": "Analysis for CEO/executive-level strategy discussions covering pricing, organizational structure, business strategy, and leadership decisions",
+  
+  "auto_detect": {
+    "title_keywords": ["strategy", "pricing", "organizational", "leadership", "executive", "board", "ceo", "cfo", "coo", "founder"],
+    "external_required": false,
+    "content_signals": [
+      "pricing", "revenue", "profitability", "margins", "MRR", "ARR",
+      "organizational", "team structure", "headcount", "hiring",
+      "strategy", "roadmap", "vision", "mission", "core values",
+      "leadership", "culture", "incentives", "compensation",
+      "clients", "customers", "churn", "retention", "growth",
+      "onboarding", "setup fee", "maintenance", "custom work",
+      "budget", "forecast", "runway", "burn rate"
+    ],
+    "duration_min": 60,
+    "fallback": false
+  },
+  
+  "extraction_targets": [
+    {"field": "strategic_decisions", "prompt": "What strategic decisions were made or discussed? Include rationale and expected impact."},
+    {"field": "pricing_strategy", "prompt": "What pricing discussions occurred? Include current pricing, proposed changes, and impact analysis."},
+    {"field": "organizational_changes", "prompt": "What organizational structure or team changes were discussed? Include roles, responsibilities, and reporting changes."},
+    {"field": "financial_metrics", "prompt": "What financial metrics, KPIs, or performance data was discussed? Include specific numbers."},
+    {"field": "customer_insights", "prompt": "What customer-related insights were shared? Include retention, churn, satisfaction, and segment analysis."},
+    {"field": "action_items", "prompt": "What action items were agreed upon? Include owner, deadline, and priority."},
+    {"field": "key_quotes", "prompt": "What notable quotes or statements capture important strategic thinking?"},
+    {"field": "risks_concerns", "prompt": "What risks, concerns, or challenges were raised?"},
+    {"field": "next_steps", "prompt": "What follow-up meetings, analyses, or decisions are planned?"}
+  ],
+  
+  "output_schema": {
+    "format": "markdown",
+    "sections": [
+      "## Executive Summary",
+      "{{executive_summary}}",
+      "## Strategic Decisions",
+      "{{strategic_decisions}}",
+      "## Pricing Strategy",
+      "{{pricing_strategy}}",
+      "## Organizational Discussions",
+      "{{organizational_changes}}",
+      "## Financial Metrics & KPIs",
+      "{{financial_metrics}}",
+      "## Customer Insights",
+      "{{customer_insights}}",
+      "## Risks & Concerns",
+      "{{risks_concerns}}",
+      "## Action Items",
+      "| Action | Owner | Priority | Deadline |",
+      "|--------|-------|----------|----------|",
+      "{{action_items_table}}",
+      "## Key Quotes",
+      "{{key_quotes}}",
+      "## Next Steps",
+      "{{next_steps}}"
+    ]
+  },
+  
+  "system_prompt": "You are a strategic advisor analyzing an executive-level meeting. This meeting involves leadership discussing critical business decisions. Focus on:\n\n1. **Strategic Clarity**: Extract clear decisions and their rationale\n2. **Financial Impact**: Capture all numbers, metrics, and financial implications\n3. **Organizational Impact**: Note any changes to team structure, roles, or culture\n4. **Actionable Insights**: Ensure every action item has an owner and timeline\n5. **Institutional Knowledge**: Preserve wisdom and context that informs strategy\n\nBe thorough - executive meetings often contain critical context that affects multiple business areas. Attribute insights to specific speakers when possible. Output structured markdown."
+}
+

@@ -3,6 +3,7 @@
   "description": "AI Apps library for meeting analysis - inspired by Fireflies.ai and Gong",
   
   "categories": [
+    {"id": "strategy", "name": "Strategy", "icon": "🎯", "description": "Executive meetings, pricing strategy, and organizational decisions"},
     {"id": "sales", "name": "Sales", "icon": "💰", "description": "Sales qualification, coaching, and deal intelligence"},
     {"id": "customer_success", "name": "Customer Success", "icon": "🤝", "description": "Retention, health scoring, and expansion"},
     {"id": "recruiting", "name": "Recruiting", "icon": "👤", "description": "Interview scoring and candidate evaluation"},
@@ -13,6 +14,7 @@
   ],
   
   "apps": [
+    "executive-strategy",
     "discovery-scorecard",
     "demo-scorecard", 
     "spiced-analyzer",
@@ -95,6 +97,15 @@
         {"id": "one-on-one", "weight": 1.0}
       ],
       "trigger": {"external": false, "title_keywords": ["1:1", "1-1", "one on one", "check-in"]}
+    },
+    {
+      "name": "Executive Strategy",
+      "apps": [
+        {"id": "executive-strategy", "weight": 0.6},
+        {"id": "qbr-analyzer", "weight": 0.25},
+        {"id": "general-notes", "weight": 0.15}
+      ],
+      "trigger": {"external": false, "title_keywords": ["strategy", "pricing", "organizational", "leadership", "executive", "ceo", "cfo", "board"]}
     }
   ]
 }

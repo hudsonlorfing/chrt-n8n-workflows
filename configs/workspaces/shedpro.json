@@ -19,7 +19,12 @@
   
   "team": [
     {"name": "Hudson Lorfing", "email": "hudson@shedpro.io", "role": "Advisor", "tag": "#hudson"},
-    {"name": "Steven Choi", "email": "steven@shedpro.io", "role": "Fractional CFO", "tag": "#steven"}
+    {"name": "Steven Choi", "email": "steven@shedpro.io", "role": "Fractional CFO", "tag": "#steven"},
+    {"name": "James Price", "email": "james@shedpro.io", "role": "CEO", "tag": "#james"},
+    {"name": "Patrick", "role": "Leadership", "tag": "#patrick"},
+    {"name": "Kat", "role": "Operations", "tag": "#kat"},
+    {"name": "Vu", "role": "Engineering", "tag": "#vu"},
+    {"name": "Nick", "role": "Team", "tag": "#nick"}
   ],
   
   "focus_areas": [
@@ -27,31 +32,43 @@
       "id": "revenue_ops",
       "name": "Revenue Operations",
       "description": "Maximizing revenue and improving sales efficiency",
-      "keywords": ["revenue", "sales", "pipeline", "conversion", "pricing"]
+      "keywords": ["revenue", "sales", "pipeline", "conversion", "pricing", "mrr", "arr", "setup fee"]
     },
     {
       "id": "financial_planning",
       "name": "Financial Planning",
       "description": "Budgeting, forecasting, and financial modeling",
-      "keywords": ["budget", "forecast", "model", "cash flow", "runway"]
+      "keywords": ["budget", "forecast", "model", "cash flow", "runway", "profitability"]
     },
     {
       "id": "organizational_efficiency",
       "name": "Organizational Efficiency",
       "description": "Building efficient organizational structures",
-      "keywords": ["efficiency", "profitability", "margins", "costs", "headcount"]
+      "keywords": ["efficiency", "profitability", "margins", "costs", "headcount", "utilization", "team structure"]
     },
     {
       "id": "cfo_services",
       "name": "CFO Services",
       "description": "Strategic financial leadership",
-      "keywords": ["CFO", "finance", "investor", "board", "reporting"]
+      "keywords": ["CFO", "finance", "investor", "board", "reporting", "strategy"]
+    },
+    {
+      "id": "product_operations",
+      "name": "Product Operations",
+      "description": "3D configurator, SEM, and product platforms",
+      "keywords": ["3d config", "configurator", "sem", "website", "ops hub", "shed suite", "idea room", "carport"]
+    },
+    {
+      "id": "customer_operations",
+      "name": "Customer Operations",
+      "description": "Onboarding, support, and customer success",
+      "keywords": ["onboarding", "setup", "custom", "standard", "maintenance", "client", "customer pricing", "dealer"]
     }
   ],
   
-  "default_ai_apps": ["customer-interview", "qbr-analyzer", "general-notes"],
+  "default_ai_apps": ["executive-strategy", "qbr-analyzer", "general-notes"],
   
-  "analysis_context": "You are analyzing a meeting where Hudson Lorfing or Steven Choi is serving as a CFO/finance advisor. Focus on financial insights, operational recommendations, revenue optimization strategies, and profitability discussions. Extract key metrics mentioned, decisions made, and action items for improving financial performance.",
+  "analysis_context": "You are analyzing a meeting where Hudson Lorfing or Steven Choi is serving as a CFO/finance advisor to ShedPro. Focus on financial insights, operational recommendations, revenue optimization strategies, pricing decisions, and organizational efficiency. Pay special attention to: customer pricing tiers, setup fees vs maintenance revenue, team utilization, profitability by customer segment, and strategic decisions from leadership (James Price - CEO). Extract key metrics mentioned, decisions made, and action items for improving financial performance.",
   
   "terminology": {
     "FP&A": "Financial Planning & Analysis",
@@ -61,8 +78,23 @@
     "Unit economics": "Revenue and cost per customer/unit",
     "LTV": "Lifetime Value",
     "CAC": "Customer Acquisition Cost",
-    "NRR": "Net Revenue Retention"
+    "NRR": "Net Revenue Retention",
+    "MRR": "Monthly Recurring Revenue",
+    "3D Config": "3D Configurator product",
+    "SEM": "Search Engine Marketing / Website product",
+    "Ops Hub": "Operations Hub platform",
+    "Setup fee": "One-time onboarding fee",
+    "Standard onboarding": "Standard product configuration",
+    "Custom work": "Non-standard development work"
   },
   
-  "domain_patterns": ["shedpro.io", "shedpro.com"]
+  "domain_patterns": ["shedpro.io", "shedpro.com"],
+  
+  "content_signals": [
+    "shedpro", "shed pro", "carport", "3d config", "configurator",
+    "james price", "patrick", "kat", "vu", "nick", "steven",
+    "ops hub", "shed suite", "idea room", "sem", "website",
+    "setup fee", "onboarding", "maintenance", "custom model",
+    "dealer", "client pricing", "pricing tier", "breed pig"
+  ]
 }

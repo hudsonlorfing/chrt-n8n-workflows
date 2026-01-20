@@ -43,13 +43,27 @@ sync_folder() {
         # Ensure target directory exists
         mkdir -p "$target_dir"
         
-        # Count new files
-        new_files=$(rsync -avn --ignore-existing "$source_dir/" "$target_dir/" 2>/dev/null | grep "\.md$" | wc -l | tr -d ' ')
+        # Count new files by comparing directories directly (handles Unicode filenames)
+        local new_files=0
+        local copied_files=0
         
-        if [ "$new_files" -gt 0 ]; then
-            echo -e "${GREEN}  ✓ $folder: $new_files new meeting(s)${NC}"
-            rsync -av --ignore-existing "$source_dir/" "$target_dir/"
-            return $new_files
+        # Use find to iterate over source files (handles special characters)
+        while IFS= read -r -d '' source_file; do
+            local filename=$(basename "$source_file")
+            local target_file="$target_dir/$filename"
+            
+            # Check if file doesn't exist in target
+            if [ ! -f "$target_file" ]; then
+                new_files=$((new_files + 1))
+                cp "$source_file" "$target_file"
+                copied_files=$((copied_files + 1))
+                echo -e "${GREEN}    + $filename${NC}"
+            fi
+        done < <(find "$source_dir" -maxdepth 1 -name "*.md" -type f -print0 2>/dev/null)
+        
+        if [ "$copied_files" -gt 0 ]; then
+            echo -e "${GREEN}  ✓ $folder: $copied_files new meeting(s)${NC}"
+            return $copied_files
         else
             echo -e "  ○ $folder: up to date"
             return 0

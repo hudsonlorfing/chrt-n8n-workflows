@@ -85,7 +85,129 @@ function reloadConfigs() {
 // AUTO-DETECTION ALGORITHM
 // =============================================================================
 
-function detectWorkspace(participants, title) {
+// Content signals for workspace detection when title/participant signals are weak
+const WORKSPACE_CONTENT_SIGNALS = {
+  shedpro: [
+    'carport', 'SEM', 'james price', 'kat', 'vu', 'nick', '3d config', 'shed', 
+    'shed pro', 'setup fee', 'ops hub', 'shed suite', 'idea room', 'steven', 
+    'patrick', 'onboarding', 'mrr', 'client pricing', 'pricing tier', 'custom model',
+    'standard onboarding', 'technical support', 'project coordinator', 'breed pig',
+    'configurator', 'website', 'sim', 'dealer', 'customer pricing'
+  ],
+  chrt: [
+    'leads', 'pipeline', 'outreach', 'icp', 'aaron', 'kyle', 'philip', 'paul', 
+    'chart', 'courier', 'freight forwarder', 'shipper', 'backend', 'frontend', 
+    'linkedin', 'y-combinator', 'funding', 'airspace', 'hubspot', 'phantombuster'
+  ],
+  goodlux: [
+    'lighting', 'fixtures', 'led', 'aly jo', 'halyee', 'molly', 'pergola', 
+    'meta', 'arcsite', 'justin', 'installer', 'contractor', 'construction', 
+    'devin', 'goodlux', 'louver', 'concrete'
+  ]
+};
+
+// Content signals for strategy/executive meetings
+const STRATEGY_CONTENT_SIGNALS = [
+  'pricing', 'revenue', 'profitability', 'margins', 'mrr', 'arr',
+  'organizational', 'team structure', 'headcount', 'hiring', 'turnover',
+  'strategy', 'roadmap', 'vision', 'mission', 'core values',
+  'leadership', 'culture', 'incentives', 'compensation',
+  'budget', 'forecast', 'runway', 'burn rate', 'utilization',
+  'churn', 'retention', 'growth', 'profitability'
+];
+
+/**
+ * Detect if transcript is from a singular recording (phone recording without actual attendees)
+ * Singular recordings have all speakers as "null:" because Fireflies can't identify them
+ */
+function detectSingularRecording(transcript) {
+  if (!transcript || transcript.length < 100) return { isSingular: false, confidence: 'low' };
+  
+  // Get first 50 lines of transcript
+  const lines = transcript.split('\n').slice(0, 50).filter(l => l.trim());
+  if (lines.length < 5) return { isSingular: false, confidence: 'low' };
+  
+  // Count lines that start with "null:" - indicates unidentified speaker
+  const nullSpeakerLines = lines.filter(l => l.trim().toLowerCase().startsWith('null:')).length;
+  const ratio = nullSpeakerLines / lines.length;
+  
+  // If >80% of lines are from "null:" speaker, it's likely a singular recording
+  if (ratio > 0.8) {
+    return { isSingular: true, confidence: 'high', nullRatio: ratio };
+  } else if (ratio > 0.5) {
+    return { isSingular: true, confidence: 'medium', nullRatio: ratio };
+  }
+  
+  return { isSingular: false, confidence: 'high', nullRatio: ratio };
+}
+
+/**
+ * Detect workspace from transcript content when title/participant signals are weak
+ */
+function detectWorkspaceFromContent(transcript, currentBestScore) {
+  if (!transcript) return null;
+  
+  const transcriptLower = transcript.toLowerCase();
+  const scores = {};
+  
+  for (const [wsId, signals] of Object.entries(WORKSPACE_CONTENT_SIGNALS)) {
+    scores[wsId] = 0;
+    for (const signal of signals) {
+      // Count occurrences (capped at 10 to prevent single term dominating)
+      const regex = new RegExp(signal.toLowerCase(), 'gi');
+      const matches = (transcriptLower.match(regex) || []).length;
+      scores[wsId] += Math.min(matches, 10) * 2;
+    }
+  }
+  
+  // Find best content-based match
+  let best = null;
+  let bestScore = 0;
+  for (const [wsId, score] of Object.entries(scores)) {
+    if (score > bestScore) {
+      bestScore = score;
+      best = wsId;
+    }
+  }
+  
+  console.log(`[Workspace] Content scores: ${Object.entries(scores).map(([k,v]) => `${k}=${v}`).join(', ')}`);
+  
+  return best ? { workspace: best, score: bestScore, source: 'content' } : null;
+}
+
+/**
+ * Detect if meeting is a strategy/executive discussion based on content
+ */
+function detectStrategyMeeting(transcript, duration) {
+  if (!transcript) return { isStrategy: false, confidence: 'low' };
+  
+  const transcriptLower = transcript.toLowerCase();
+  let signalCount = 0;
+  
+  for (const signal of STRATEGY_CONTENT_SIGNALS) {
+    if (transcriptLower.includes(signal)) {
+      signalCount++;
+    }
+  }
+  
+  // Long meetings (90+ min) with strategy signals are likely executive meetings
+  const isLongMeeting = duration >= 90;
+  const hasStrongSignals = signalCount >= 5;
+  const hasSomeSignals = signalCount >= 3;
+  
+  if (hasStrongSignals || (isLongMeeting && hasSomeSignals)) {
+    return { 
+      isStrategy: true, 
+      confidence: hasStrongSignals ? 'high' : 'medium',
+      signalCount,
+      duration
+    };
+  }
+  
+  return { isStrategy: false, confidence: 'low', signalCount };
+}
+
+function detectWorkspace(participants, title, transcript = '') {
   const scores = {};
   for (const wsId of Object.keys(WORKSPACES)) {
     scores[wsId] = 0;
@@ -127,7 +249,7 @@ function detectWorkspace(participants, title) {
     }
   }
   
-  // Find best
+  // Find best from title/participant signals
   let best = 'chrt';
   let bestScore = 0;
   for (const [wsId, score] of Object.entries(scores)) {
@@ -137,10 +259,32 @@ function detectWorkspace(participants, title) {
     }
   }
   
+  // Check if title is generic (timestamp-like or very short)
+  const isGenericTitle = !title || 
+    title.length < 20 || 
+    /^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|\d{1,2}[\/\-]\d{1,2}|\d{4})/i.test(title.trim());
+  
+  // If signals are weak OR title is generic, try content-based detection
+  // This catches phone recordings with timestamp titles like "Jan 07, 10:23 AM"
+  if ((bestScore <= 10 || isGenericTitle) && transcript) {
+    const contentResult = detectWorkspaceFromContent(transcript, bestScore);
+    if (contentResult && contentResult.score > bestScore) {
+      console.log(`[Workspace] Content-based detection: ${contentResult.workspace} (content score: ${contentResult.score} vs standard score: ${bestScore})`);
+      return {
+        workspace: contentResult.workspace,
+        confidence: contentResult.score > 30 ? 'high' : 'medium',
+        scores,
+        contentScore: contentResult.score,
+        source: 'content'
+      };
+    }
+  }
+  
   return {
     workspace: best,
     confidence: bestScore > 10 ? 'high' : bestScore > 5 ? 'medium' : 'low',
-    scores
+    scores,
+    source: 'standard'
   };
 }
 
@@ -159,13 +303,29 @@ function detectExternal(participants) {
   return false;
 }
 
-function suggestAIApps(title, participants, transcriptPreview, workspace) {
+function suggestAIApps(title, participants, transcriptPreview, workspace, duration = 0) {
   const isExternal = detectExternal(participants);
   const titleLower = (title || '').toLowerCase();
   const ws = WORKSPACES[workspace];
   
   // Start with workspace defaults
   const defaultApps = ws?.default_ai_apps || ['general-notes'];
+  
+  // Check for strategy meeting based on content (before title-based combinations)
+  const strategyResult = detectStrategyMeeting(transcriptPreview, duration);
+  if (strategyResult.isStrategy) {
+    console.log(`[Apps] Strategy meeting detected (signals: ${strategyResult.signalCount}, duration: ${duration}min)`);
+    return {
+      apps: [
+        { id: 'executive-strategy', weight: 0.6 },
+        { id: 'qbr-analyzer', weight: 0.25 },
+        { id: 'general-notes', weight: 0.15 }
+      ],
+      combination: 'Executive Strategy',
+      confidence: strategyResult.confidence,
+      source: 'content-strategy'
+    };
+  }
   
   // Check for combination matches from index
   const combinations = AI_APPS._index?.common_combinations || [];
@@ -205,6 +365,14 @@ function suggestAIApps(title, participants, transcriptPreview, workspace) {
     if (detect.title_keywords) {
       for (const kw of detect.title_keywords) {
         if (titleLower.includes(kw.toLowerCase())) score += 10;
+      }
+    }
+    
+    // Content signals (check transcript preview for app-specific signals)
+    if (detect.content_signals && transcriptPreview) {
+      const previewLower = transcriptPreview.toLowerCase();
+      for (const signal of detect.content_signals) {
+        if (previewLower.includes(signal.toLowerCase())) score += 3;
       }
     }
     
@@ -262,10 +430,21 @@ function suggestAIApps(title, participants, transcriptPreview, workspace) {
 function autoDetect(data) {
   const { title, participants, transcript, duration } = data;
   
-  const workspaceResult = detectWorkspace(participants, title);
+  // Detect if this is a singular recording (phone recording without actual attendees)
+  const singularResult = detectSingularRecording(transcript);
+  if (singularResult.isSingular) {
+    console.log(`[AutoDetect] Singular recording detected (null ratio: ${singularResult.nullRatio?.toFixed(2)})`);
+  }
+  
+  // Use more transcript for content-based detection (first 5000 chars)
+  const transcriptForWorkspace = (transcript || '').substring(0, 5000);
+  const workspaceResult = detectWorkspace(participants, title, transcriptForWorkspace);
+  
   const isExternal = detectExternal(participants);
-  const transcriptPreview = (transcript || '').substring(0, 1000);
-  const appSuggestion = suggestAIApps(title, participants, transcriptPreview, workspaceResult.workspace);
+  
+  // Use first 2000 chars for app suggestion (includes strategy detection)
+  const transcriptPreview = (transcript || '').substring(0, 2000);
+  const appSuggestion = suggestAIApps(title, participants, transcriptPreview, workspaceResult.workspace, duration);
   
   // Determine meeting type from primary app
   let meetingType = 'general';
@@ -277,11 +456,18 @@ function autoDetect(data) {
   return {
     workspace: workspaceResult.workspace,
     workspaceConfidence: workspaceResult.confidence,
+    workspaceSource: workspaceResult.source || 'standard',
     isExternal,
     meetingType,
     suggestedApps: appSuggestion.apps,
     suggestedCombination: appSuggestion.combination,
-    appConfidence: appSuggestion.confidence
+    appConfidence: appSuggestion.confidence,
+    appSource: appSuggestion.source,
+    // Singular recording detection
+    isSingularRecording: singularResult.isSingular,
+    singularConfidence: singularResult.confidence,
+    // Recommend recording type based on detection
+    recommendedRecordingType: singularResult.isSingular ? 'singular' : 'normal'
   };
 }
 
@@ -679,7 +865,9 @@ const server = http.createServer(async (req, res) => {
           title,
           dateStr,
           attendees,
-          durationMins
+          durationMins,
+          recordingType = 'normal',
+          detailLevel = 'standard'
         } = data;
         
         console.log(`[Analyze] ${title} | workspace: ${workspace} | mode: ${mode} | apps: ${apps.map(a => a.id).join(', ')}`);
