@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-01-01T08:36:04.783Z",
+  "updatedAt": "2026-01-19T20:52:39.820Z",
   "createdAt": "2025-12-17T17:08:43.420Z",
   "id": "aLxwvqoSTkZAQ3fq",
   "name": "1. Lead Ingestion & ICP Scoring",
@@ -46,7 +46,7 @@
       "typeVersion": 2,
       "position": [
         -28224,
-        2928
+        2880
       ]
     },
     {
@@ -68,8 +68,8 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        -28224,
-        3008
+        -27952,
+        2864
       ],
       "credentials": {
         "googleSheetsOAuth2Api": {
@@ -97,8 +97,8 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        -28224,
-        3200
+        -28160,
+        3184
       ],
       "credentials": {
         "googleSheetsOAuth2Api": {
@@ -118,8 +118,8 @@
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
       "position": [
-        -26928,
-        3120
+        -26960,
+        2944
       ]
     },
     {
@@ -622,8 +622,8 @@
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3,
       "position": [
-        -28000,
-        3104
+        -27872,
+        3120
       ],
       "id": "merge-wait-for-both",
       "name": "Wait for Both Sheets"
@@ -933,7 +933,7 @@
     "templateCredsSetupCompleted": true
   },
   "pinData": {},
-  "versionId": "eb352e91-f2d1-4ef4-8aaf-51d55831eebc",
+  "versionId": "db90df65-7b35-451c-9843-c78ce012e0a5",
   "activeVersionId": "eb352e91-f2d1-4ef4-8aaf-51d55831eebc",
   "triggerCount": 1,
   "shared": [
