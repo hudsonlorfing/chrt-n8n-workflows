@@ -1173,7 +1173,7 @@
   "pinData": {},
   "versionId": "43888010-bb8f-4cb7-9812-ab202b6cd01b",
   "activeVersionId": "43888010-bb8f-4cb7-9812-ab202b6cd01b",
-  "versionCounter": 64,
+  "versionCounter": 65,
   "triggerCount": 2,
   "shared": [
     {
@@ -1200,7 +1200,7 @@
             "userId": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4",
             "projectId": "O7lTivDfRl72aS23",
             "user": {
-              "updatedAt": "2026-01-21T08:00:48.000Z",
+              "updatedAt": "2026-01-21T18:28:24.000Z",
               "createdAt": "2025-12-17T12:51:53.118Z",
               "id": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4",
               "email": "hudson@chrt.com",

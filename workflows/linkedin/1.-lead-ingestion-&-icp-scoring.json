@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-01-21T16:42:51.403Z",
+  "updatedAt": "2026-01-21T17:08:45.654Z",
   "createdAt": "2025-12-17T17:08:43.420Z",
   "id": "aLxwvqoSTkZAQ3fq",
   "name": "1. Lead Ingestion & ICP Scoring",
@@ -687,7 +687,7 @@
     },
     {
       "parameters": {
-        "maxItems": 1500
+        "maxItems": 1000
       },
       "type": "n8n-nodes-base.limit",
       "typeVersion": 1,
@@ -944,9 +944,9 @@
     "templateCredsSetupCompleted": true
   },
   "pinData": {},
-  "versionId": "d5c7d131-25c6-463d-af2b-0688e7e7fb33",
+  "versionId": "cd47a6f0-4b20-4188-a3c5-bf8806a64c94",
   "activeVersionId": "d5c7d131-25c6-463d-af2b-0688e7e7fb33",
-  "versionCounter": 48,
+  "versionCounter": 51,
   "triggerCount": 1,
   "shared": [
     {
@@ -973,7 +973,7 @@
             "userId": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4",
             "projectId": "O7lTivDfRl72aS23",
             "user": {
-              "updatedAt": "2026-01-21T08:00:48.000Z",
+              "updatedAt": "2026-01-21T18:28:24.000Z",
               "createdAt": "2025-12-17T12:51:53.118Z",
               "id": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4",
               "email": "hudson@chrt.com",
