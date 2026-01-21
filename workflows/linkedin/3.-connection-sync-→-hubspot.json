@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-01-02T08:19:49.582Z",
+  "updatedAt": "2026-01-21T16:57:21.491Z",
   "createdAt": "2025-12-19T16:28:57.739Z",
   "id": "a56vnrPo9dsg5mmf",
   "name": "3. Connection Sync → HubSpot",
@@ -307,7 +307,7 @@
         1648
       ],
       "parameters": {
-        "jsCode": "// Final output formatting\nconst item = $('Merge Contact Results').item.json;\nconst today = new Date().toISOString().split('T')[0];\n\nreturn [{\n  json: {\n    profileUrl: item.profileUrl,\n    fullName: item.fullName,\n    company: item.company,\n    hubspot: {\n      companyId: item._hs.companyId,\n      contactId: item._hs.contactId,\n      companyCreated: item._hs.companyCreated,\n      contactCreated: item._hs.contactCreated,\n      syncDate: today\n    }\n  }\n}];"
+        "jsCode": "// Final output formatting\nconst item = $('Merge Contact Results').item.json;\nconst today = new Date().toISOString().split('T')[0];\n\nreturn [{\n  json: {\n    profileUrl: item.profileUrl,\n    fullName: item.fullName,\n    company: item.company || '',\n    hubspot: {\n      companyId: item._hs.companyId || null,\n      contactId: item._hs.contactId,\n      companyCreated: item._hs.companyCreated || false,\n      companySkipped: item._hs.companySkipped || false,\n      contactCreated: item._hs.contactCreated,\n      syncDate: today\n    }\n  }\n}];"
       }
     },
     {
@@ -960,7 +960,7 @@
         1648
       ],
       "parameters": {
-        "jsCode": " // Check the original search result to determine which path was taken\n  const searchResult = $('Search Company').item.json;\n  const companyExists = searchResult.total > 0;\n\n  let companyId;\n  let companyCreated;\n\n  if (companyExists) {\n    // Company existed - get ID from search results\n    companyId = searchResult.results[0].id;\n    companyCreated = false;\n  } else {\n    // Company was created - get ID from Create Company response\n    companyId = $('Create Company').item.json.id;\n    companyCreated = true;\n  }\n\n  // Get the original prepared data\n  const preparedData = $('Prepare HubSpot Data').item.json;\n\n  return [{\n    json: {\n      ...preparedData,\n      _hs: {\n        ...preparedData._hs,\n        companyId: companyId,\n        companyCreated: companyCreated\n      }\n    }\n  }];\n"
+        "jsCode": "// Get the original prepared data\nconst preparedData = $('Prepare HubSpot Data').item.json;\n\n// Check if company was skipped (no company name provided)\nlet companySkipped = false;\ntry {\n  companySkipped = $('Skip Company').item.json._hs.companySkipped === true;\n} catch (e) {\n  // Skip Company node wasn't executed - company was processed\n  companySkipped = false;\n}\n\nlet companyId = null;\nlet companyCreated = false;\n\nif (companySkipped) {\n  // Company was skipped - keep companyId as null\n  companyId = null;\n  companyCreated = false;\n} else {\n  // Check the search result to determine which path was taken\n  const searchResult = $('Search Company').item.json;\n  const companyExists = searchResult.total > 0;\n\n  if (companyExists) {\n    // Company existed - get ID from search results\n    companyId = searchResult.results[0].id;\n    companyCreated = false;\n  } else {\n    // Company was created - get ID from Create Company response\n    companyId = $('Create Company').item.json.id;\n    companyCreated = true;\n  }\n}\n\nreturn [{\n  json: {\n    ...preparedData,\n    _hs: {\n      ...preparedData._hs,\n      companyId: companyId,\n      companyCreated: companyCreated,\n      companySkipped: companySkipped\n    }\n  }\n}];"
       }
     },
     {
@@ -989,6 +989,87 @@
         "amount": "={{ Math.floor(Math.random()*90)+30}}"
       },
       "webhookId": "a4843833-8e00-4d9f-8263-f31413f38084"
+    },
+    {
+      "id": "c1a2b3c4-d5e6-4f7a-8b9c-0d1e2f3a4b5c",
+      "name": "Has Company?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        9640,
+        1648
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "has-company",
+              "leftValue": "={{ $json.company }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "d2b3c4d5-e6f7-4a8b-9c0d-1e2f3a4b5c6d",
+      "name": "Skip Company",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        9840,
+        1872
+      ],
+      "parameters": {
+        "jsCode": "// Skip company processing - set companyId to null\nconst preparedData = $('Prepare HubSpot Data').item.json;\n\nreturn [{\n  json: {\n    ...preparedData,\n    _hs: {\n      ...preparedData._hs,\n      companyId: null,\n      companyCreated: false,\n      companySkipped: true\n    }\n  }\n}];"
+      }
+    },
+    {
+      "id": "e3c4d5e6-f7a8-4b9c-0d1e-2f3a4b5c6d7e",
+      "name": "Has Company ID?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        11864,
+        1648
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "has-company-id",
+              "leftValue": "={{ $json._hs.companyId }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
     }
   ],
   "connections": {
@@ -1335,7 +1416,25 @@
       "main": [
         [
           {
+            "node": "Has Company ID?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Company ID?": {
+      "main": [
+        [
+          {
             "node": "Associate Contact → Company",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format Output",
             "type": "main",
             "index": 0
           }
@@ -1346,7 +1445,36 @@
       "main": [
         [
           {
+            "node": "Has Company?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Company?": {
+      "main": [
+        [
+          {
             "node": "Search Company",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Skip Company",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip Company": {
+      "main": [
+        [
+          {
+            "node": "Merge Company Results",
             "type": "main",
             "index": 0
           }
@@ -1369,9 +1497,9 @@
     "templateCredsSetupCompleted": true
   },
   "pinData": {},
-  "versionId": "8f8592c2-e93e-4f21-8c37-25f73067daf5",
-  "activeVersionId": "8f8592c2-e93e-4f21-8c37-25f73067daf5",
-  "versionCounter": 51,
+  "versionId": "b5b45381-a28a-482c-8349-562748f11ed3",
+  "activeVersionId": "b5b45381-a28a-482c-8349-562748f11ed3",
+  "versionCounter": 56,
   "triggerCount": 1,
   "shared": [
     {
@@ -1435,15 +1563,12 @@
     }
   ],
   "activeVersion": {
-    "updatedAt": "2026-01-02T08:06:21.784Z",
-    "createdAt": "2026-01-02T08:06:21.784Z",
-    "versionId": "8f8592c2-e93e-4f21-8c37-25f73067daf5",
+    "updatedAt": "2026-01-21T16:57:21.493Z",
+    "createdAt": "2026-01-21T16:57:21.493Z",
+    "versionId": "b5b45381-a28a-482c-8349-562748f11ed3",
     "workflowId": "a56vnrPo9dsg5mmf",
     "nodes": [
       {
-        "parameters": {
-          "jsCode": "// Prepare data for HubSpot sync\nconst inputItems = $input.all();\n\n// Check if we have input data\nif (!inputItems || inputItems.length === 0) {\n  throw new Error('No input data received from previous node');\n}\n\nreturn inputItems.map(item => {\n  // Validate item structure\n  if (!item || !item.json) {\n    throw new Error('Invalid input item structure - missing json property');\n  }\n  \n  const data = item.json;\n  const fullName = data.fullName || '';\n  const nameParts = fullName.split(' ');\n  const firstName = data.firstName || '';\n  const lastName = data.lastName || '';\n  const companyName = data.company || '';\n  \n  // Generate placeholder email\n  const placeholderEmail = fullName\n    ? fullName.toLowerCase().replace(/[^a-z0-9]/g, '.').replace(/\\.+/g, '.').replace(/^\\.|\\.$/, '') + '@placeholder.linkedin'\n    : 'unknown@placeholder.linkedin';\n  \n  // Generate pseudo-domain\n  const domain = companyName\n    ? companyName.toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 30) + '.com'\n    : '';\n\n  return {\n    json: {\n      ...data,\n      _hs: {\n        firstName: firstName,\n        lastName: lastName,\n        placeholderEmail: placeholderEmail,\n        domain: domain\n      }\n    }\n  };\n});"
-        },
         "id": "2769d7b7-41b5-4050-b475-de6bc26ca2b9",
         "name": "Prepare HubSpot Data",
         "type": "n8n-nodes-base.code",
@@ -1451,9 +1576,20 @@
         "position": [
           8976,
           1648
-        ]
+        ],
+        "parameters": {
+          "jsCode": "// Prepare data for HubSpot sync\nconst inputItems = $input.all();\n\n// Check if we have input data\nif (!inputItems || inputItems.length === 0) {\n  throw new Error('No input data received from previous node');\n}\n\nreturn inputItems.map(item => {\n  // Validate item structure\n  if (!item || !item.json) {\n    throw new Error('Invalid input item structure - missing json property');\n  }\n  \n  const data = item.json;\n  const fullName = data.fullName || '';\n  const nameParts = fullName.split(' ');\n  const firstName = data.firstName || '';\n  const lastName = data.lastName || '';\n  const companyName = data.company || '';\n  \n  // Generate placeholder email\n  const placeholderEmail = fullName\n    ? fullName.toLowerCase().replace(/[^a-z0-9]/g, '.').replace(/\\.+/g, '.').replace(/^\\.|\\.$/, '') + '@placeholder.linkedin'\n    : 'unknown@placeholder.linkedin';\n  \n  // Generate pseudo-domain\n  const domain = companyName\n    ? companyName.toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 30) + '.com'\n    : '';\n\n  return {\n    json: {\n      ...data,\n      _hs: {\n        firstName: firstName,\n        lastName: lastName,\n        placeholderEmail: placeholderEmail,\n        domain: domain\n      }\n    }\n  };\n});"
+        }
       },
       {
+        "id": "dc9d60f6-d961-4c98-8998-af2449446379",
+        "name": "Search Company",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          9744,
+          1648
+        ],
         "parameters": {
           "method": "POST",
           "url": "https://api.hubapi.com/crm/v3/objects/companies/search",
@@ -1464,14 +1600,6 @@
           "jsonBody": "={{ JSON.stringify({ filterGroups: [{ filters: [{ propertyName: 'name', operator: 'EQ', value: $json.company || '' }] }], properties: ['name', 'domain', 'industry'] }) }}",
           "options": {}
         },
-        "id": "dc9d60f6-d961-4c98-8998-af2449446379",
-        "name": "Search Company",
-        "type": "n8n-nodes-base.httpRequest",
-        "typeVersion": 4.2,
-        "position": [
-          9744,
-          1648
-        ],
         "credentials": {
           "hubspotOAuth2Api": {
             "id": "3JZVnZQkHgMfXMRx",
@@ -1480,6 +1608,14 @@
         }
       },
       {
+        "id": "81027544-30ea-4d71-9d8a-dc177ccb4a0c",
+        "name": "Company Exists?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          9968,
+          1648
+        ],
         "parameters": {
           "conditions": {
             "options": {
@@ -1502,17 +1638,17 @@
             "combinator": "and"
           },
           "options": {}
-        },
-        "id": "81027544-30ea-4d71-9d8a-dc177ccb4a0c",
-        "name": "Company Exists?",
-        "type": "n8n-nodes-base.if",
-        "typeVersion": 2.2,
-        "position": [
-          9968,
-          1648
-        ]
+        }
       },
       {
+        "id": "094ba8de-154c-477b-88c5-6edbf168fdae",
+        "name": "Create Company",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          10192,
+          1760
+        ],
         "parameters": {
           "method": "POST",
           "url": "https://api.hubapi.com/crm/v3/objects/companies",
@@ -1523,14 +1659,6 @@
           "jsonBody": "={{ JSON.stringify({ properties: { name: $('Loop Over Items').item.json.company || '', domain: $('Loop Over Items').item.json._hs.domain, linkedin_company_page: $('Loop Over Items').item.json.companyUrl, industry: $('Loop Over Items').item.json.industry || '' } }) }}",
           "options": {}
         },
-        "id": "094ba8de-154c-477b-88c5-6edbf168fdae",
-        "name": "Create Company",
-        "type": "n8n-nodes-base.httpRequest",
-        "typeVersion": 4.2,
-        "position": [
-          10192,
-          1760
-        ],
         "credentials": {
           "hubspotOAuth2Api": {
             "id": "3JZVnZQkHgMfXMRx",
@@ -1539,9 +1667,6 @@
         }
       },
       {
-        "parameters": {
-          "jsCode": "// Extract company ID from search result (existing company)\nconst searchResult = $('Search Company').item.json;\nconst preparedData = $('Prepare HubSpot Data').item.json;\n\nreturn [{\n  json: {\n    ...preparedData,\n    _hs: {\n      ...preparedData._hs,\n      companyId: searchResult.results[0].id,\n      companyCreated: false\n    }\n  }\n}];"
-        },
         "id": "0f9fa33c-e251-48a6-9ef3-f9bccc546982",
         "name": "Use Existing Company",
         "type": "n8n-nodes-base.code",
@@ -1549,12 +1674,12 @@
         "position": [
           10288,
           1536
-        ]
+        ],
+        "parameters": {
+          "jsCode": "// Extract company ID from search result (existing company)\nconst searchResult = $('Search Company').item.json;\nconst preparedData = $('Prepare HubSpot Data').item.json;\n\nreturn [{\n  json: {\n    ...preparedData,\n    _hs: {\n      ...preparedData._hs,\n      companyId: searchResult.results[0].id,\n      companyCreated: false\n    }\n  }\n}];"
+        }
       },
       {
-        "parameters": {
-          "jsCode": "// Extract company ID from create result (new company)\nconst createResult = $('Create Company').item.json;\nconst preparedData = $('Prepare HubSpot Data').item.json;\n\nreturn [{\n  json: {\n    ...preparedData,\n    _hs: {\n      ...preparedData._hs,\n      companyId: createResult.id,\n      companyCreated: true\n    }\n  }\n}];"
-        },
         "id": "7d092099-5b71-4dc2-a1c7-baac0c17fc2d",
         "name": "Store New Company ID",
         "type": "n8n-nodes-base.code",
@@ -1562,9 +1687,20 @@
         "position": [
           10416,
           1760
-        ]
+        ],
+        "parameters": {
+          "jsCode": "// Extract company ID from create result (new company)\nconst createResult = $('Create Company').item.json;\nconst preparedData = $('Prepare HubSpot Data').item.json;\n\nreturn [{\n  json: {\n    ...preparedData,\n    _hs: {\n      ...preparedData._hs,\n      companyId: createResult.id,\n      companyCreated: true\n    }\n  }\n}];"
+        }
       },
       {
+        "id": "dfa66675-ba5c-4b59-a19f-17f32358a4e3",
+        "name": "Search Contact",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          10864,
+          1648
+        ],
         "parameters": {
           "method": "POST",
           "url": "https://api.hubapi.com/crm/v3/objects/contacts/search",
@@ -1575,14 +1711,6 @@
           "jsonBody": "={{ JSON.stringify({ filterGroups: [{ filters: [{ propertyName: 'email', operator: 'EQ', value: $json._hs.placeholderEmail }] }], properties: ['firstname', 'lastname', 'email', 'jobtitle'] }) }}",
           "options": {}
         },
-        "id": "dfa66675-ba5c-4b59-a19f-17f32358a4e3",
-        "name": "Search Contact",
-        "type": "n8n-nodes-base.httpRequest",
-        "typeVersion": 4.2,
-        "position": [
-          10864,
-          1648
-        ],
         "credentials": {
           "hubspotOAuth2Api": {
             "id": "3JZVnZQkHgMfXMRx",
@@ -1591,6 +1719,14 @@
         }
       },
       {
+        "id": "797550be-4489-4adb-8abd-1eea9daa9cdd",
+        "name": "Contact Exists?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          11088,
+          1648
+        ],
         "parameters": {
           "conditions": {
             "options": {
@@ -1613,17 +1749,17 @@
             "combinator": "and"
           },
           "options": {}
-        },
-        "id": "797550be-4489-4adb-8abd-1eea9daa9cdd",
-        "name": "Contact Exists?",
-        "type": "n8n-nodes-base.if",
-        "typeVersion": 2.2,
-        "position": [
-          11088,
-          1648
-        ]
+        }
       },
       {
+        "id": "aef86f24-5491-4980-a262-d066421a4919",
+        "name": "Update Contact",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          11312,
+          1536
+        ],
         "parameters": {
           "method": "PATCH",
           "url": "={{ 'https://api.hubapi.com/crm/v3/objects/contacts/' + $json.results[0].id }}",
@@ -1634,14 +1770,6 @@
           "jsonBody": "={{ JSON.stringify({ properties: { firstname: $('Merge Company Results').item.json._hs.firstName, lastname: $('Merge Company Results').item.json._hs.lastName, jobtitle: $('Merge Company Results').item.json.jobTitle || '', company: $('Merge Company Results').item.json.company || '', hs_lead_status: 'CONNECTED' } }) }}",
           "options": {}
         },
-        "id": "aef86f24-5491-4980-a262-d066421a4919",
-        "name": "Update Contact",
-        "type": "n8n-nodes-base.httpRequest",
-        "typeVersion": 4.2,
-        "position": [
-          11312,
-          1536
-        ],
         "credentials": {
           "hubspotOAuth2Api": {
             "id": "3JZVnZQkHgMfXMRx",
@@ -1650,6 +1778,14 @@
         }
       },
       {
+        "id": "c7577a09-93c6-48b4-b9d2-a2022c875a63",
+        "name": "Create Contact",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          11312,
+          1760
+        ],
         "parameters": {
           "method": "POST",
           "url": "https://api.hubapi.com/crm/v3/objects/contacts",
@@ -1660,14 +1796,6 @@
           "jsonBody": "={{ JSON.stringify({ properties: { firstname: $('Merge Company Results').item.json._hs.firstName, lastname: $('Merge Company Results').item.json._hs.lastName, jobtitle: $('Merge Company Results').item.json.jobTitle || '', company: $('Merge Company Results').item.json.company || '', hs_lead_status: 'CONNECTED', city: $('Merge Company Results').item.json.location || '' } }) }}",
           "options": {}
         },
-        "id": "c7577a09-93c6-48b4-b9d2-a2022c875a63",
-        "name": "Create Contact",
-        "type": "n8n-nodes-base.httpRequest",
-        "typeVersion": 4.2,
-        "position": [
-          11312,
-          1760
-        ],
         "credentials": {
           "hubspotOAuth2Api": {
             "id": "3JZVnZQkHgMfXMRx",
@@ -1676,9 +1804,6 @@
         }
       },
       {
-        "parameters": {
-          "jsCode": "// Get contact ID from update result\nconst updateResult = $('Update Contact').item.json;\nconst mergedData = $('Merge Company Results').item.json;\n\nreturn [{\n  json: {\n    ...mergedData,\n    _hs: {\n      ...mergedData._hs,\n      contactId: updateResult.id,\n      contactCreated: false\n    }\n  }\n}];"
-        },
         "id": "885b6a2f-343c-4e49-af82-48d66a7ffdf6",
         "name": "Store Updated Contact ID",
         "type": "n8n-nodes-base.code",
@@ -1686,12 +1811,12 @@
         "position": [
           11536,
           1536
-        ]
+        ],
+        "parameters": {
+          "jsCode": "// Get contact ID from update result\nconst updateResult = $('Update Contact').item.json;\nconst mergedData = $('Merge Company Results').item.json;\n\nreturn [{\n  json: {\n    ...mergedData,\n    _hs: {\n      ...mergedData._hs,\n      contactId: updateResult.id,\n      contactCreated: false\n    }\n  }\n}];"
+        }
       },
       {
-        "parameters": {
-          "jsCode": "// Get contact ID from create result\nconst createResult = $('Create Contact').item.json;\nconst mergedData = $('Merge Company Results').item.json;\n\nreturn [{\n  json: {\n    ...mergedData,\n    _hs: {\n      ...mergedData._hs,\n      contactId: createResult.id,\n      contactCreated: true\n    }\n  }\n}];"
-        },
         "id": "cbcebaf9-0590-4e9f-8444-9cdc566fb797",
         "name": "Store New Contact ID",
         "type": "n8n-nodes-base.code",
@@ -1699,9 +1824,20 @@
         "position": [
           11536,
           1760
-        ]
+        ],
+        "parameters": {
+          "jsCode": "// Get contact ID from create result\nconst createResult = $('Create Contact').item.json;\nconst mergedData = $('Merge Company Results').item.json;\n\nreturn [{\n  json: {\n    ...mergedData,\n    _hs: {\n      ...mergedData._hs,\n      contactId: createResult.id,\n      contactCreated: true\n    }\n  }\n}];"
+        }
       },
       {
+        "id": "68465c57-9be7-48c1-89b4-9352ebebe82d",
+        "name": "Associate Contact → Company",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          11984,
+          1648
+        ],
         "parameters": {
           "method": "PUT",
           "url": "={{ 'https://api.hubapi.com/crm/v3/objects/contacts/' + $json._hs.contactId + '/associations/company/' + $json._hs.companyId + '/contact_to_company' }}",
@@ -1715,14 +1851,6 @@
             }
           }
         },
-        "id": "68465c57-9be7-48c1-89b4-9352ebebe82d",
-        "name": "Associate Contact → Company",
-        "type": "n8n-nodes-base.httpRequest",
-        "typeVersion": 4.2,
-        "position": [
-          11984,
-          1648
-        ],
         "credentials": {
           "hubspotOAuth2Api": {
             "id": "3JZVnZQkHgMfXMRx",
@@ -1731,9 +1859,6 @@
         }
       },
       {
-        "parameters": {
-          "jsCode": "// Final output formatting\nconst item = $('Merge Contact Results').item.json;\nconst today = new Date().toISOString().split('T')[0];\n\nreturn [{\n  json: {\n    profileUrl: item.profileUrl,\n    fullName: item.fullName,\n    company: item.company,\n    hubspot: {\n      companyId: item._hs.companyId,\n      contactId: item._hs.contactId,\n      companyCreated: item._hs.companyCreated,\n      contactCreated: item._hs.contactCreated,\n      syncDate: today\n    }\n  }\n}];"
-        },
         "id": "31732689-9943-4f38-a163-2d69ee25e0d4",
         "name": "Format Output",
         "type": "n8n-nodes-base.code",
@@ -1741,9 +1866,20 @@
         "position": [
           12208,
           1648
-        ]
+        ],
+        "parameters": {
+          "jsCode": "// Final output formatting\nconst item = $('Merge Contact Results').item.json;\nconst today = new Date().toISOString().split('T')[0];\n\nreturn [{\n  json: {\n    profileUrl: item.profileUrl,\n    fullName: item.fullName,\n    company: item.company || '',\n    hubspot: {\n      companyId: item._hs.companyId || null,\n      contactId: item._hs.contactId,\n      companyCreated: item._hs.companyCreated || false,\n      companySkipped: item._hs.companySkipped || false,\n      contactCreated: item._hs.contactCreated,\n      syncDate: today\n    }\n  }\n}];"
+        }
       },
       {
+        "id": "0025d8b5-b20a-4f5a-ae56-8e472007a15b",
+        "name": "Daily 6pm Mon-Sat2",
+        "type": "n8n-nodes-base.scheduleTrigger",
+        "typeVersion": 1.2,
+        "position": [
+          6752,
+          1536
+        ],
         "parameters": {
           "rule": {
             "interval": [
@@ -1753,17 +1889,17 @@
               }
             ]
           }
-        },
-        "id": "0025d8b5-b20a-4f5a-ae56-8e472007a15b",
-        "name": "Daily 6pm Mon-Sat2",
-        "type": "n8n-nodes-base.scheduleTrigger",
-        "typeVersion": 1.2,
-        "position": [
-          6752,
-          1536
-        ]
+        }
       },
       {
+        "id": "ae0cac37-eb4f-45be-a053-c3543cc8e1aa",
+        "name": "Get Pending Leads2",
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.5,
+        "position": [
+          7568,
+          1744
+        ],
         "parameters": {
           "documentId": {
             "__rl": true,
@@ -1777,14 +1913,6 @@
           },
           "options": {}
         },
-        "id": "ae0cac37-eb4f-45be-a053-c3543cc8e1aa",
-        "name": "Get Pending Leads2",
-        "type": "n8n-nodes-base.googleSheets",
-        "typeVersion": 4.5,
-        "position": [
-          7568,
-          1744
-        ],
         "credentials": {
           "googleSheetsOAuth2Api": {
             "id": "hf9VoWnqYNXhUZsn",
@@ -1793,10 +1921,6 @@
         }
       },
       {
-        "parameters": {
-          "mode": "combineBySql",
-          "query": "SELECT m.*, substr(c.connectionSince, 1, 10) as connectionDate FROM input2 m INNER JOIN input1 c ON m.profileUrlNormalized = c.profileUrlNormalized"
-        },
         "id": "1cf8a618-f98e-4e0e-8e27-e5bca8891cde",
         "name": "Find New Connections2",
         "type": "n8n-nodes-base.merge",
@@ -1804,23 +1928,35 @@
         "position": [
           8656,
           1648
-        ]
+        ],
+        "parameters": {
+          "mode": "combineBySql",
+          "query": "SELECT m.*, substr(c.connectionSince, 1, 10) as connectionDate FROM input2 m INNER JOIN input1 c ON m.profileUrlNormalized = c.profileUrlNormalized"
+        }
       },
       {
-        "parameters": {
-          "amount": "={{ Math.floor(Math.random()*20)+1 }}"
-        },
+        "id": "21042b62-19c8-4f7c-83a7-7c17cbc45ffd",
+        "name": "randomWait2",
         "type": "n8n-nodes-base.wait",
         "typeVersion": 1.1,
         "position": [
           7296,
           1424
         ],
-        "id": "21042b62-19c8-4f7c-83a7-7c17cbc45ffd",
-        "name": "randomWait2",
+        "parameters": {
+          "amount": "={{ Math.floor(Math.random()*20)+1 }}"
+        },
         "webhookId": "7f6264ba-768e-4271-9384-2ccce1740961"
       },
       {
+        "id": "6c2cd309-de41-45be-a3ff-932ba468bb55",
+        "name": "kyleConnectionExport2",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          7440,
+          1424
+        ],
         "parameters": {
           "method": "POST",
           "url": "https://api.phantombuster.com/api/v2/agents/launch",
@@ -1833,14 +1969,6 @@
             "timeout": 300000
           }
         },
-        "id": "6c2cd309-de41-45be-a3ff-932ba468bb55",
-        "name": "kyleConnectionExport2",
-        "type": "n8n-nodes-base.httpRequest",
-        "typeVersion": 4.2,
-        "position": [
-          7440,
-          1424
-        ],
         "credentials": {
           "httpHeaderAuth": {
             "id": "KWeabljbYSzoLpjI",
@@ -1849,9 +1977,6 @@
         }
       },
       {
-        "parameters": {
-          "amount": 120
-        },
         "id": "81b266a9-5ea3-4a58-a5a5-fa0570d3b750",
         "name": "2minWait2",
         "type": "n8n-nodes-base.wait",
@@ -1860,15 +1985,12 @@
           7584,
           1424
         ],
+        "parameters": {
+          "amount": 120
+        },
         "webhookId": "6bfd0199-cc43-488f-a1a7-aaddffb3078c"
       },
       {
-        "parameters": {
-          "url": "={{ 'https://api.phantombuster.com/api/v2/agents/fetch-output?id=' + \"959265651312489\" + '&containerId=' + $('kyleConnectionExport2').item.json.containerId }}",
-          "authentication": "genericCredentialType",
-          "genericAuthType": "httpHeaderAuth",
-          "options": {}
-        },
         "id": "657b8495-5e34-47a3-a4ce-625baf9c937e",
         "name": "checkSuccess2",
         "type": "n8n-nodes-base.httpRequest",
@@ -1877,6 +1999,12 @@
           7728,
           1424
         ],
+        "parameters": {
+          "url": "={{ 'https://api.phantombuster.com/api/v2/agents/fetch-output?id=' + \"959265651312489\" + '&containerId=' + $('kyleConnectionExport2').item.json.containerId }}",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpHeaderAuth",
+          "options": {}
+        },
         "credentials": {
           "httpHeaderAuth": {
             "id": "KWeabljbYSzoLpjI",
@@ -1885,19 +2013,19 @@
         }
       },
       {
-        "parameters": {
-          "operation": "getOutput",
-          "agentId": "959265651312489",
-          "additionalFields": {}
-        },
+        "id": "98a1d5d2-14f3-449d-aaa0-7377505c81c6",
+        "name": "getRecentConnections2",
         "type": "n8n-nodes-base.phantombuster",
         "typeVersion": 1,
         "position": [
           7888,
           1424
         ],
-        "id": "98a1d5d2-14f3-449d-aaa0-7377505c81c6",
-        "name": "getRecentConnections2",
+        "parameters": {
+          "operation": "getOutput",
+          "agentId": "959265651312489",
+          "additionalFields": {}
+        },
         "credentials": {
           "phantombusterApi": {
             "id": "UYQpQC8SBIqIkifM",
@@ -1906,9 +2034,6 @@
         }
       },
       {
-        "parameters": {
-          "jsCode": "return $input.all().map(item => ({\n    json: {\n      ...item.json,\n      profileUrlNormalized: item.json.profileUrl\n        .replace('https://www.linkedin.com', 'https://linkedin.com')\n        .replace(/\\/$/, '') // remove trailing slash\n    }\n  }));"
-        },
         "id": "7d7f3121-ac26-4b05-834d-39daabd537d0",
         "name": "normalizeUrl4",
         "type": "n8n-nodes-base.code",
@@ -1916,9 +2041,20 @@
         "position": [
           8144,
           1424
-        ]
+        ],
+        "parameters": {
+          "jsCode": "return $input.all().map(item => ({\n    json: {\n      ...item.json,\n      profileUrlNormalized: item.json.profileUrl\n        .replace('https://www.linkedin.com', 'https://linkedin.com')\n        .replace(/\\/$/, '') // remove trailing slash\n    }\n  }));"
+        }
       },
       {
+        "id": "98fcc4ae-2986-4f20-9167-fa56fdd43491",
+        "name": "Filter2",
+        "type": "n8n-nodes-base.filter",
+        "typeVersion": 2.3,
+        "position": [
+          7808,
+          1744
+        ],
         "parameters": {
           "conditions": {
             "options": {
@@ -1952,20 +2088,9 @@
             "combinator": "and"
           },
           "options": {}
-        },
-        "type": "n8n-nodes-base.filter",
-        "typeVersion": 2.3,
-        "position": [
-          7808,
-          1744
-        ],
-        "id": "98fcc4ae-2986-4f20-9167-fa56fdd43491",
-        "name": "Filter2"
+        }
       },
       {
-        "parameters": {
-          "jsCode": "return $input.all().map(item => ({\n    json: {\n      ...item.json,\n      profileUrlNormalized: item.json.profileUrl\n        .trim()\n        .replace('https://www.linkedin.com', 'https://linkedin.com')\n        .replace(/\\/$/, '') // remove trailing slash\n    }\n  }));"
-        },
         "id": "75fbea8a-2a76-4b83-8c2e-1708fb249b23",
         "name": "normalizeUrl5",
         "type": "n8n-nodes-base.code",
@@ -1973,9 +2098,20 @@
         "position": [
           8144,
           1728
-        ]
+        ],
+        "parameters": {
+          "jsCode": "return $input.all().map(item => ({\n    json: {\n      ...item.json,\n      profileUrlNormalized: item.json.profileUrl\n        .trim()\n        .replace('https://www.linkedin.com', 'https://linkedin.com')\n        .replace(/\\/$/, '') // remove trailing slash\n    }\n  }));"
+        }
       },
       {
+        "id": "8f3e62b1-16c2-4352-a33f-cbbde88aa434",
+        "name": "Update HubSpot Status1",
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.5,
+        "position": [
+          12432,
+          1648
+        ],
         "parameters": {
           "operation": "update",
           "documentId": {
@@ -2344,14 +2480,6 @@
           },
           "options": {}
         },
-        "id": "8f3e62b1-16c2-4352-a33f-cbbde88aa434",
-        "name": "Update HubSpot Status1",
-        "type": "n8n-nodes-base.googleSheets",
-        "typeVersion": 4.5,
-        "position": [
-          12432,
-          1648
-        ],
         "credentials": {
           "googleSheetsOAuth2Api": {
             "id": "hf9VoWnqYNXhUZsn",
@@ -2360,68 +2488,149 @@
         }
       },
       {
-        "parameters": {
-          "options": {}
-        },
+        "id": "38e58c85-76e8-4266-bb9b-c8bc5cb358b2",
+        "name": "Loop Over Items",
         "type": "n8n-nodes-base.splitInBatches",
         "typeVersion": 3,
         "position": [
           9312,
           1648
         ],
-        "id": "38e58c85-76e8-4266-bb9b-c8bc5cb358b2",
-        "name": "Loop Over Items"
+        "parameters": {
+          "options": {}
+        }
       },
       {
-        "parameters": {},
-        "type": "n8n-nodes-base.noOp",
+        "id": "2d14526e-29cb-433d-b181-c9dd0221f0f0",
         "name": "Replace Me",
+        "type": "n8n-nodes-base.noOp",
         "typeVersion": 1,
         "position": [
           9728,
           1488
         ],
-        "id": "2d14526e-29cb-433d-b181-c9dd0221f0f0"
+        "parameters": {}
       },
       {
-        "parameters": {
-          "jsCode": " // Check the original search result to determine which path was taken\n  const searchResult = $('Search Company').item.json;\n  const companyExists = searchResult.total > 0;\n\n  let companyId;\n  let companyCreated;\n\n  if (companyExists) {\n    // Company existed - get ID from search results\n    companyId = searchResult.results[0].id;\n    companyCreated = false;\n  } else {\n    // Company was created - get ID from Create Company response\n    companyId = $('Create Company').item.json.id;\n    companyCreated = true;\n  }\n\n  // Get the original prepared data\n  const preparedData = $('Prepare HubSpot Data').item.json;\n\n  return [{\n    json: {\n      ...preparedData,\n      _hs: {\n        ...preparedData._hs,\n        companyId: companyId,\n        companyCreated: companyCreated\n      }\n    }\n  }];\n"
-        },
+        "id": "bb16ebe4-b1d1-4d4d-9fde-34b2abfd44eb",
+        "name": "Merge Company Results",
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
           10640,
           1648
         ],
-        "id": "bb16ebe4-b1d1-4d4d-9fde-34b2abfd44eb",
-        "name": "Merge Company Results"
+        "parameters": {
+          "jsCode": "// Get the original prepared data\nconst preparedData = $('Prepare HubSpot Data').item.json;\n\n// Check if company was skipped (no company name provided)\nlet companySkipped = false;\ntry {\n  companySkipped = $('Skip Company').item.json._hs.companySkipped === true;\n} catch (e) {\n  // Skip Company node wasn't executed - company was processed\n  companySkipped = false;\n}\n\nlet companyId = null;\nlet companyCreated = false;\n\nif (companySkipped) {\n  // Company was skipped - keep companyId as null\n  companyId = null;\n  companyCreated = false;\n} else {\n  // Check the search result to determine which path was taken\n  const searchResult = $('Search Company').item.json;\n  const companyExists = searchResult.total > 0;\n\n  if (companyExists) {\n    // Company existed - get ID from search results\n    companyId = searchResult.results[0].id;\n    companyCreated = false;\n  } else {\n    // Company was created - get ID from Create Company response\n    companyId = $('Create Company').item.json.id;\n    companyCreated = true;\n  }\n}\n\nreturn [{\n  json: {\n    ...preparedData,\n    _hs: {\n      ...preparedData._hs,\n      companyId: companyId,\n      companyCreated: companyCreated,\n      companySkipped: companySkipped\n    }\n  }\n}];"
+        }
       },
       {
-        "parameters": {
-          "jsCode": " // Check the original search result to determine which path was taken\n  const searchResult = $('Search Contact').item.json;\n  const contactExists = searchResult.total > 0;\n  const companyId = $('Merge Company Results').item.json._hs.companyId\n  const companyCreated = $('Merge Company Results').item.json._hs.companyCreated\n\n  let contactId;\n  let contactCreated;\n\n  if (contactExists) {\n    // Company existed - get ID from search results\n    contactId = searchResult.results[0].id;\n    contactCreated = false;\n  } else {\n    // Company was created - get ID from Create Company response\n    contactId = $('Create Contact').item.json.id;\n    contactCreated = true;\n  }\n\n  // Get the original prepared data\n  const preparedData = $('Prepare HubSpot Data').item.json;\n\n  return [{\n    json: {\n      ...preparedData,\n      _hs: {\n        ...preparedData._hs,\n        contactId: contactId,\n        companyId: companyId,\n        contactCreated: contactCreated,\n        companyCreated: companyCreated\n      }\n    }\n  }];\n"
-        },
+        "id": "e2401895-b92a-4baa-badc-f04ee792348f",
+        "name": "Merge Contact Results",
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
           11744,
           1648
         ],
-        "id": "e2401895-b92a-4baa-badc-f04ee792348f",
-        "name": "Merge Contact Results"
+        "parameters": {
+          "jsCode": " // Check the original search result to determine which path was taken\n  const searchResult = $('Search Contact').item.json;\n  const contactExists = searchResult.total > 0;\n  const companyId = $('Merge Company Results').item.json._hs.companyId\n  const companyCreated = $('Merge Company Results').item.json._hs.companyCreated\n\n  let contactId;\n  let contactCreated;\n\n  if (contactExists) {\n    // Company existed - get ID from search results\n    contactId = searchResult.results[0].id;\n    contactCreated = false;\n  } else {\n    // Company was created - get ID from Create Company response\n    contactId = $('Create Contact').item.json.id;\n    contactCreated = true;\n  }\n\n  // Get the original prepared data\n  const preparedData = $('Prepare HubSpot Data').item.json;\n\n  return [{\n    json: {\n      ...preparedData,\n      _hs: {\n        ...preparedData._hs,\n        contactId: contactId,\n        companyId: companyId,\n        contactCreated: contactCreated,\n        companyCreated: companyCreated\n      }\n    }\n  }];\n"
+        }
       },
       {
-        "parameters": {
-          "amount": "={{ Math.floor(Math.random()*90)+30}}"
-        },
+        "id": "027a2bd4-8e90-43d9-99c3-7a94d174f03e",
+        "name": "Wait",
         "type": "n8n-nodes-base.wait",
         "typeVersion": 1.1,
         "position": [
           9536,
           1648
         ],
-        "id": "027a2bd4-8e90-43d9-99c3-7a94d174f03e",
-        "name": "Wait",
+        "parameters": {
+          "amount": "={{ Math.floor(Math.random()*90)+30}}"
+        },
         "webhookId": "a4843833-8e00-4d9f-8263-f31413f38084"
+      },
+      {
+        "id": "c1a2b3c4-d5e6-4f7a-8b9c-0d1e2f3a4b5c",
+        "name": "Has Company?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          9640,
+          1648
+        ],
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "has-company",
+                "leftValue": "={{ $json.company }}",
+                "rightValue": "",
+                "operator": {
+                  "type": "string",
+                  "operation": "notEmpty",
+                  "singleValue": true
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        }
+      },
+      {
+        "id": "d2b3c4d5-e6f7-4a8b-9c0d-1e2f3a4b5c6d",
+        "name": "Skip Company",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          9840,
+          1872
+        ],
+        "parameters": {
+          "jsCode": "// Skip company processing - set companyId to null\nconst preparedData = $('Prepare HubSpot Data').item.json;\n\nreturn [{\n  json: {\n    ...preparedData,\n    _hs: {\n      ...preparedData._hs,\n      companyId: null,\n      companyCreated: false,\n      companySkipped: true\n    }\n  }\n}];"
+        }
+      },
+      {
+        "id": "e3c4d5e6-f7a8-4b9c-0d1e-2f3a4b5c6d7e",
+        "name": "Has Company ID?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          11864,
+          1648
+        ],
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "has-company-id",
+                "leftValue": "={{ $json._hs.companyId }}",
+                "rightValue": "",
+                "operator": {
+                  "type": "string",
+                  "operation": "exists",
+                  "singleValue": true
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        }
       }
     ],
     "connections": {
@@ -2768,7 +2977,25 @@
         "main": [
           [
             {
+              "node": "Has Company ID?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Has Company ID?": {
+        "main": [
+          [
+            {
               "node": "Associate Contact → Company",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Format Output",
               "type": "main",
               "index": 0
             }
@@ -2779,7 +3006,36 @@
         "main": [
           [
             {
+              "node": "Has Company?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Has Company?": {
+        "main": [
+          [
+            {
               "node": "Search Company",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Skip Company",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Skip Company": {
+        "main": [
+          [
+            {
+              "node": "Merge Company Results",
               "type": "main",
               "index": 0
             }
@@ -2792,26 +3048,18 @@
     "description": null,
     "workflowPublishHistory": [
       {
-        "createdAt": "2026-01-02T08:06:21.934Z",
-        "id": 55,
+        "createdAt": "2026-01-21T16:57:21.652Z",
+        "id": 222,
         "workflowId": "a56vnrPo9dsg5mmf",
-        "versionId": "8f8592c2-e93e-4f21-8c37-25f73067daf5",
+        "versionId": "b5b45381-a28a-482c-8349-562748f11ed3",
         "event": "activated",
         "userId": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4"
       },
       {
-        "createdAt": "2026-01-02T08:06:39.279Z",
-        "id": 56,
+        "createdAt": "2026-01-21T16:57:27.350Z",
+        "id": 223,
         "workflowId": "a56vnrPo9dsg5mmf",
-        "versionId": "8f8592c2-e93e-4f21-8c37-25f73067daf5",
-        "event": "activated",
-        "userId": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4"
-      },
-      {
-        "createdAt": "2026-01-02T08:19:49.711Z",
-        "id": 57,
-        "workflowId": "a56vnrPo9dsg5mmf",
-        "versionId": "8f8592c2-e93e-4f21-8c37-25f73067daf5",
+        "versionId": "b5b45381-a28a-482c-8349-562748f11ed3",
         "event": "activated",
         "userId": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4"
       }
