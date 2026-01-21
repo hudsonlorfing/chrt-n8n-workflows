@@ -1,8 +1,9 @@
 {
-  "updatedAt": "2026-01-20T23:50:55.852Z",
+  "updatedAt": "2026-01-21T16:42:51.403Z",
   "createdAt": "2025-12-17T17:08:43.420Z",
   "id": "aLxwvqoSTkZAQ3fq",
   "name": "1. Lead Ingestion & ICP Scoring",
+  "description": null,
   "active": true,
   "isArchived": false,
   "nodes": [
@@ -943,8 +944,9 @@
     "templateCredsSetupCompleted": true
   },
   "pinData": {},
-  "versionId": "28cc592d-2d3d-4ed2-931c-63a14d4b290e",
-  "activeVersionId": "eb352e91-f2d1-4ef4-8aaf-51d55831eebc",
+  "versionId": "d5c7d131-25c6-463d-af2b-0688e7e7fb33",
+  "activeVersionId": "d5c7d131-25c6-463d-af2b-0688e7e7fb33",
+  "versionCounter": 48,
   "triggerCount": 1,
   "shared": [
     {
@@ -952,13 +954,65 @@
       "createdAt": "2025-12-24T03:18:27.972Z",
       "role": "workflow:owner",
       "workflowId": "aLxwvqoSTkZAQ3fq",
-      "projectId": "O7lTivDfRl72aS23"
+      "projectId": "O7lTivDfRl72aS23",
+      "project": {
+        "updatedAt": "2025-12-24T03:17:11.000Z",
+        "createdAt": "2025-12-23T21:24:31.508Z",
+        "id": "O7lTivDfRl72aS23",
+        "name": "ChrtWorkflows",
+        "type": "team",
+        "icon": {
+          "type": "icon",
+          "value": "layers"
+        },
+        "description": "",
+        "projectRelations": [
+          {
+            "updatedAt": "2025-12-23T21:24:31.510Z",
+            "createdAt": "2025-12-23T21:24:31.510Z",
+            "userId": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4",
+            "projectId": "O7lTivDfRl72aS23",
+            "user": {
+              "updatedAt": "2026-01-21T08:00:48.000Z",
+              "createdAt": "2025-12-17T12:51:53.118Z",
+              "id": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4",
+              "email": "hudson@chrt.com",
+              "firstName": "Hudson",
+              "lastName": "Lorfing",
+              "personalizationAnswers": null,
+              "settings": {
+                "userActivated": true,
+                "userClaimedAiCredits": true,
+                "easyAIWorkflowOnboarded": true,
+                "firstSuccessfulWorkflowId": "kjjYKQEXv67Vl5MS",
+                "userActivatedAt": 1766099344758,
+                "npsSurvey": {
+                  "responded": true,
+                  "lastShownAt": 1768855960435
+                }
+              },
+              "disabled": false,
+              "mfaEnabled": false,
+              "lastActiveAt": "2026-01-21",
+              "isPending": false
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "tags": [
+    {
+      "updatedAt": "2025-12-17T14:25:00.955Z",
+      "createdAt": "2025-12-17T14:25:00.955Z",
+      "id": "ST1cKCxkQ4kcD3uk",
+      "name": "linkedin"
     }
   ],
   "activeVersion": {
-    "updatedAt": "2025-12-26T19:56:23.139Z",
-    "createdAt": "2025-12-26T19:56:23.139Z",
-    "versionId": "eb352e91-f2d1-4ef4-8aaf-51d55831eebc",
+    "updatedAt": "2026-01-21T16:42:51.405Z",
+    "createdAt": "2026-01-21T16:42:51.405Z",
+    "versionId": "d5c7d131-25c6-463d-af2b-0688e7e7fb33",
     "workflowId": "aLxwvqoSTkZAQ3fq",
     "nodes": [
       {
@@ -1001,7 +1055,7 @@
         "typeVersion": 2,
         "position": [
           -28224,
-          2928
+          2880
         ]
       },
       {
@@ -1023,8 +1077,8 @@
         "type": "n8n-nodes-base.googleSheets",
         "typeVersion": 4.5,
         "position": [
-          -28224,
-          3008
+          -27952,
+          2864
         ],
         "credentials": {
           "googleSheetsOAuth2Api": {
@@ -1052,8 +1106,8 @@
         "type": "n8n-nodes-base.googleSheets",
         "typeVersion": 4.5,
         "position": [
-          -28224,
-          3200
+          -28160,
+          3184
         ],
         "credentials": {
           "googleSheetsOAuth2Api": {
@@ -1073,8 +1127,8 @@
         "type": "n8n-nodes-base.splitInBatches",
         "typeVersion": 3,
         "position": [
-          -26928,
-          3120
+          -26960,
+          2944
         ]
       },
       {
@@ -1250,8 +1304,8 @@
                 "removed": false
               },
               {
-                "id": "industry",
-                "displayName": "industry",
+                "id": "adj industry",
+                "displayName": "adj industry",
                 "required": false,
                 "defaultMatch": false,
                 "display": true,
@@ -1468,6 +1522,16 @@
                 "type": "string",
                 "canBeUsedToMatch": true,
                 "removed": false
+              },
+              {
+                "id": "industry",
+                "displayName": "industry",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
               }
             ],
             "attemptToConvertTypes": false,
@@ -1577,8 +1641,8 @@
         "type": "n8n-nodes-base.merge",
         "typeVersion": 3,
         "position": [
-          -28000,
-          3104
+          -27872,
+          3120
         ],
         "id": "merge-wait-for-both",
         "name": "Wait for Both Sheets"
@@ -1631,7 +1695,7 @@
       },
       {
         "parameters": {
-          "maxItems": 10
+          "maxItems": 1500
         },
         "type": "n8n-nodes-base.limit",
         "typeVersion": 1,
@@ -1879,16 +1943,16 @@
     },
     "authors": "Hudson Lorfing",
     "name": null,
-    "description": null
-  },
-  "tags": [
-    {
-      "updatedAt": "2025-12-17T14:25:00.955Z",
-      "createdAt": "2025-12-17T14:25:00.955Z",
-      "id": "ST1cKCxkQ4kcD3uk",
-      "name": "linkedin"
-    }
-  ],
-  "_folderPath": "linkedin",
-  "_fileName": "1.-lead-ingestion-&-icp-scoring.json"
+    "description": null,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-01-21T16:42:51.631Z",
+        "id": 221,
+        "workflowId": "aLxwvqoSTkZAQ3fq",
+        "versionId": "d5c7d131-25c6-463d-af2b-0688e7e7fb33",
+        "event": "activated",
+        "userId": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4"
+      }
+    ]
+  }
 }
