@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-01-22T05:35:05.767Z",
+  "updatedAt": "2026-01-22T05:52:43.434Z",
   "createdAt": "2025-12-26T18:55:11.571Z",
   "id": "dWFsEXELFTJU0W01",
   "name": "4. Lead Pipeline Monitor",
@@ -58,7 +58,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Extract Dashboard metrics\nconst data = $input.first().json;\n\n// B5 = Pre-processed count, D4 = Potential Connections\n// Google Sheets returns values by column letter\nconst preProcessed = parseInt(data['B5'] || data['Pre-processed'] || data[Object.keys(data)[0]] || 0);\nconst potentialConnections = parseInt(data['D4'] || data['Potential Connections'] || data[Object.keys(data)[2]] || 0);\n\nreturn [{\n  json: {\n    preProcessed,\n    potentialConnections,\n    needsIngestion: potentialConnections < 240,\n    needsScraping: preProcessed < 500,\n    timestamp: new Date().toISOString()\n  }\n}];"
+        "jsCode": "// Extract Dashboard metrics\nconst data = $input.first().json;\n\n// B5 = Pre-processed count, D4 = Potential Connections\n// Google Sheets returns values by column letter\nconst preProcessed = parseInt(data['Pre-Processed'] || data[Object.keys(data)[0]] || 0);\nconst potentialConnections = parseInt(data['Potential Connections'] || data[Object.keys(data)[2]] || 0);\n\nreturn [{\n  json: {\n    preProcessed,\n    potentialConnections,\n    needsIngestion: potentialConnections < 240,\n    needsScraping: preProcessed < 1000,\n    timestamp: new Date().toISOString()\n  }\n}];"
       },
       "id": "parse-metrics",
       "name": "Parse Dashboard Metrics",
@@ -66,39 +66,6 @@
       "typeVersion": 2,
       "position": [
         240,
-        400
-      ]
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "loose",
-            "version": 2
-          },
-          "conditions": [
-            {
-              "id": "check-d5",
-              "leftValue": "={{ $json.needsIngestion }}",
-              "rightValue": true,
-              "operator": {
-                "type": "boolean",
-                "operation": "equals"
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "id": "check-potential-connections",
-      "name": "D4 < 240?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [
-        464,
         400
       ]
     },
@@ -118,7 +85,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        704,
+        912,
         304
       ],
       "onError": "continueRegularOutput"
@@ -142,7 +109,7 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        944,
+        1152,
         512
       ],
       "credentials": {
@@ -161,7 +128,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1168,
+        1376,
         512
       ]
     },
@@ -194,7 +161,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        1392,
+        1600,
         400
       ]
     },
@@ -205,7 +172,7 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        1600,
+        1808,
         304
       ],
       "notesInFlow": true,
@@ -240,7 +207,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        1392,
+        1600,
         608
       ]
     },
@@ -251,7 +218,7 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        1600,
+        1808,
         512
       ],
       "notesInFlow": true,
@@ -286,7 +253,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        1392,
+        1600,
         800
       ]
     },
@@ -297,7 +264,7 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        1600,
+        1808,
         800
       ],
       "notesInFlow": true,
@@ -332,7 +299,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        1824,
+        2032,
         512
       ]
     },
@@ -354,7 +321,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2048,
+        2256,
         400
       ],
       "credentials": {
@@ -378,7 +345,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2464,
+        2672,
         288
       ],
       "credentials": {
@@ -417,7 +384,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        2608,
+        2816,
         288
       ]
     },
@@ -430,7 +397,7 @@
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        2784,
+        2992,
         320
       ],
       "webhookId": "phantom-retry-wait"
@@ -446,7 +413,7 @@
       "type": "n8n-nodes-base.phantombuster",
       "typeVersion": 1,
       "position": [
-        2800,
+        3008,
         512
       ],
       "credentials": {
@@ -468,7 +435,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2992,
+        3200,
         512
       ]
     },
@@ -481,7 +448,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3168,
+        3376,
         480
       ]
     },
@@ -504,7 +471,7 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        3344,
+        3552,
         272
       ],
       "credentials": {
@@ -533,7 +500,7 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        3376,
+        3584,
         544
       ],
       "credentials": {
@@ -552,7 +519,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3744,
+        3952,
         384
       ]
     },
@@ -585,7 +552,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        3936,
+        4144,
         400
       ]
     },
@@ -598,7 +565,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4192,
+        4400,
         368
       ]
     },
@@ -626,7 +593,7 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        4448,
+        4656,
         352
       ],
       "credentials": {
@@ -665,7 +632,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        4432,
+        4640,
         624
       ]
     },
@@ -719,7 +686,7 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        4672,
+        4880,
         448
       ],
       "credentials": {
@@ -738,7 +705,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4224,
+        4432,
         624
       ]
     },
@@ -761,7 +728,7 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        4880,
+        5088,
         448
       ],
       "credentials": {
@@ -773,14 +740,14 @@
     },
     {
       "parameters": {
-        "jsCode": "// Check if we still need more leads\nconst data = $input.first().json;\nconst preProcessed = parseInt(data['B5'] || data['Pre-processed'] || data[Object.keys(data)[0]] || 0);\n\nreturn [{\n  json: {\n    preProcessed,\n    stillNeedsScraping: preProcessed < 500\n  }\n}];"
+        "jsCode": "// Extract Dashboard metrics\nconst data = $input.first().json;\n\n// B5 = Pre-processed count, D4 = Potential Connections\n// Google Sheets returns values by column letter\nconst preProcessed = parseInt(data['Pre-Processed'] || data[Object.keys(data)[0]] || 0);\n\nreturn [{\n  json: {\n    preProcessed,\n    stillNeedsScraping: preProcessed < 1000,\n    timestamp: new Date().toISOString()\n  }\n}];"
       },
       "id": "check-still-needed",
       "name": "Still Need More?",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        5168,
+        5376,
         448
       ]
     },
@@ -790,7 +757,7 @@
           "options": {
             "caseSensitive": true,
             "leftValue": "",
-            "typeValidation": "loose",
+            "typeValidation": "strict",
             "version": 2
           },
           "conditions": [
@@ -813,7 +780,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        5392,
+        5600,
         448
       ]
     },
@@ -827,7 +794,7 @@
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        5344,
+        5552,
         32
       ],
       "webhookId": "retry-wait"
@@ -839,7 +806,7 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        5552,
+        5760,
         640
       ]
     },
@@ -850,7 +817,7 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        2048,
+        2256,
         608
       ]
     },
@@ -882,7 +849,7 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [
-        5776,
+        5984,
         640
       ]
     },
@@ -891,8 +858,8 @@
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
       "position": [
-        2544,
-        640
+        -256,
+        784
       ],
       "id": "baa72fbb-d099-4029-ba26-7b3608559d78",
       "name": "When clicking ‘Execute workflow’"
@@ -907,7 +874,7 @@
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        2240,
+        2448,
         288
       ],
       "webhookId": "phantom-wait"
@@ -917,11 +884,44 @@
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3.2,
       "position": [
-        3568,
+        3776,
         384
       ],
       "id": "06d13644-87b1-414b-8789-6010081f7c6b",
       "name": "Merge"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "check-d5",
+              "leftValue": "={{ $json.needsScraping }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-potential-connections",
+      "name": "preProcessed < 1000",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        528,
+        400
+      ]
     }
   ],
   "connections": {
@@ -962,25 +962,7 @@
       "main": [
         [
           {
-            "node": "D4 < 240?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "D4 < 240?": {
-      "main": [
-        [
-          {
-            "node": "Trigger Lead Ingestion",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Done",
+            "node": "preProcessed < 1000",
             "type": "main",
             "index": 0
           }
@@ -1424,7 +1406,25 @@
       "main": [
         [
           {
-            "node": "Get Phantom Output",
+            "node": "Read Dashboard Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "preProcessed < 1000": {
+      "main": [
+        [
+          {
+            "node": "Trigger Lead Ingestion",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Done",
             "type": "main",
             "index": 0
           }
@@ -1444,25 +1444,10 @@
     }
   },
   "meta": null,
-  "pinData": {
-    "Parse Phantom Output": [
-      {
-        "json": {
-          "profiles": [],
-          "profileCount": 0,
-          "selectedRow": 10,
-          "selectedURL": "https://www.linkedin.com/search/results/people/?origin=FACETED_SEARCH&network=%5B%22S%22%5D&connectionOf=%5B%22ACoAACUMb6cB4omzW2rhX5VQzghQKItDt6v2id4%22%5D",
-          "phantomStatus": "finished"
-        },
-        "pairedItem": {
-          "item": 0
-        }
-      }
-    ]
-  },
-  "versionId": "6eed018b-291e-4052-857f-c31c7d95a673",
-  "activeVersionId": "6eed018b-291e-4052-857f-c31c7d95a673",
-  "versionCounter": 75,
+  "pinData": {},
+  "versionId": "97e5c679-184d-4e1b-aa13-9ac8d4460e44",
+  "activeVersionId": "97e5c679-184d-4e1b-aa13-9ac8d4460e44",
+  "versionCounter": 85,
   "triggerCount": 2,
   "shared": [
     {
@@ -1526,9 +1511,9 @@
     }
   ],
   "activeVersion": {
-    "updatedAt": "2026-01-22T05:35:05.770Z",
-    "createdAt": "2026-01-22T05:35:05.770Z",
-    "versionId": "6eed018b-291e-4052-857f-c31c7d95a673",
+    "updatedAt": "2026-01-22T05:52:46.000Z",
+    "createdAt": "2026-01-22T05:52:43.435Z",
+    "versionId": "97e5c679-184d-4e1b-aa13-9ac8d4460e44",
     "workflowId": "dWFsEXELFTJU0W01",
     "nodes": [
       {
@@ -1582,7 +1567,7 @@
       },
       {
         "parameters": {
-          "jsCode": "// Extract Dashboard metrics\nconst data = $input.first().json;\n\n// B5 = Pre-processed count, D4 = Potential Connections\n// Google Sheets returns values by column letter\nconst preProcessed = parseInt(data['B5'] || data['Pre-processed'] || data[Object.keys(data)[0]] || 0);\nconst potentialConnections = parseInt(data['D4'] || data['Potential Connections'] || data[Object.keys(data)[2]] || 0);\n\nreturn [{\n  json: {\n    preProcessed,\n    potentialConnections,\n    needsIngestion: potentialConnections < 240,\n    needsScraping: preProcessed < 500,\n    timestamp: new Date().toISOString()\n  }\n}];"
+          "jsCode": "// Extract Dashboard metrics\nconst data = $input.first().json;\n\n// B5 = Pre-processed count, D4 = Potential Connections\n// Google Sheets returns values by column letter\nconst preProcessed = parseInt(data['Pre-Processed'] || data[Object.keys(data)[0]] || 0);\nconst potentialConnections = parseInt(data['Potential Connections'] || data[Object.keys(data)[2]] || 0);\n\nreturn [{\n  json: {\n    preProcessed,\n    potentialConnections,\n    needsIngestion: potentialConnections < 240,\n    needsScraping: preProcessed < 1000,\n    timestamp: new Date().toISOString()\n  }\n}];"
         },
         "id": "parse-metrics",
         "name": "Parse Dashboard Metrics",
@@ -1590,39 +1575,6 @@
         "typeVersion": 2,
         "position": [
           240,
-          400
-        ]
-      },
-      {
-        "parameters": {
-          "conditions": {
-            "options": {
-              "caseSensitive": true,
-              "leftValue": "",
-              "typeValidation": "loose",
-              "version": 2
-            },
-            "conditions": [
-              {
-                "id": "check-d5",
-                "leftValue": "={{ $json.needsIngestion }}",
-                "rightValue": true,
-                "operator": {
-                  "type": "boolean",
-                  "operation": "equals"
-                }
-              }
-            ],
-            "combinator": "and"
-          },
-          "options": {}
-        },
-        "id": "check-potential-connections",
-        "name": "D4 < 240?",
-        "type": "n8n-nodes-base.if",
-        "typeVersion": 2.2,
-        "position": [
-          464,
           400
         ]
       },
@@ -1642,7 +1594,7 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          704,
+          912,
           304
         ],
         "onError": "continueRegularOutput"
@@ -1666,7 +1618,7 @@
         "type": "n8n-nodes-base.googleSheets",
         "typeVersion": 4.5,
         "position": [
-          944,
+          1152,
           512
         ],
         "credentials": {
@@ -1685,7 +1637,7 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          1168,
+          1376,
           512
         ]
       },
@@ -1718,7 +1670,7 @@
         "type": "n8n-nodes-base.if",
         "typeVersion": 2.2,
         "position": [
-          1392,
+          1600,
           400
         ]
       },
@@ -1729,7 +1681,7 @@
         "type": "n8n-nodes-base.noOp",
         "typeVersion": 1,
         "position": [
-          1600,
+          1808,
           304
         ],
         "notesInFlow": true,
@@ -1764,7 +1716,7 @@
         "type": "n8n-nodes-base.if",
         "typeVersion": 2.2,
         "position": [
-          1392,
+          1600,
           608
         ]
       },
@@ -1775,7 +1727,7 @@
         "type": "n8n-nodes-base.noOp",
         "typeVersion": 1,
         "position": [
-          1600,
+          1808,
           512
         ],
         "notesInFlow": true,
@@ -1810,7 +1762,7 @@
         "type": "n8n-nodes-base.if",
         "typeVersion": 2.2,
         "position": [
-          1392,
+          1600,
           800
         ]
       },
@@ -1821,7 +1773,7 @@
         "type": "n8n-nodes-base.noOp",
         "typeVersion": 1,
         "position": [
-          1600,
+          1808,
           800
         ],
         "notesInFlow": true,
@@ -1856,7 +1808,7 @@
         "type": "n8n-nodes-base.if",
         "typeVersion": 2.2,
         "position": [
-          1824,
+          2032,
           512
         ]
       },
@@ -1878,7 +1830,7 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          2048,
+          2256,
           400
         ],
         "credentials": {
@@ -1902,7 +1854,7 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          2464,
+          2672,
           288
         ],
         "credentials": {
@@ -1941,7 +1893,7 @@
         "type": "n8n-nodes-base.if",
         "typeVersion": 2.2,
         "position": [
-          2608,
+          2816,
           288
         ]
       },
@@ -1954,7 +1906,7 @@
         "type": "n8n-nodes-base.wait",
         "typeVersion": 1.1,
         "position": [
-          2784,
+          2992,
           320
         ],
         "webhookId": "phantom-retry-wait"
@@ -1970,7 +1922,7 @@
         "type": "n8n-nodes-base.phantombuster",
         "typeVersion": 1,
         "position": [
-          2800,
+          3008,
           512
         ],
         "credentials": {
@@ -1992,7 +1944,7 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          2992,
+          3200,
           512
         ]
       },
@@ -2005,7 +1957,7 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          3168,
+          3376,
           480
         ]
       },
@@ -2028,7 +1980,7 @@
         "type": "n8n-nodes-base.googleSheets",
         "typeVersion": 4.5,
         "position": [
-          3344,
+          3552,
           272
         ],
         "credentials": {
@@ -2057,7 +2009,7 @@
         "type": "n8n-nodes-base.googleSheets",
         "typeVersion": 4.5,
         "position": [
-          3376,
+          3584,
           544
         ],
         "credentials": {
@@ -2076,7 +2028,7 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          3744,
+          3952,
           384
         ]
       },
@@ -2109,7 +2061,7 @@
         "type": "n8n-nodes-base.if",
         "typeVersion": 2.2,
         "position": [
-          3936,
+          4144,
           400
         ]
       },
@@ -2122,7 +2074,7 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          4192,
+          4400,
           368
         ]
       },
@@ -2150,7 +2102,7 @@
         "type": "n8n-nodes-base.googleSheets",
         "typeVersion": 4.5,
         "position": [
-          4448,
+          4656,
           352
         ],
         "credentials": {
@@ -2189,7 +2141,7 @@
         "type": "n8n-nodes-base.if",
         "typeVersion": 2.2,
         "position": [
-          4432,
+          4640,
           624
         ]
       },
@@ -2243,7 +2195,7 @@
         "type": "n8n-nodes-base.googleSheets",
         "typeVersion": 4.5,
         "position": [
-          4672,
+          4880,
           448
         ],
         "credentials": {
@@ -2262,7 +2214,7 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          4224,
+          4432,
           624
         ]
       },
@@ -2285,7 +2237,7 @@
         "type": "n8n-nodes-base.googleSheets",
         "typeVersion": 4.5,
         "position": [
-          4880,
+          5088,
           448
         ],
         "credentials": {
@@ -2297,14 +2249,14 @@
       },
       {
         "parameters": {
-          "jsCode": "// Check if we still need more leads\nconst data = $input.first().json;\nconst preProcessed = parseInt(data['B5'] || data['Pre-processed'] || data[Object.keys(data)[0]] || 0);\n\nreturn [{\n  json: {\n    preProcessed,\n    stillNeedsScraping: preProcessed < 500\n  }\n}];"
+          "jsCode": "// Extract Dashboard metrics\nconst data = $input.first().json;\n\n// B5 = Pre-processed count, D4 = Potential Connections\n// Google Sheets returns values by column letter\nconst preProcessed = parseInt(data['Pre-Processed'] || data[Object.keys(data)[0]] || 0);\n\nreturn [{\n  json: {\n    preProcessed,\n    stillNeedsScraping: preProcessed < 1000,\n    timestamp: new Date().toISOString()\n  }\n}];"
         },
         "id": "check-still-needed",
         "name": "Still Need More?",
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          5168,
+          5376,
           448
         ]
       },
@@ -2314,7 +2266,7 @@
             "options": {
               "caseSensitive": true,
               "leftValue": "",
-              "typeValidation": "loose",
+              "typeValidation": "strict",
               "version": 2
             },
             "conditions": [
@@ -2337,7 +2289,7 @@
         "type": "n8n-nodes-base.if",
         "typeVersion": 2.2,
         "position": [
-          5392,
+          5600,
           448
         ]
       },
@@ -2351,7 +2303,7 @@
         "type": "n8n-nodes-base.wait",
         "typeVersion": 1.1,
         "position": [
-          5344,
+          5552,
           32
         ],
         "webhookId": "retry-wait"
@@ -2363,7 +2315,7 @@
         "type": "n8n-nodes-base.noOp",
         "typeVersion": 1,
         "position": [
-          5552,
+          5760,
           640
         ]
       },
@@ -2374,7 +2326,7 @@
         "type": "n8n-nodes-base.noOp",
         "typeVersion": 1,
         "position": [
-          2048,
+          2256,
           608
         ]
       },
@@ -2406,7 +2358,7 @@
         "type": "n8n-nodes-base.respondToWebhook",
         "typeVersion": 1.1,
         "position": [
-          5776,
+          5984,
           640
         ]
       },
@@ -2415,8 +2367,8 @@
         "type": "n8n-nodes-base.manualTrigger",
         "typeVersion": 1,
         "position": [
-          2544,
-          640
+          -256,
+          784
         ],
         "id": "baa72fbb-d099-4029-ba26-7b3608559d78",
         "name": "When clicking ‘Execute workflow’"
@@ -2431,7 +2383,7 @@
         "type": "n8n-nodes-base.wait",
         "typeVersion": 1.1,
         "position": [
-          2240,
+          2448,
           288
         ],
         "webhookId": "phantom-wait"
@@ -2441,11 +2393,44 @@
         "type": "n8n-nodes-base.merge",
         "typeVersion": 3.2,
         "position": [
-          3568,
+          3776,
           384
         ],
         "id": "06d13644-87b1-414b-8789-6010081f7c6b",
         "name": "Merge"
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "check-d5",
+                "leftValue": "={{ $json.needsScraping }}",
+                "rightValue": true,
+                "operator": {
+                  "type": "boolean",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "check-potential-connections",
+        "name": "preProcessed < 1000",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          528,
+          400
+        ]
       }
     ],
     "connections": {
@@ -2486,25 +2471,7 @@
         "main": [
           [
             {
-              "node": "D4 < 240?",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "D4 < 240?": {
-        "main": [
-          [
-            {
-              "node": "Trigger Lead Ingestion",
-              "type": "main",
-              "index": 0
-            }
-          ],
-          [
-            {
-              "node": "Done",
+              "node": "preProcessed < 1000",
               "type": "main",
               "index": 0
             }
@@ -2948,7 +2915,25 @@
         "main": [
           [
             {
-              "node": "Get Phantom Output",
+              "node": "Read Dashboard Metrics",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "preProcessed < 1000": {
+        "main": [
+          [
+            {
+              "node": "Trigger Lead Ingestion",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Done",
               "type": "main",
               "index": 0
             }
@@ -2957,22 +2942,14 @@
       }
     },
     "authors": "Hudson Lorfing",
-    "name": null,
-    "description": null,
+    "name": "Version 97e5c679",
+    "description": "",
     "workflowPublishHistory": [
       {
-        "createdAt": "2026-01-22T05:35:05.979Z",
-        "id": 240,
+        "createdAt": "2026-01-22T05:52:46.306Z",
+        "id": 244,
         "workflowId": "dWFsEXELFTJU0W01",
-        "versionId": "6eed018b-291e-4052-857f-c31c7d95a673",
-        "event": "activated",
-        "userId": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4"
-      },
-      {
-        "createdAt": "2026-01-22T05:35:06.476Z",
-        "id": 241,
-        "workflowId": "dWFsEXELFTJU0W01",
-        "versionId": "6eed018b-291e-4052-857f-c31c7d95a673",
+        "versionId": "97e5c679-184d-4e1b-aa13-9ac8d4460e44",
         "event": "activated",
         "userId": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4"
       }
