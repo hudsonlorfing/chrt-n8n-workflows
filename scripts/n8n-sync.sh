@@ -277,6 +277,61 @@ status() {
     check_errors
 }
 
+# Scan for secrets before committing
+scan_secrets() {
+    echo -e "${YELLOW}🔍 Scanning for secrets...${NC}"
+    
+    # Check for hardcoded API keys or tokens (not variable references)
+    # Look for actual secret values, not n8n credential references
+    local secrets_found=$(grep -r -E '"(sk-|xoxb-|ghp_|gho_|AKIA)[A-Za-z0-9]{20,}"' workflows/ --include="*.json" 2>/dev/null | wc -l)
+    
+    if [ "$secrets_found" -gt 0 ]; then
+        echo -e "${RED}⚠ Potential hardcoded secrets detected!${NC}"
+        grep -r -E '"(sk-|xoxb-|ghp_|gho_|AKIA)[A-Za-z0-9]{20,}"' workflows/ --include="*.json" 2>/dev/null | head -5
+        return 1
+    else
+        echo -e "${GREEN}✓ No secrets detected${NC}"
+        return 0
+    fi
+}
+
+# Full sync: Download from n8n → Commit → Force push to GitHub
+# Use this when n8n is the source of truth
+sync_to_github() {
+    print_header "Sync n8n → GitHub"
+    
+    echo -e "${YELLOW}Step 1/4: Download from n8n...${NC}"
+    download_all
+    
+    echo -e "${YELLOW}Step 2/4: Scan for secrets...${NC}"
+    if ! scan_secrets; then
+        echo -e "${RED}Aborting sync due to potential secrets.${NC}"
+        echo "Review the files and remove secrets before syncing."
+        exit 1
+    fi
+    echo ""
+    
+    echo -e "${YELLOW}Step 3/4: Commit changes...${NC}"
+    if git diff --quiet && git diff --staged --quiet; then
+        echo -e "${GREEN}✓ No changes to commit${NC}"
+    else
+        git add .
+        local timestamp=$(date +"%Y-%m-%d %H:%M")
+        git commit -m "sync: Pull latest from n8n ($timestamp)"
+        echo -e "${GREEN}✓ Changes committed${NC}"
+    fi
+    echo ""
+    
+    echo -e "${YELLOW}Step 4/4: Push to GitHub (force)...${NC}"
+    git push --force
+    echo -e "${GREEN}✓ Pushed to GitHub${NC}"
+    echo ""
+    
+    echo -e "${GREEN}============================================${NC}"
+    echo -e "${GREEN}Sync complete! n8n → GitHub${NC}"
+    echo -e "${GREEN}============================================${NC}"
+}
+
 # Usage
 usage() {
     echo "n8n Sync Script - Workflow synchronization and pre-flight checks"
@@ -284,6 +339,7 @@ usage() {
     echo "Usage: $0 <command>"
     echo ""
     echo "Commands:"
+    echo "  sync         Download from n8n and force push to GitHub (n8n = source of truth)"
     echo "  preflight    Run full pre-flight check (recommended before every session)"
     echo "  pull         Pull latest from GitHub"
     echo "  download     Download all workflows from n8n to local"
@@ -292,6 +348,7 @@ usage() {
     echo "  status       Show full status report"
     echo ""
     echo "Examples:"
+    echo "  $0 sync          # Sync n8n → GitHub (most common)"
     echo "  $0 preflight     # Run before starting work"
     echo "  $0 download      # Get latest from n8n after UI changes"
     echo "  $0 push          # Deploy local changes to n8n"
@@ -299,6 +356,9 @@ usage() {
 
 # Main
 case "${1:-}" in
+    sync)
+        sync_to_github
+        ;;
     preflight)
         preflight
         ;;

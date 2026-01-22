@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-01-22T19:07:13.895Z",
+  "updatedAt": "2026-01-22T19:46:22.378Z",
   "createdAt": "2025-12-26T18:55:11.571Z",
   "id": "dWFsEXELFTJU0W01",
   "name": "4. Lead Pipeline Monitor",
@@ -397,7 +397,7 @@
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        3472,
+        3680,
         272
       ],
       "webhookId": "phantom-retry-wait"
@@ -435,7 +435,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        3760,
+        3968,
         416
       ]
     },
@@ -448,7 +448,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4000,
+        4208,
         480
       ]
     },
@@ -471,7 +471,7 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        4176,
+        4384,
         272
       ],
       "credentials": {
@@ -500,7 +500,7 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        4208,
+        4416,
         544
       ],
       "credentials": {
@@ -519,7 +519,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4576,
+        4784,
         384
       ]
     },
@@ -552,7 +552,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        4768,
+        4976,
         400
       ]
     },
@@ -565,7 +565,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        5024,
+        5232,
         368
       ]
     },
@@ -593,7 +593,7 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        5280,
+        5488,
         352
       ],
       "credentials": {
@@ -602,39 +602,6 @@
           "name": "Google Sheets account"
         }
       }
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 2
-          },
-          "conditions": [
-            {
-              "id": "has-valid-name",
-              "leftValue": "={{ $json.searchUrl }}",
-              "rightValue": "",
-              "operator": {
-                "type": "string",
-                "operation": "notEmpty"
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "id": "check-valid-name",
-      "name": "Has Valid Name?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [
-        5264,
-        576
-      ]
     },
     {
       "parameters": {
@@ -730,7 +697,7 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        5504,
+        5712,
         448
       ],
       "credentials": {
@@ -749,7 +716,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        5056,
+        5264,
         624
       ]
     },
@@ -772,7 +739,7 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        5712,
+        5920,
         448
       ],
       "credentials": {
@@ -791,7 +758,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        6000,
+        6208,
         448
       ]
     },
@@ -824,7 +791,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        6224,
+        6432,
         448
       ]
     },
@@ -838,7 +805,7 @@
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        6144,
+        6352,
         48
       ],
       "webhookId": "retry-wait"
@@ -850,7 +817,7 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        6384,
+        6592,
         640
       ]
     },
@@ -893,7 +860,7 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [
-        6608,
+        6816,
         640
       ]
     },
@@ -930,7 +897,7 @@
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3.2,
       "position": [
-        4400,
+        4608,
         384
       ]
     },
@@ -1032,7 +999,41 @@
         512
       ],
       "id": "f6e12ad5-7413-455a-8909-4772c5d58d6e",
-      "name": "If"
+      "name": "If URL"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "622fe891-95c2-47a2-9622-6cd60be41792",
+              "leftValue": "=  {{ $json.error }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notExists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        3632,
+        608
+      ],
+      "id": "7915f4cb-2038-451a-a88e-9ed8709dfc28",
+      "name": "If no error"
     }
   ],
   "connections": {
@@ -1325,25 +1326,7 @@
       "main": [
         [
           {
-            "node": "Has Valid Name?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Has Valid Name?": {
-      "main": [
-        [
-          {
             "node": "Update Last Crawl Date",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Re-check Dashboard B5",
             "type": "main",
             "index": 0
           }
@@ -1478,7 +1461,7 @@
       "main": [
         [
           {
-            "node": "If",
+            "node": "If URL",
             "type": "main",
             "index": 0
           }
@@ -1559,7 +1542,7 @@
         ]
       ]
     },
-    "If": {
+    "If URL": {
       "main": [
         [
           {
@@ -1570,7 +1553,25 @@
         ],
         [
           {
+            "node": "If no error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If no error": {
+      "main": [
+        [
+          {
             "node": "Parse Phantom Output",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Crawl Date Update",
             "type": "main",
             "index": 0
           }
@@ -1590,10 +1591,19 @@
     }
   },
   "meta": null,
-  "pinData": {},
-  "versionId": "6548d005-9ec0-44ff-a72f-2b7f9a5faf70",
-  "activeVersionId": "6548d005-9ec0-44ff-a72f-2b7f9a5faf70",
-  "versionCounter": 102,
+  "pinData": {
+    "When clicking ‘Execute workflow’": [
+      {
+        "json": {},
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "versionId": "a41b64a7-2ed1-4f32-9136-1b0aa981fbe7",
+  "activeVersionId": "a41b64a7-2ed1-4f32-9136-1b0aa981fbe7",
+  "versionCounter": 105,
   "triggerCount": 2,
   "shared": [
     {
@@ -1657,9 +1667,9 @@
     }
   ],
   "activeVersion": {
-    "updatedAt": "2026-01-22T19:07:35.000Z",
-    "createdAt": "2026-01-22T19:07:13.897Z",
-    "versionId": "6548d005-9ec0-44ff-a72f-2b7f9a5faf70",
+    "updatedAt": "2026-01-22T19:46:56.000Z",
+    "createdAt": "2026-01-22T19:46:22.380Z",
+    "versionId": "a41b64a7-2ed1-4f32-9136-1b0aa981fbe7",
     "workflowId": "dWFsEXELFTJU0W01",
     "nodes": [
       {
@@ -2052,7 +2062,7 @@
         "type": "n8n-nodes-base.wait",
         "typeVersion": 1.1,
         "position": [
-          3472,
+          3680,
           272
         ],
         "webhookId": "phantom-retry-wait"
@@ -2090,7 +2100,7 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          3760,
+          3968,
           416
         ]
       },
@@ -2103,7 +2113,7 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          4000,
+          4208,
           480
         ]
       },
@@ -2126,7 +2136,7 @@
         "type": "n8n-nodes-base.googleSheets",
         "typeVersion": 4.5,
         "position": [
-          4176,
+          4384,
           272
         ],
         "credentials": {
@@ -2155,7 +2165,7 @@
         "type": "n8n-nodes-base.googleSheets",
         "typeVersion": 4.5,
         "position": [
-          4208,
+          4416,
           544
         ],
         "credentials": {
@@ -2174,7 +2184,7 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          4576,
+          4784,
           384
         ]
       },
@@ -2207,7 +2217,7 @@
         "type": "n8n-nodes-base.if",
         "typeVersion": 2.2,
         "position": [
-          4768,
+          4976,
           400
         ]
       },
@@ -2220,7 +2230,7 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          5024,
+          5232,
           368
         ]
       },
@@ -2248,7 +2258,7 @@
         "type": "n8n-nodes-base.googleSheets",
         "typeVersion": 4.5,
         "position": [
-          5280,
+          5488,
           352
         ],
         "credentials": {
@@ -2257,39 +2267,6 @@
             "name": "Google Sheets account"
           }
         }
-      },
-      {
-        "parameters": {
-          "conditions": {
-            "options": {
-              "caseSensitive": true,
-              "leftValue": "",
-              "typeValidation": "strict",
-              "version": 2
-            },
-            "conditions": [
-              {
-                "id": "has-valid-name",
-                "leftValue": "={{ $json.searchUrl }}",
-                "rightValue": "",
-                "operator": {
-                  "type": "string",
-                  "operation": "notEmpty"
-                }
-              }
-            ],
-            "combinator": "and"
-          },
-          "options": {}
-        },
-        "id": "check-valid-name",
-        "name": "Has Valid Name?",
-        "type": "n8n-nodes-base.if",
-        "typeVersion": 2.2,
-        "position": [
-          5264,
-          576
-        ]
       },
       {
         "parameters": {
@@ -2385,7 +2362,7 @@
         "type": "n8n-nodes-base.googleSheets",
         "typeVersion": 4.5,
         "position": [
-          5504,
+          5712,
           448
         ],
         "credentials": {
@@ -2404,7 +2381,7 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          5056,
+          5264,
           624
         ]
       },
@@ -2427,7 +2404,7 @@
         "type": "n8n-nodes-base.googleSheets",
         "typeVersion": 4.5,
         "position": [
-          5712,
+          5920,
           448
         ],
         "credentials": {
@@ -2446,7 +2423,7 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          6000,
+          6208,
           448
         ]
       },
@@ -2479,7 +2456,7 @@
         "type": "n8n-nodes-base.if",
         "typeVersion": 2.2,
         "position": [
-          6224,
+          6432,
           448
         ]
       },
@@ -2493,7 +2470,7 @@
         "type": "n8n-nodes-base.wait",
         "typeVersion": 1.1,
         "position": [
-          6144,
+          6352,
           48
         ],
         "webhookId": "retry-wait"
@@ -2505,7 +2482,7 @@
         "type": "n8n-nodes-base.noOp",
         "typeVersion": 1,
         "position": [
-          6384,
+          6592,
           640
         ]
       },
@@ -2548,7 +2525,7 @@
         "type": "n8n-nodes-base.respondToWebhook",
         "typeVersion": 1.1,
         "position": [
-          6608,
+          6816,
           640
         ]
       },
@@ -2585,7 +2562,7 @@
         "type": "n8n-nodes-base.merge",
         "typeVersion": 3.2,
         "position": [
-          4400,
+          4608,
           384
         ]
       },
@@ -2687,7 +2664,41 @@
           512
         ],
         "id": "f6e12ad5-7413-455a-8909-4772c5d58d6e",
-        "name": "If"
+        "name": "If URL"
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 3
+            },
+            "conditions": [
+              {
+                "id": "622fe891-95c2-47a2-9622-6cd60be41792",
+                "leftValue": "=  {{ $json.error }}",
+                "rightValue": "",
+                "operator": {
+                  "type": "string",
+                  "operation": "notExists",
+                  "singleValue": true
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.3,
+        "position": [
+          3632,
+          608
+        ],
+        "id": "7915f4cb-2038-451a-a88e-9ed8709dfc28",
+        "name": "If no error"
       }
     ],
     "connections": {
@@ -2980,25 +2991,7 @@
         "main": [
           [
             {
-              "node": "Has Valid Name?",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "Has Valid Name?": {
-        "main": [
-          [
-            {
               "node": "Update Last Crawl Date",
-              "type": "main",
-              "index": 0
-            }
-          ],
-          [
-            {
-              "node": "Re-check Dashboard B5",
               "type": "main",
               "index": 0
             }
@@ -3133,7 +3126,7 @@
         "main": [
           [
             {
-              "node": "If",
+              "node": "If URL",
               "type": "main",
               "index": 0
             }
@@ -3214,7 +3207,7 @@
           ]
         ]
       },
-      "If": {
+      "If URL": {
         "main": [
           [
             {
@@ -3225,7 +3218,25 @@
           ],
           [
             {
+              "node": "If no error",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "If no error": {
+        "main": [
+          [
+            {
               "node": "Parse Phantom Output",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Prepare Crawl Date Update",
               "type": "main",
               "index": 0
             }
@@ -3234,14 +3245,14 @@
       }
     },
     "authors": "Hudson Lorfing",
-    "name": "Version 6548d005",
-    "description": "",
+    "name": "Version a41b64a7",
+    "description": "Updated changes in error handling",
     "workflowPublishHistory": [
       {
-        "createdAt": "2026-01-22T19:07:35.042Z",
-        "id": 248,
+        "createdAt": "2026-01-22T19:46:56.671Z",
+        "id": 250,
         "workflowId": "dWFsEXELFTJU0W01",
-        "versionId": "6548d005-9ec0-44ff-a72f-2b7f9a5faf70",
+        "versionId": "a41b64a7-2ed1-4f32-9136-1b0aa981fbe7",
         "event": "activated",
         "userId": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4"
       }

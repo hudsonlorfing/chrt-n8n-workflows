@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-01-21T17:08:45.654Z",
+  "updatedAt": "2026-01-22T19:17:19.193Z",
   "createdAt": "2025-12-17T17:08:43.420Z",
   "id": "aLxwvqoSTkZAQ3fq",
   "name": "1. Lead Ingestion & ICP Scoring",
@@ -156,7 +156,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const pb = $('Loop Over Leads1').item.json;\nlet aiResult = { score: 5, segment: 'Unknown', reason: 'Could not parse AI response', hubspotIndustry: '' };\n\ntry {\n  const content = $('AI ICP Score').item.json.content?.[0]?.text || '{}';\n  const parsed = JSON.parse(content.replace(/```json?|```/g, '').trim());\n  aiResult = {\n    score: parsed.score ?? 5,\n    segment: parsed.segment || 'Unknown',\n    reason: parsed.reason || 'No reason provided',\n    hubspotIndustry: parsed.hubspotIndustry || ''\n  };\n} catch (e) {}\n\n// Output all 34 columns in order A-AH\nreturn [{\n  json: {\n    profileUrl: pb.profileUrl || pb.linkedinProfileUrl || '',\n    fullName: pb.fullName || `${pb.firstName || ''} ${pb.lastName || ''}`.trim(),\n    firstName: pb.firstName || '',\n    lastName: pb.lastName || '',\n    school: pb.school || '',\n    schoolDegree: pb.schoolDegree || '',\n    company: pb.company || pb.companyName || '',\n    companyUrl: pb.companyUrl || '',\n    companyId: pb.companyId || '',\n    jobTitle: pb.jobTitle || '',\n    jobDateRange: pb.jobDateRange || '',\n    'adj industry': aiResult.hubspotIndustry,\n    headline: pb.headline || '',\n    location: pb.location || '',\n    company2: pb.company2 || '',\n    companyUrl2: pb.companyUrl2 || '',\n    companyId2: pb.companyId2 || '',\n    jobTitle2: pb.jobTitle2 || '',\n    jobDateRange2: pb.jobDateRange2 || '',\n    score: aiResult.score,\n    segment: aiResult.segment,\n    reason: aiResult.reason,\n    status: aiResult.score >= 6 ? 'Ready' : 'Low Priority',\n    added: new Date().toISOString().split('T')[0],\n    kyleSentDate: '',\n    kyleConnectDate: '',\n    hudsonSentDate: '',\n    hudsonConnectDate: '',\n    hubspotSync: '',\n    hudsonNotes: '',\n    inviteResults: '',\n    connectionDegree: pb.connectionDegree || '',\n    previousRole: pb.jobTitle2 ? `${pb.jobTitle2} @ ${pb.company2 || ''}` : '',\n    industry: pb.industry || ''\n  }\n}];"
+        "jsCode": "const pb = $('Loop Over Leads1').item.json;\nlet aiResult = { score: 5, segment: 'Unknown', reason: 'Could not parse AI response', hubspotIndustry: '' };\n\ntry {\n  const content = $('AI ICP Score').item.json.content?.[0]?.text || '{}';\n  const parsed = JSON.parse(content.replace(/```json?|```/g, '').trim());\n  aiResult = {\n    score: parsed.score ?? 5,\n    segment: parsed.segment || 'Unknown',\n    reason: parsed.reason || 'No reason provided',\n    hubspotIndustry: parsed.hubspotIndustry || ''\n  };\n} catch (e) {}\n\n// Output all 34 columns in order A-AH\nreturn [{\n  json: {\n    profileUrl: pb.profileUrl || pb.linkedinProfileUrl || '',\n    fullName: pb.fullName || `${pb.firstName || ''} ${pb.lastName || ''}`.trim(),\n    firstName: pb.firstName || '',\n    lastName: pb.lastName || '',\n    school: pb.school || '',\n    schoolDegree: pb.schoolDegree || '',\n    company: pb.company || pb.companyName || '',\n    companyUrl: pb.companyUrl || '',\n    companyId: pb.companyId || '',\n    jobTitle: pb.jobTitle || '',\n    jobDateRange: pb.jobDateRange || '',\n    hsIndustry: aiResult.hubspotIndustry,\n    headline: pb.headline || '',\n    location: pb.location || '',\n    company2: pb.company2 || '',\n    companyUrl2: pb.companyUrl2 || '',\n    companyId2: pb.companyId2 || '',\n    jobTitle2: pb.jobTitle2 || '',\n    jobDateRange2: pb.jobDateRange2 || '',\n    score: aiResult.score,\n    segment: aiResult.segment,\n    reason: aiResult.reason,\n    status: aiResult.score >= 6 ? 'Ready' : 'Low Priority',\n    added: new Date().toISOString().split('T')[0],\n    kyleSentDate: '',\n    kyleConnectDate: '',\n    hudsonSentDate: '',\n    hudsonConnectDate: '',\n    hubspotSync: '',\n    hudsonNotes: '',\n    inviteResults: '',\n    connectionDegree: pb.connectionDegree || '',\n    previousRole: pb.jobTitle2 ? `${pb.jobTitle2} @ ${pb.company2 || ''}` : '',\n    industry: pb.industry || ''\n  }\n}];"
       },
       "id": "c78dafcf-3174-4792-b843-9512bfaa472e",
       "name": "Format for Master List",
@@ -944,9 +944,9 @@
     "templateCredsSetupCompleted": true
   },
   "pinData": {},
-  "versionId": "cd47a6f0-4b20-4188-a3c5-bf8806a64c94",
-  "activeVersionId": "d5c7d131-25c6-463d-af2b-0688e7e7fb33",
-  "versionCounter": 51,
+  "versionId": "4ef27b06-615d-4575-94c1-8d1e96d25f1b",
+  "activeVersionId": "4ef27b06-615d-4575-94c1-8d1e96d25f1b",
+  "versionCounter": 54,
   "triggerCount": 1,
   "shared": [
     {
@@ -1010,9 +1010,9 @@
     }
   ],
   "activeVersion": {
-    "updatedAt": "2026-01-21T16:42:51.405Z",
-    "createdAt": "2026-01-21T16:42:51.405Z",
-    "versionId": "d5c7d131-25c6-463d-af2b-0688e7e7fb33",
+    "updatedAt": "2026-01-22T19:17:23.000Z",
+    "createdAt": "2026-01-22T19:17:19.195Z",
+    "versionId": "4ef27b06-615d-4575-94c1-8d1e96d25f1b",
     "workflowId": "aLxwvqoSTkZAQ3fq",
     "nodes": [
       {
@@ -1164,7 +1164,7 @@
       },
       {
         "parameters": {
-          "jsCode": "const pb = $('Loop Over Leads1').item.json;\nlet aiResult = { score: 5, segment: 'Unknown', reason: 'Could not parse AI response', hubspotIndustry: '' };\n\ntry {\n  const content = $('AI ICP Score').item.json.content?.[0]?.text || '{}';\n  const parsed = JSON.parse(content.replace(/```json?|```/g, '').trim());\n  aiResult = {\n    score: parsed.score ?? 5,\n    segment: parsed.segment || 'Unknown',\n    reason: parsed.reason || 'No reason provided',\n    hubspotIndustry: parsed.hubspotIndustry || ''\n  };\n} catch (e) {}\n\n// Output all 34 columns in order A-AH\nreturn [{\n  json: {\n    profileUrl: pb.profileUrl || pb.linkedinProfileUrl || '',\n    fullName: pb.fullName || `${pb.firstName || ''} ${pb.lastName || ''}`.trim(),\n    firstName: pb.firstName || '',\n    lastName: pb.lastName || '',\n    school: pb.school || '',\n    schoolDegree: pb.schoolDegree || '',\n    company: pb.company || pb.companyName || '',\n    companyUrl: pb.companyUrl || '',\n    companyId: pb.companyId || '',\n    jobTitle: pb.jobTitle || '',\n    jobDateRange: pb.jobDateRange || '',\n    'adj industry': aiResult.hubspotIndustry,\n    headline: pb.headline || '',\n    location: pb.location || '',\n    company2: pb.company2 || '',\n    companyUrl2: pb.companyUrl2 || '',\n    companyId2: pb.companyId2 || '',\n    jobTitle2: pb.jobTitle2 || '',\n    jobDateRange2: pb.jobDateRange2 || '',\n    score: aiResult.score,\n    segment: aiResult.segment,\n    reason: aiResult.reason,\n    status: aiResult.score >= 6 ? 'Ready' : 'Low Priority',\n    added: new Date().toISOString().split('T')[0],\n    kyleSentDate: '',\n    kyleConnectDate: '',\n    hudsonSentDate: '',\n    hudsonConnectDate: '',\n    hubspotSync: '',\n    hudsonNotes: '',\n    inviteResults: '',\n    connectionDegree: pb.connectionDegree || '',\n    previousRole: pb.jobTitle2 ? `${pb.jobTitle2} @ ${pb.company2 || ''}` : '',\n    industry: pb.industry || ''\n  }\n}];"
+          "jsCode": "const pb = $('Loop Over Leads1').item.json;\nlet aiResult = { score: 5, segment: 'Unknown', reason: 'Could not parse AI response', hubspotIndustry: '' };\n\ntry {\n  const content = $('AI ICP Score').item.json.content?.[0]?.text || '{}';\n  const parsed = JSON.parse(content.replace(/```json?|```/g, '').trim());\n  aiResult = {\n    score: parsed.score ?? 5,\n    segment: parsed.segment || 'Unknown',\n    reason: parsed.reason || 'No reason provided',\n    hubspotIndustry: parsed.hubspotIndustry || ''\n  };\n} catch (e) {}\n\n// Output all 34 columns in order A-AH\nreturn [{\n  json: {\n    profileUrl: pb.profileUrl || pb.linkedinProfileUrl || '',\n    fullName: pb.fullName || `${pb.firstName || ''} ${pb.lastName || ''}`.trim(),\n    firstName: pb.firstName || '',\n    lastName: pb.lastName || '',\n    school: pb.school || '',\n    schoolDegree: pb.schoolDegree || '',\n    company: pb.company || pb.companyName || '',\n    companyUrl: pb.companyUrl || '',\n    companyId: pb.companyId || '',\n    jobTitle: pb.jobTitle || '',\n    jobDateRange: pb.jobDateRange || '',\n    hsIndustry: aiResult.hubspotIndustry,\n    headline: pb.headline || '',\n    location: pb.location || '',\n    company2: pb.company2 || '',\n    companyUrl2: pb.companyUrl2 || '',\n    companyId2: pb.companyId2 || '',\n    jobTitle2: pb.jobTitle2 || '',\n    jobDateRange2: pb.jobDateRange2 || '',\n    score: aiResult.score,\n    segment: aiResult.segment,\n    reason: aiResult.reason,\n    status: aiResult.score >= 6 ? 'Ready' : 'Low Priority',\n    added: new Date().toISOString().split('T')[0],\n    kyleSentDate: '',\n    kyleConnectDate: '',\n    hudsonSentDate: '',\n    hudsonConnectDate: '',\n    hubspotSync: '',\n    hudsonNotes: '',\n    inviteResults: '',\n    connectionDegree: pb.connectionDegree || '',\n    previousRole: pb.jobTitle2 ? `${pb.jobTitle2} @ ${pb.company2 || ''}` : '',\n    industry: pb.industry || ''\n  }\n}];"
         },
         "id": "c78dafcf-3174-4792-b843-9512bfaa472e",
         "name": "Format for Master List",
@@ -1695,7 +1695,7 @@
       },
       {
         "parameters": {
-          "maxItems": 1500
+          "maxItems": 1000
         },
         "type": "n8n-nodes-base.limit",
         "typeVersion": 1,
@@ -1942,14 +1942,14 @@
       }
     },
     "authors": "Hudson Lorfing",
-    "name": null,
-    "description": null,
+    "name": "Version 4ef27b06",
+    "description": "",
     "workflowPublishHistory": [
       {
-        "createdAt": "2026-01-21T16:42:51.631Z",
-        "id": 221,
+        "createdAt": "2026-01-22T19:17:23.127Z",
+        "id": 249,
         "workflowId": "aLxwvqoSTkZAQ3fq",
-        "versionId": "d5c7d131-25c6-463d-af2b-0688e7e7fb33",
+        "versionId": "4ef27b06-615d-4575-94c1-8d1e96d25f1b",
         "event": "activated",
         "userId": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4"
       }
