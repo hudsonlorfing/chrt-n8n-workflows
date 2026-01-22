@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-01-21T22:17:41.158Z",
+  "updatedAt": "2026-01-22T04:47:36.229Z",
   "createdAt": "2025-12-26T18:55:11.571Z",
   "id": "dWFsEXELFTJU0W01",
   "name": "4. Lead Pipeline Monitor",
@@ -122,39 +122,6 @@
         304
       ],
       "onError": "continueRegularOutput"
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "loose",
-            "version": 2
-          },
-          "conditions": [
-            {
-              "id": "check-b5",
-              "leftValue": "={{ $json.needsScraping }}",
-              "rightValue": true,
-              "operator": {
-                "type": "boolean",
-                "operation": "equals"
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "id": "check-preprocessed",
-      "name": "B5 < 500?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [
-        704,
-        512
-      ]
     },
     {
       "parameters": {
@@ -411,8 +378,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2480,
-        400
+        2464,
+        288
       ],
       "credentials": {
         "httpHeaderAuth": {
@@ -450,13 +417,12 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        2600,
-        400
+        2608,
+        288
       ]
     },
     {
       "parameters": {
-        "amount": 5,
         "unit": "minutes"
       },
       "id": "wait-more-for-phantom",
@@ -464,8 +430,8 @@
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        2700,
-        300
+        2784,
+        320
       ],
       "webhookId": "phantom-retry-wait"
     },
@@ -481,7 +447,7 @@
       "typeVersion": 1,
       "position": [
         2800,
-        500
+        512
       ],
       "credentials": {
         "phantombusterApi": {
@@ -492,15 +458,31 @@
     },
     {
       "parameters": {
-        "jsCode": "// Parse PhantomBuster native node output - each item is a profile\nconst allItems = $input.all();\nconst selectedRow = $('Analyze URLs & Select Next').first().json.selectedRow;\nconst selectedURL = $('Analyze URLs & Select Next').first().json.selectedURL;\nconst selectedName = $('Analyze URLs & Select Next').first().json.selectedName;\n\n// PhantomBuster native getOutput returns each profile as a separate item\nconst profileUrls = allItems\n  .filter(item => item.json.linkedinProfileUrl || item.json.profileUrl)\n  .map(item => {\n    const p = item.json;\n    // Normalize URL - remove www and trailing slash for consistency\n    let url = (p.linkedinProfileUrl || p.profileUrl || '').trim().toLowerCase();\n    url = url.replace('https://www.linkedin.com', 'https://linkedin.com').replace(/\\/$/, '');\n    \n    return {\n      profileUrl: url,\n      fullName: p.fullName || '',\n      firstName: p.firstName || '',\n      lastName: p.lastName || '',\n      headline: p.headline || '',\n      location: p.location || '',\n      company: p.company || '',\n      connectionDegree: p.connectionDegree || '',\n      timestamp: new Date().toISOString()\n    };\n  });\n\nreturn [{\n  json: {\n    profiles: profileUrls,\n    profileCount: profileUrls.length,\n    selectedRow,\n    selectedURL,\n    selectedName,\n    phantomStatus: 'finished'\n  }\n}];"
+        "url": "={{ $json.jsonUrl }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "fetch-phantom-json",
+      "name": "Fetch Phantom JSON",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2900,
+        512
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse PhantomBuster JSON fetched from S3 URL\n// The HTTP Request returns an array of profile objects\nconst fetchedData = $input.first().json;\n\n// Get selectedName from Analyze URLs & Select Next node\nlet selectedRow, selectedURL, selectedName;\ntry {\n  const analyzeData = $('Analyze URLs & Select Next').first().json;\n  selectedRow = analyzeData.selectedRow;\n  selectedURL = analyzeData.selectedURL;\n  selectedName = analyzeData.selectedName;\n} catch (e) {\n  // Manual trigger - these won't be available\n  selectedRow = null;\n  selectedURL = null;\n  selectedName = null;\n}\n\n// Handle both array response and single object with array property\nlet profiles = [];\nif (Array.isArray(fetchedData)) {\n  profiles = fetchedData;\n} else if (fetchedData.data && Array.isArray(fetchedData.data)) {\n  profiles = fetchedData.data;\n}\n\n// Parse profiles and normalize URLs\nconst profileUrls = profiles\n  .filter(p => p.linkedinProfileUrl || p.profileUrl)\n  .map(p => {\n    // Normalize URL - remove www and trailing slash for consistency\n    let url = (p.linkedinProfileUrl || p.profileUrl || '').trim().toLowerCase();\n    url = url.replace('https://www.linkedin.com', 'https://linkedin.com').replace(/\\/$/, '');\n    \n    return {\n      profileUrl: url,\n      fullName: p.fullName || '',\n      firstName: p.firstName || '',\n      lastName: p.lastName || '',\n      headline: p.headline || '',\n      location: p.location || '',\n      company: p.company || '',\n      connectionDegree: p.connectionDegree || '',\n      timestamp: new Date().toISOString()\n    };\n  });\n\nreturn [{\n  json: {\n    profiles: profileUrls,\n    profileCount: profileUrls.length,\n    selectedRow,\n    selectedURL,\n    selectedName,\n    phantomStatus: 'finished'\n  }\n}];"
       },
       "id": "parse-phantom-output",
       "name": "Parse Phantom Output",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2900,
-        500
+        3008,
+        512
       ]
     },
     {
@@ -522,8 +504,8 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        2928,
-        304
+        3104,
+        272
       ],
       "credentials": {
         "googleSheetsOAuth2Api": {
@@ -551,8 +533,8 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        2944,
-        448
+        3168,
+        560
       ],
       "credentials": {
         "googleSheetsOAuth2Api": {
@@ -656,6 +638,39 @@
     },
     {
       "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "has-valid-name",
+              "leftValue": "={{ $json.Name }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-valid-name",
+      "name": "Has Valid Name?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        4048,
+        400
+      ]
+    },
+    {
+      "parameters": {
         "operation": "update",
         "documentId": {
           "__rl": true,
@@ -716,7 +731,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Prepare row data for updating Last Crawl Date using Name as match field\nconst dedupeData = $('Dedupe Against Master + New Leads').first().json;\nconst parseData = $('Parse Phantom Output').first().json;\n\nreturn [{\n  json: {\n    'Name': parseData.selectedName || dedupeData.selectedName || '',\n    'Last Crawl Date': new Date().toISOString().split('T')[0]\n  }\n}];"
+        "jsCode": "// Prepare row data for updating Last Crawl Date using Name as match field\n// Get selectedName from multiple sources - try each in order\nlet selectedName = '';\n\n// Try getting from Parse Phantom Output first\ntry {\n  selectedName = $('Parse Phantom Output').first().json.selectedName || '';\n} catch (e) {}\n\n// Fallback to Dedupe node if still empty\nif (!selectedName) {\n  try {\n    selectedName = $('Dedupe Against Master + New Leads').first().json.selectedName || '';\n  } catch (e) {}\n}\n\n// Fallback to Analyze URLs node directly\nif (!selectedName) {\n  try {\n    selectedName = $('Analyze URLs & Select Next').first().json.selectedName || '';\n  } catch (e) {}\n}\n\n// Only return data if we have a valid name to match on\nif (!selectedName) {\n  return [{ json: { _skip: true, reason: 'No selectedName available - skipping crawl date update' } }];\n}\n\nreturn [{\n  json: {\n    'Name': selectedName,\n    'Last Crawl Date': new Date().toISOString().split('T')[0]\n  }\n}];"
       },
       "id": "prepare-crawl-update",
       "name": "Prepare Crawl Date Update",
@@ -876,8 +891,8 @@
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
       "position": [
-        -240,
-        800
+        2544,
+        640
       ],
       "id": "baa72fbb-d099-4029-ba26-7b3608559d78",
       "name": "When clicking ‘Execute workflow’"
@@ -892,8 +907,8 @@
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        2272,
-        400
+        2240,
+        288
       ],
       "webhookId": "phantom-wait"
     },
@@ -965,7 +980,7 @@
         ],
         [
           {
-            "node": "B5 < 500?",
+            "node": "Done",
             "type": "main",
             "index": 0
           }
@@ -976,25 +991,7 @@
       "main": [
         [
           {
-            "node": "B5 < 500?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "B5 < 500?": {
-      "main": [
-        [
-          {
             "node": "Read People to Crawl",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Done",
             "type": "main",
             "index": 0
           }
@@ -1193,11 +1190,6 @@
             "node": "Prepare for Append",
             "type": "main",
             "index": 0
-          },
-          {
-            "node": "Prepare Crawl Date Update",
-            "type": "main",
-            "index": 0
           }
         ],
         [
@@ -1222,14 +1214,38 @@
     },
     "Append to New Leads": {
       "main": [
-        []
+        [
+          {
+            "node": "Prepare Crawl Date Update",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Prepare Crawl Date Update": {
       "main": [
         [
           {
+            "node": "Has Valid Name?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Valid Name?": {
+      "main": [
+        [
+          {
             "node": "Update Last Crawl Date",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Re-check Dashboard B5",
             "type": "main",
             "index": 0
           }
@@ -1309,17 +1325,6 @@
         ]
       ]
     },
-    "When clicking 'Execute workflow'": {
-      "main": [
-        [
-          {
-            "node": "Read People to Crawl",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Wait 30 min for Phantom": {
       "main": [
         [
@@ -1375,6 +1380,17 @@
       "main": [
         [
           {
+            "node": "Fetch Phantom JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Phantom JSON": {
+      "main": [
+        [
+          {
             "node": "Parse Phantom Output",
             "type": "main",
             "index": 0
@@ -1387,6 +1403,17 @@
         [
           {
             "node": "Dedupe Against Master + New Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking 'Execute workflow'": {
+      "main": [
+        [
+          {
+            "node": "Read People to Crawl",
             "type": "main",
             "index": 0
           }
@@ -1422,9 +1449,9 @@
       }
     ]
   },
-  "versionId": "0b1a330a-2e0e-4367-8575-137cb6b0bf99",
-  "activeVersionId": "0b1a330a-2e0e-4367-8575-137cb6b0bf99",
-  "versionCounter": 33,
+  "versionId": "99b7609e-fef9-4e5c-b15b-5111ae628074",
+  "activeVersionId": "99b7609e-fef9-4e5c-b15b-5111ae628074",
+  "versionCounter": 48,
   "triggerCount": 2,
   "shared": [
     {
@@ -1488,9 +1515,9 @@
     }
   ],
   "activeVersion": {
-    "updatedAt": "2026-01-21T22:17:41.161Z",
-    "createdAt": "2026-01-21T22:17:41.161Z",
-    "versionId": "0b1a330a-2e0e-4367-8575-137cb6b0bf99",
+    "updatedAt": "2026-01-22T04:47:36.231Z",
+    "createdAt": "2026-01-22T04:47:36.231Z",
+    "versionId": "99b7609e-fef9-4e5c-b15b-5111ae628074",
     "workflowId": "dWFsEXELFTJU0W01",
     "nodes": [
       {
@@ -1608,39 +1635,6 @@
           304
         ],
         "onError": "continueRegularOutput"
-      },
-      {
-        "parameters": {
-          "conditions": {
-            "options": {
-              "caseSensitive": true,
-              "leftValue": "",
-              "typeValidation": "loose",
-              "version": 2
-            },
-            "conditions": [
-              {
-                "id": "check-b5",
-                "leftValue": "={{ $json.needsScraping }}",
-                "rightValue": true,
-                "operator": {
-                  "type": "boolean",
-                  "operation": "equals"
-                }
-              }
-            ],
-            "combinator": "and"
-          },
-          "options": {}
-        },
-        "id": "check-preprocessed",
-        "name": "B5 < 500?",
-        "type": "n8n-nodes-base.if",
-        "typeVersion": 2.2,
-        "position": [
-          704,
-          512
-        ]
       },
       {
         "parameters": {
@@ -1897,8 +1891,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          2480,
-          400
+          2464,
+          288
         ],
         "credentials": {
           "httpHeaderAuth": {
@@ -1936,13 +1930,12 @@
         "type": "n8n-nodes-base.if",
         "typeVersion": 2.2,
         "position": [
-          2600,
-          400
+          2608,
+          288
         ]
       },
       {
         "parameters": {
-          "amount": 5,
           "unit": "minutes"
         },
         "id": "wait-more-for-phantom",
@@ -1950,8 +1943,8 @@
         "type": "n8n-nodes-base.wait",
         "typeVersion": 1.1,
         "position": [
-          2700,
-          300
+          2784,
+          320
         ],
         "webhookId": "phantom-retry-wait"
       },
@@ -1967,7 +1960,7 @@
         "typeVersion": 1,
         "position": [
           2800,
-          500
+          512
         ],
         "credentials": {
           "phantombusterApi": {
@@ -1978,15 +1971,31 @@
       },
       {
         "parameters": {
-          "jsCode": "// Parse PhantomBuster native node output - each item is a profile\nconst allItems = $input.all();\nconst selectedRow = $('Analyze URLs & Select Next').first().json.selectedRow;\nconst selectedURL = $('Analyze URLs & Select Next').first().json.selectedURL;\nconst selectedName = $('Analyze URLs & Select Next').first().json.selectedName;\n\n// PhantomBuster native getOutput returns each profile as a separate item\nconst profileUrls = allItems\n  .filter(item => item.json.linkedinProfileUrl || item.json.profileUrl)\n  .map(item => {\n    const p = item.json;\n    // Normalize URL - remove www and trailing slash for consistency\n    let url = (p.linkedinProfileUrl || p.profileUrl || '').trim().toLowerCase();\n    url = url.replace('https://www.linkedin.com', 'https://linkedin.com').replace(/\\/$/, '');\n    \n    return {\n      profileUrl: url,\n      fullName: p.fullName || '',\n      firstName: p.firstName || '',\n      lastName: p.lastName || '',\n      headline: p.headline || '',\n      location: p.location || '',\n      company: p.company || '',\n      connectionDegree: p.connectionDegree || '',\n      timestamp: new Date().toISOString()\n    };\n  });\n\nreturn [{\n  json: {\n    profiles: profileUrls,\n    profileCount: profileUrls.length,\n    selectedRow,\n    selectedURL,\n    selectedName,\n    phantomStatus: 'finished'\n  }\n}];"
+          "url": "={{ $json.jsonUrl }}",
+          "options": {
+            "timeout": 60000
+          }
+        },
+        "id": "fetch-phantom-json",
+        "name": "Fetch Phantom JSON",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          2900,
+          512
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "// Parse PhantomBuster JSON fetched from S3 URL\n// The HTTP Request returns an array of profile objects\nconst fetchedData = $input.first().json;\n\n// Get selectedName from Analyze URLs & Select Next node\nlet selectedRow, selectedURL, selectedName;\ntry {\n  const analyzeData = $('Analyze URLs & Select Next').first().json;\n  selectedRow = analyzeData.selectedRow;\n  selectedURL = analyzeData.selectedURL;\n  selectedName = analyzeData.selectedName;\n} catch (e) {\n  // Manual trigger - these won't be available\n  selectedRow = null;\n  selectedURL = null;\n  selectedName = null;\n}\n\n// Handle both array response and single object with array property\nlet profiles = [];\nif (Array.isArray(fetchedData)) {\n  profiles = fetchedData;\n} else if (fetchedData.data && Array.isArray(fetchedData.data)) {\n  profiles = fetchedData.data;\n}\n\n// Parse profiles and normalize URLs\nconst profileUrls = profiles\n  .filter(p => p.linkedinProfileUrl || p.profileUrl)\n  .map(p => {\n    // Normalize URL - remove www and trailing slash for consistency\n    let url = (p.linkedinProfileUrl || p.profileUrl || '').trim().toLowerCase();\n    url = url.replace('https://www.linkedin.com', 'https://linkedin.com').replace(/\\/$/, '');\n    \n    return {\n      profileUrl: url,\n      fullName: p.fullName || '',\n      firstName: p.firstName || '',\n      lastName: p.lastName || '',\n      headline: p.headline || '',\n      location: p.location || '',\n      company: p.company || '',\n      connectionDegree: p.connectionDegree || '',\n      timestamp: new Date().toISOString()\n    };\n  });\n\nreturn [{\n  json: {\n    profiles: profileUrls,\n    profileCount: profileUrls.length,\n    selectedRow,\n    selectedURL,\n    selectedName,\n    phantomStatus: 'finished'\n  }\n}];"
         },
         "id": "parse-phantom-output",
         "name": "Parse Phantom Output",
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          2900,
-          500
+          3008,
+          512
         ]
       },
       {
@@ -2008,8 +2017,8 @@
         "type": "n8n-nodes-base.googleSheets",
         "typeVersion": 4.5,
         "position": [
-          2928,
-          304
+          3104,
+          272
         ],
         "credentials": {
           "googleSheetsOAuth2Api": {
@@ -2037,8 +2046,8 @@
         "type": "n8n-nodes-base.googleSheets",
         "typeVersion": 4.5,
         "position": [
-          2944,
-          448
+          3168,
+          560
         ],
         "credentials": {
           "googleSheetsOAuth2Api": {
@@ -2142,6 +2151,39 @@
       },
       {
         "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "has-valid-name",
+                "leftValue": "={{ $json.Name }}",
+                "rightValue": "",
+                "operator": {
+                  "type": "string",
+                  "operation": "notEmpty"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "check-valid-name",
+        "name": "Has Valid Name?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          4048,
+          400
+        ]
+      },
+      {
+        "parameters": {
           "operation": "update",
           "documentId": {
             "__rl": true,
@@ -2202,7 +2244,7 @@
       },
       {
         "parameters": {
-          "jsCode": "// Prepare row data for updating Last Crawl Date using Name as match field\nconst dedupeData = $('Dedupe Against Master + New Leads').first().json;\nconst parseData = $('Parse Phantom Output').first().json;\n\nreturn [{\n  json: {\n    'Name': parseData.selectedName || dedupeData.selectedName || '',\n    'Last Crawl Date': new Date().toISOString().split('T')[0]\n  }\n}];"
+          "jsCode": "// Prepare row data for updating Last Crawl Date using Name as match field\n// Get selectedName from multiple sources - try each in order\nlet selectedName = '';\n\n// Try getting from Parse Phantom Output first\ntry {\n  selectedName = $('Parse Phantom Output').first().json.selectedName || '';\n} catch (e) {}\n\n// Fallback to Dedupe node if still empty\nif (!selectedName) {\n  try {\n    selectedName = $('Dedupe Against Master + New Leads').first().json.selectedName || '';\n  } catch (e) {}\n}\n\n// Fallback to Analyze URLs node directly\nif (!selectedName) {\n  try {\n    selectedName = $('Analyze URLs & Select Next').first().json.selectedName || '';\n  } catch (e) {}\n}\n\n// Only return data if we have a valid name to match on\nif (!selectedName) {\n  return [{ json: { _skip: true, reason: 'No selectedName available - skipping crawl date update' } }];\n}\n\nreturn [{\n  json: {\n    'Name': selectedName,\n    'Last Crawl Date': new Date().toISOString().split('T')[0]\n  }\n}];"
         },
         "id": "prepare-crawl-update",
         "name": "Prepare Crawl Date Update",
@@ -2362,8 +2404,8 @@
         "type": "n8n-nodes-base.manualTrigger",
         "typeVersion": 1,
         "position": [
-          -240,
-          800
+          2544,
+          640
         ],
         "id": "baa72fbb-d099-4029-ba26-7b3608559d78",
         "name": "When clicking ‘Execute workflow’"
@@ -2378,8 +2420,8 @@
         "type": "n8n-nodes-base.wait",
         "typeVersion": 1.1,
         "position": [
-          2272,
-          400
+          2240,
+          288
         ],
         "webhookId": "phantom-wait"
       },
@@ -2451,7 +2493,7 @@
           ],
           [
             {
-              "node": "B5 < 500?",
+              "node": "Done",
               "type": "main",
               "index": 0
             }
@@ -2462,25 +2504,7 @@
         "main": [
           [
             {
-              "node": "B5 < 500?",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "B5 < 500?": {
-        "main": [
-          [
-            {
               "node": "Read People to Crawl",
-              "type": "main",
-              "index": 0
-            }
-          ],
-          [
-            {
-              "node": "Done",
               "type": "main",
               "index": 0
             }
@@ -2679,11 +2703,6 @@
               "node": "Prepare for Append",
               "type": "main",
               "index": 0
-            },
-            {
-              "node": "Prepare Crawl Date Update",
-              "type": "main",
-              "index": 0
             }
           ],
           [
@@ -2708,14 +2727,38 @@
       },
       "Append to New Leads": {
         "main": [
-          []
+          [
+            {
+              "node": "Prepare Crawl Date Update",
+              "type": "main",
+              "index": 0
+            }
+          ]
         ]
       },
       "Prepare Crawl Date Update": {
         "main": [
           [
             {
+              "node": "Has Valid Name?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Has Valid Name?": {
+        "main": [
+          [
+            {
               "node": "Update Last Crawl Date",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Re-check Dashboard B5",
               "type": "main",
               "index": 0
             }
@@ -2795,17 +2838,6 @@
           ]
         ]
       },
-      "When clicking 'Execute workflow'": {
-        "main": [
-          [
-            {
-              "node": "Read People to Crawl",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
       "Wait 30 min for Phantom": {
         "main": [
           [
@@ -2861,6 +2893,17 @@
         "main": [
           [
             {
+              "node": "Fetch Phantom JSON",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Fetch Phantom JSON": {
+        "main": [
+          [
+            {
               "node": "Parse Phantom Output",
               "type": "main",
               "index": 0
@@ -2878,6 +2921,17 @@
             }
           ]
         ]
+      },
+      "When clicking 'Execute workflow'": {
+        "main": [
+          [
+            {
+              "node": "Read People to Crawl",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
       }
     },
     "authors": "Hudson Lorfing",
@@ -2885,10 +2939,18 @@
     "description": null,
     "workflowPublishHistory": [
       {
-        "createdAt": "2026-01-21T22:17:46.143Z",
-        "id": 224,
+        "createdAt": "2026-01-22T04:47:36.443Z",
+        "id": 230,
         "workflowId": "dWFsEXELFTJU0W01",
-        "versionId": "0b1a330a-2e0e-4367-8575-137cb6b0bf99",
+        "versionId": "99b7609e-fef9-4e5c-b15b-5111ae628074",
+        "event": "activated",
+        "userId": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4"
+      },
+      {
+        "createdAt": "2026-01-22T04:47:41.449Z",
+        "id": 231,
+        "workflowId": "dWFsEXELFTJU0W01",
+        "versionId": "99b7609e-fef9-4e5c-b15b-5111ae628074",
         "event": "activated",
         "userId": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4"
       }
