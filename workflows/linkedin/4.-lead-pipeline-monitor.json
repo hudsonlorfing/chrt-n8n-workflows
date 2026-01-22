@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-01-22T05:23:26.307Z",
+  "updatedAt": "2026-01-22T05:28:20.517Z",
   "createdAt": "2025-12-26T18:55:11.571Z",
   "id": "dWFsEXELFTJU0W01",
   "name": "4. Lead Pipeline Monitor",
@@ -1462,7 +1462,7 @@
   },
   "versionId": "4a521c1a-cfa6-4b85-a942-bf09aa92d091",
   "activeVersionId": "4a521c1a-cfa6-4b85-a942-bf09aa92d091",
-  "versionCounter": 65,
+  "versionCounter": 70,
   "triggerCount": 2,
   "shared": [
     {
@@ -2971,6 +2971,22 @@
       {
         "createdAt": "2026-01-22T05:23:26.944Z",
         "id": 237,
+        "workflowId": "dWFsEXELFTJU0W01",
+        "versionId": "4a521c1a-cfa6-4b85-a942-bf09aa92d091",
+        "event": "activated",
+        "userId": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4"
+      },
+      {
+        "createdAt": "2026-01-22T05:28:20.722Z",
+        "id": 238,
+        "workflowId": "dWFsEXELFTJU0W01",
+        "versionId": "4a521c1a-cfa6-4b85-a942-bf09aa92d091",
+        "event": "activated",
+        "userId": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4"
+      },
+      {
+        "createdAt": "2026-01-22T05:28:21.501Z",
+        "id": 239,
         "workflowId": "dWFsEXELFTJU0W01",
         "versionId": "4a521c1a-cfa6-4b85-a942-bf09aa92d091",
         "event": "activated",
