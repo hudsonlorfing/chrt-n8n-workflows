@@ -8,9 +8,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 cd "$PROJECT_DIR"
 
-# Load environment
-if [ -f .env ]; then
+# Load environment - prefer Doppler, fall back to .env
+if command -v doppler &> /dev/null && doppler secrets download --no-file --format env &>/dev/null; then
+    eval $(doppler secrets download --no-file --format env)
+elif [ -f .env ]; then
     source .env
+else
+    echo -e "${YELLOW}Warning: No secrets found. Run 'doppler setup' or create .env${NC}"
 fi
 
 N8N_BASE_URL="${N8N_BASE_URL:-https://chrt.app.n8n.cloud}"
@@ -42,7 +46,8 @@ NC='\033[0m'
 check_api_key() {
     if [ -z "$N8N_API_KEY" ]; then
         echo -e "${RED}Error: N8N_API_KEY not set${NC}"
-        echo "Add to .env file: N8N_API_KEY=your-key-here"
+        echo "Setup Doppler: doppler login && doppler setup"
+        echo "Or add to .env: N8N_API_KEY=your-key-here"
         exit 1
     fi
 }

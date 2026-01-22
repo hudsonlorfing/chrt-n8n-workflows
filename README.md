@@ -6,6 +6,32 @@ Version-controlled n8n workflow backups for Chrt.
 
 See [STATUS.md](STATUS.md) for current issues and next steps.
 
+## Quick Start (New Machine)
+
+1. **Clone the repo**
+   ```bash
+   git clone git@github.com:hudsonlorfing/chrt-n8n-workflows.git
+   cd chrt-n8n-workflows
+   ```
+
+2. **Install Doppler CLI**
+   ```bash
+   brew install dopplerhq/cli/doppler
+   ```
+
+3. **Login and setup**
+   ```bash
+   doppler login
+   doppler setup  # Select "chrt" project, "prd" config
+   ```
+
+4. **Sync with n8n**
+   ```bash
+   ./scripts/n8n-sync.sh sync
+   ```
+
+That's it! All secrets are loaded from Doppler automatically.
+
 ## Repository Structure
 
 ```
@@ -14,8 +40,13 @@ workflows/
 └── linkedin/                         # LinkedIn lead generation workflows
     ├── 1.-lead-ingestion-&-icp-scoring.json
     ├── 2.-linkedin-outreach-(phantombuster).json
-    └── 3.-connection-sync-→-hubspot.json
-sync-template-5081.json               # Sync workflow template (import to n8n)
+    ├── 3.-connection-sync-→-hubspot.json
+    └── 4.-lead-pipeline-monitor.json
+scripts/
+├── n8n-sync.sh                       # Main sync script
+├── n8n-debug.sh                      # Debug/update utilities
+├── setup-vps-ssh.sh                  # VPS SSH key setup
+└── autofix-service/                  # Auto-fix service for n8n errors
 ```
 
 ## Sync Setup
@@ -39,22 +70,27 @@ This repo is synced bidirectionally with our n8n Cloud instance using a customiz
 
 ### Editing Workflows Locally
 
-1. Pull latest changes:
+1. **Pull latest from n8n** (source of truth):
    ```bash
-   cd /Users/hudsonlorfing/Documents/Business/Chrt/workflows/chrt-n8n-workflows
-   git pull origin main
+   ./scripts/n8n-sync.sh sync
    ```
 
-2. Open workflow JSON in Cursor and edit
+2. **Edit workflow JSON** in Cursor
 
-3. Commit and push:
+3. **Push to n8n**:
    ```bash
-   git add .
-   git commit -m "Updated [workflow name]: [description]"
-   git push origin main
+   ./scripts/n8n-debug.sh update "workflows/linkedin/[workflow].json" [WORKFLOW_ID]
+   ./scripts/n8n-sync.sh sync
    ```
 
-4. Wait for sync (runs on schedule) or trigger manually in n8n
+### Script Commands
+
+| Command | Description |
+|---------|-------------|
+| `./scripts/n8n-sync.sh sync` | Download from n8n and push to GitHub |
+| `./scripts/n8n-sync.sh download` | Download all workflows from n8n |
+| `./scripts/n8n-sync.sh preflight` | Pre-flight checks before editing |
+| `./scripts/n8n-debug.sh update FILE ID` | Push local file to n8n |
 
 ## Workflow JSON Structure
 

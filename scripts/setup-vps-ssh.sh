@@ -1,12 +1,32 @@
 #!/bin/bash
 # Setup SSH key authentication for Hostinger VPS
+# Requires: doppler CLI configured with chrt project
 
-VPS_HOST="srv1230891.hstgr.cloud"
+set -e
+
+# Check for Doppler CLI
+if ! command -v doppler &> /dev/null; then
+    echo "Error: doppler CLI required."
+    echo "Install: brew install dopplerhq/cli/doppler"
+    echo "Then run: doppler login && doppler setup"
+    exit 1
+fi
+
+# Load secrets from Doppler
+echo "Loading secrets from Doppler..."
+eval $(doppler secrets download --no-file --format env)
+
+# Validate required secrets
+if [ -z "$VPS_HOST" ] || [ -z "$VPS_PASSWORD" ]; then
+    echo "Error: VPS_HOST and VPS_PASSWORD must be set in Doppler"
+    exit 1
+fi
+
 VPS_USER="root"
-VPS_PASS='Jb9CVFQG7.XLoEHcz@LK'
+VPS_PASS="$VPS_PASSWORD"
 PUB_KEY=$(cat ~/.ssh/id_ed25519.pub)
 
-echo "Step 1: Testing connection..."
+echo "Step 1: Testing connection to $VPS_HOST..."
 sshpass -p "$VPS_PASS" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 "$VPS_USER@$VPS_HOST" "echo 'Connection successful! Hostname:' && hostname" 2>&1
 
 if [ $? -eq 0 ]; then
@@ -29,4 +49,3 @@ else
     echo "Connection failed!"
     exit 1
 fi
-
