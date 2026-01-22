@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-01-22T05:28:20.517Z",
+  "updatedAt": "2026-01-22T05:35:05.767Z",
   "createdAt": "2025-12-26T18:55:11.571Z",
   "id": "dWFsEXELFTJU0W01",
   "name": "4. Lead Pipeline Monitor",
@@ -474,7 +474,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Parse PhantomBuster JSON fetched from S3 URL\n// n8n HTTP Request auto-splits JSON arrays into multiple items\n// Use $input.all() to collect ALL profile items\nconst allItems = $input.all();\n\n// Get selectedName from Analyze URLs & Select Next node\nlet selectedRow, selectedURL, selectedName;\ntry {\n  const analyzeData = $('Analyze URLs & Select Next').first().json;\n  selectedRow = analyzeData.selectedRow;\n  selectedURL = analyzeData.selectedURL;\n  selectedName = analyzeData.selectedName;\n} catch (e) {\n  // Manual trigger - these won't be available\n  selectedRow = null;\n  selectedURL = null;\n  selectedName = null;\n}\n\n// Each item is already a profile - filter and normalize\nconst profiles = allItems\n  .filter(item => item.json.linkedinProfileUrl || item.json.profileUrl)\n  .map(item => {\n    const p = item.json;\n    // Normalize URL - remove www and trailing slash for consistency\n    let url = (p.linkedinProfileUrl || p.profileUrl || '').trim().toLowerCase();\n    url = url.replace('https://www.linkedin.com', 'https://linkedin.com').replace(/\\/$/, '');\n    \n    // Return ALL fields from PhantomBuster, plus normalized profileUrl\n    return {\n      ...p,\n      profileUrl: url\n    };\n  });\n\nreturn [{\n  json: {\n    profiles,\n    profileCount: profiles.length,\n    selectedRow,\n    selectedURL,\n    selectedName,\n    phantomStatus: 'finished'\n  }\n}];"
+        "jsCode": "// Parse PhantomBuster JSON fetched from S3 URL\n// n8n HTTP Request auto-splits JSON arrays into multiple items\n// Use $input.all() to collect ALL profile items\nconst allItems = $input.all();\n\n// Debug: Check what we received\nconst debugInfo = {\n  itemCount: allItems.length,\n  firstItemKeys: allItems.length > 0 ? Object.keys(allItems[0].json || {}) : [],\n  hasLinkedinUrl: allItems.length > 0 ? !!(allItems[0].json?.linkedinProfileUrl || allItems[0].json?.profileUrl) : false\n};\n\n// Get selectedName from Analyze URLs & Select Next node\nlet selectedRow, selectedURL, selectedName;\ntry {\n  const analyzeData = $('Analyze URLs & Select Next').first().json;\n  selectedRow = analyzeData.selectedRow;\n  selectedURL = analyzeData.selectedURL;\n  selectedName = analyzeData.selectedName;\n} catch (e) {\n  // Manual trigger - these won't be available\n  selectedRow = null;\n  selectedURL = null;\n  selectedName = null;\n}\n\n// Each item is already a profile - filter and normalize\nconst profiles = allItems\n  .filter(item => {\n    const j = item.json || {};\n    return j.linkedinProfileUrl || j.profileUrl;\n  })\n  .map(item => {\n    const p = item.json;\n    // Normalize URL - remove www and trailing slash for consistency\n    let url = (p.linkedinProfileUrl || p.profileUrl || '').trim().toLowerCase();\n    url = url.replace('https://www.linkedin.com', 'https://linkedin.com').replace(/\\/$/, '');\n    \n    // Return ALL fields from PhantomBuster, plus normalized profileUrl\n    return {\n      ...p,\n      profileUrl: url\n    };\n  });\n\nreturn [{\n  json: {\n    profiles,\n    profileCount: profiles.length,\n    selectedRow,\n    selectedURL,\n    selectedName,\n    phantomStatus: 'finished',\n    _debug: debugInfo\n  }\n}];"
       },
       "id": "parse-phantom-output",
       "name": "Parse Phantom Output",
@@ -1460,9 +1460,9 @@
       }
     ]
   },
-  "versionId": "4a521c1a-cfa6-4b85-a942-bf09aa92d091",
-  "activeVersionId": "4a521c1a-cfa6-4b85-a942-bf09aa92d091",
-  "versionCounter": 70,
+  "versionId": "6eed018b-291e-4052-857f-c31c7d95a673",
+  "activeVersionId": "6eed018b-291e-4052-857f-c31c7d95a673",
+  "versionCounter": 75,
   "triggerCount": 2,
   "shared": [
     {
@@ -1526,9 +1526,9 @@
     }
   ],
   "activeVersion": {
-    "updatedAt": "2026-01-22T05:23:26.309Z",
-    "createdAt": "2026-01-22T05:23:26.309Z",
-    "versionId": "4a521c1a-cfa6-4b85-a942-bf09aa92d091",
+    "updatedAt": "2026-01-22T05:35:05.770Z",
+    "createdAt": "2026-01-22T05:35:05.770Z",
+    "versionId": "6eed018b-291e-4052-857f-c31c7d95a673",
     "workflowId": "dWFsEXELFTJU0W01",
     "nodes": [
       {
@@ -1998,7 +1998,7 @@
       },
       {
         "parameters": {
-          "jsCode": "// Parse PhantomBuster JSON fetched from S3 URL\n// n8n HTTP Request auto-splits JSON arrays into multiple items\n// Use $input.all() to collect ALL profile items\nconst allItems = $input.all();\n\n// Get selectedName from Analyze URLs & Select Next node\nlet selectedRow, selectedURL, selectedName;\ntry {\n  const analyzeData = $('Analyze URLs & Select Next').first().json;\n  selectedRow = analyzeData.selectedRow;\n  selectedURL = analyzeData.selectedURL;\n  selectedName = analyzeData.selectedName;\n} catch (e) {\n  // Manual trigger - these won't be available\n  selectedRow = null;\n  selectedURL = null;\n  selectedName = null;\n}\n\n// Each item is already a profile - filter and normalize\nconst profiles = allItems\n  .filter(item => item.json.linkedinProfileUrl || item.json.profileUrl)\n  .map(item => {\n    const p = item.json;\n    // Normalize URL - remove www and trailing slash for consistency\n    let url = (p.linkedinProfileUrl || p.profileUrl || '').trim().toLowerCase();\n    url = url.replace('https://www.linkedin.com', 'https://linkedin.com').replace(/\\/$/, '');\n    \n    // Return ALL fields from PhantomBuster, plus normalized profileUrl\n    return {\n      ...p,\n      profileUrl: url\n    };\n  });\n\nreturn [{\n  json: {\n    profiles,\n    profileCount: profiles.length,\n    selectedRow,\n    selectedURL,\n    selectedName,\n    phantomStatus: 'finished'\n  }\n}];"
+          "jsCode": "// Parse PhantomBuster JSON fetched from S3 URL\n// n8n HTTP Request auto-splits JSON arrays into multiple items\n// Use $input.all() to collect ALL profile items\nconst allItems = $input.all();\n\n// Debug: Check what we received\nconst debugInfo = {\n  itemCount: allItems.length,\n  firstItemKeys: allItems.length > 0 ? Object.keys(allItems[0].json || {}) : [],\n  hasLinkedinUrl: allItems.length > 0 ? !!(allItems[0].json?.linkedinProfileUrl || allItems[0].json?.profileUrl) : false\n};\n\n// Get selectedName from Analyze URLs & Select Next node\nlet selectedRow, selectedURL, selectedName;\ntry {\n  const analyzeData = $('Analyze URLs & Select Next').first().json;\n  selectedRow = analyzeData.selectedRow;\n  selectedURL = analyzeData.selectedURL;\n  selectedName = analyzeData.selectedName;\n} catch (e) {\n  // Manual trigger - these won't be available\n  selectedRow = null;\n  selectedURL = null;\n  selectedName = null;\n}\n\n// Each item is already a profile - filter and normalize\nconst profiles = allItems\n  .filter(item => {\n    const j = item.json || {};\n    return j.linkedinProfileUrl || j.profileUrl;\n  })\n  .map(item => {\n    const p = item.json;\n    // Normalize URL - remove www and trailing slash for consistency\n    let url = (p.linkedinProfileUrl || p.profileUrl || '').trim().toLowerCase();\n    url = url.replace('https://www.linkedin.com', 'https://linkedin.com').replace(/\\/$/, '');\n    \n    // Return ALL fields from PhantomBuster, plus normalized profileUrl\n    return {\n      ...p,\n      profileUrl: url\n    };\n  });\n\nreturn [{\n  json: {\n    profiles,\n    profileCount: profiles.length,\n    selectedRow,\n    selectedURL,\n    selectedName,\n    phantomStatus: 'finished',\n    _debug: debugInfo\n  }\n}];"
         },
         "id": "parse-phantom-output",
         "name": "Parse Phantom Output",
@@ -2961,34 +2961,18 @@
     "description": null,
     "workflowPublishHistory": [
       {
-        "createdAt": "2026-01-22T05:23:26.512Z",
-        "id": 236,
+        "createdAt": "2026-01-22T05:35:05.979Z",
+        "id": 240,
         "workflowId": "dWFsEXELFTJU0W01",
-        "versionId": "4a521c1a-cfa6-4b85-a942-bf09aa92d091",
+        "versionId": "6eed018b-291e-4052-857f-c31c7d95a673",
         "event": "activated",
         "userId": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4"
       },
       {
-        "createdAt": "2026-01-22T05:23:26.944Z",
-        "id": 237,
+        "createdAt": "2026-01-22T05:35:06.476Z",
+        "id": 241,
         "workflowId": "dWFsEXELFTJU0W01",
-        "versionId": "4a521c1a-cfa6-4b85-a942-bf09aa92d091",
-        "event": "activated",
-        "userId": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4"
-      },
-      {
-        "createdAt": "2026-01-22T05:28:20.722Z",
-        "id": 238,
-        "workflowId": "dWFsEXELFTJU0W01",
-        "versionId": "4a521c1a-cfa6-4b85-a942-bf09aa92d091",
-        "event": "activated",
-        "userId": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4"
-      },
-      {
-        "createdAt": "2026-01-22T05:28:21.501Z",
-        "id": 239,
-        "workflowId": "dWFsEXELFTJU0W01",
-        "versionId": "4a521c1a-cfa6-4b85-a942-bf09aa92d091",
+        "versionId": "6eed018b-291e-4052-857f-c31c7d95a673",
         "event": "activated",
         "userId": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4"
       }
