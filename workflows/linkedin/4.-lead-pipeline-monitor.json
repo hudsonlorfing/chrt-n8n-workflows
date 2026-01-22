@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-01-22T05:18:59.988Z",
+  "updatedAt": "2026-01-22T05:23:26.307Z",
   "createdAt": "2025-12-26T18:55:11.571Z",
   "id": "dWFsEXELFTJU0W01",
   "name": "4. Lead Pipeline Monitor",
@@ -545,7 +545,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Deduplicate phantom results against Master List and New Leads\n// Data comes from Merge node (append mode) which combines both sheets\nconst phantomData = $('Fetch Phantom JSON').first().json;\nconst mergedItems = $input.all();\n\n// Helper function to normalize LinkedIn URLs for comparison\nfunction normalizeUrl(url) {\n  if (!url) return '';\n  return url.trim().toLowerCase()\n    .replace('https://www.linkedin.com', 'https://linkedin.com')\n    .replace(/\\/$/, ''); // remove trailing slash\n}\n\n// Create a single Set for all existing URLs (from both Master and New Leads)\nconst existingUrls = new Set();\n\nmergedItems.forEach(item => {\n  const url = normalizeUrl(item.json.profileUrl);\n  if (url) existingUrls.add(url);\n});\n\n// Filter phantom profiles - keep only those not already in Master or New Leads\nconst uniqueProfiles = phantomData.filter(profile => {\n  const url = normalizeUrl(profile.profileUrl);\n  return url && !existingUrls.has(url);\n});\n\nreturn [{\n  json: {\n    uniqueProfiles,\n    uniqueCount: uniqueProfiles.length,\n    totalScraped: phantomData.profileCount,\n    duplicatesRemoved: phantomData.profileCount - uniqueProfiles.length,\n    selectedRow: phantomData.selectedRow,\n    selectedURL: phantomData.selectedURL,\n    selectedName: phantomData.selectedName\n  }\n}];"
+        "jsCode": "// Deduplicate phantom results against Master List and New Leads\n// Data comes from Merge node (append mode) which combines both sheets\nconst phantomData = $('Parse Phantom Output').first().json;\nconst mergedItems = $input.all();\n\n// Helper function to normalize LinkedIn URLs for comparison\nfunction normalizeUrl(url) {\n  if (!url) return '';\n  return url.trim().toLowerCase()\n    .replace('https://www.linkedin.com', 'https://linkedin.com')\n    .replace(/\\/$/, ''); // remove trailing slash\n}\n\n// Create a single Set for all existing URLs (from both Master and New Leads)\nconst existingUrls = new Set();\n\nmergedItems.forEach(item => {\n  const url = normalizeUrl(item.json.profileUrl);\n  if (url) existingUrls.add(url);\n});\n\n// Filter phantom profiles - keep only those not already in Master or New Leads\nconst uniqueProfiles = phantomData.profiles.filter(profile => {\n  const url = normalizeUrl(profile.profileUrl);\n  return url && !existingUrls.has(url);\n});\n\nreturn [{\n  json: {\n    uniqueProfiles,\n    uniqueCount: uniqueProfiles.length,\n    totalScraped: phantomData.profileCount,\n    duplicatesRemoved: phantomData.profileCount - uniqueProfiles.length,\n    selectedRow: phantomData.selectedRow,\n    selectedURL: phantomData.selectedURL,\n    selectedName: phantomData.selectedName\n  }\n}];"
       },
       "id": "dedupe-profiles",
       "name": "Dedupe Against Master + New Leads",
@@ -1460,9 +1460,9 @@
       }
     ]
   },
-  "versionId": "9a9309ee-f1c4-4575-9b11-70ed4a18d2d3",
-  "activeVersionId": "9a9309ee-f1c4-4575-9b11-70ed4a18d2d3",
-  "versionCounter": 60,
+  "versionId": "4a521c1a-cfa6-4b85-a942-bf09aa92d091",
+  "activeVersionId": "4a521c1a-cfa6-4b85-a942-bf09aa92d091",
+  "versionCounter": 65,
   "triggerCount": 2,
   "shared": [
     {
@@ -1526,9 +1526,9 @@
     }
   ],
   "activeVersion": {
-    "updatedAt": "2026-01-22T05:18:59.990Z",
-    "createdAt": "2026-01-22T05:18:59.990Z",
-    "versionId": "9a9309ee-f1c4-4575-9b11-70ed4a18d2d3",
+    "updatedAt": "2026-01-22T05:23:26.309Z",
+    "createdAt": "2026-01-22T05:23:26.309Z",
+    "versionId": "4a521c1a-cfa6-4b85-a942-bf09aa92d091",
     "workflowId": "dWFsEXELFTJU0W01",
     "nodes": [
       {
@@ -2069,7 +2069,7 @@
       },
       {
         "parameters": {
-          "jsCode": "// Deduplicate phantom results against Master List and New Leads\n// Data comes from Merge node (append mode) which combines both sheets\nconst phantomData = $('Fetch Phantom JSON').first().json;\nconst mergedItems = $input.all();\n\n// Helper function to normalize LinkedIn URLs for comparison\nfunction normalizeUrl(url) {\n  if (!url) return '';\n  return url.trim().toLowerCase()\n    .replace('https://www.linkedin.com', 'https://linkedin.com')\n    .replace(/\\/$/, ''); // remove trailing slash\n}\n\n// Create a single Set for all existing URLs (from both Master and New Leads)\nconst existingUrls = new Set();\n\nmergedItems.forEach(item => {\n  const url = normalizeUrl(item.json.profileUrl);\n  if (url) existingUrls.add(url);\n});\n\n// Filter phantom profiles - keep only those not already in Master or New Leads\nconst uniqueProfiles = phantomData.filter(profile => {\n  const url = normalizeUrl(profile.profileUrl);\n  return url && !existingUrls.has(url);\n});\n\nreturn [{\n  json: {\n    uniqueProfiles,\n    uniqueCount: uniqueProfiles.length,\n    totalScraped: phantomData.profileCount,\n    duplicatesRemoved: phantomData.profileCount - uniqueProfiles.length,\n    selectedRow: phantomData.selectedRow,\n    selectedURL: phantomData.selectedURL,\n    selectedName: phantomData.selectedName\n  }\n}];"
+          "jsCode": "// Deduplicate phantom results against Master List and New Leads\n// Data comes from Merge node (append mode) which combines both sheets\nconst phantomData = $('Parse Phantom Output').first().json;\nconst mergedItems = $input.all();\n\n// Helper function to normalize LinkedIn URLs for comparison\nfunction normalizeUrl(url) {\n  if (!url) return '';\n  return url.trim().toLowerCase()\n    .replace('https://www.linkedin.com', 'https://linkedin.com')\n    .replace(/\\/$/, ''); // remove trailing slash\n}\n\n// Create a single Set for all existing URLs (from both Master and New Leads)\nconst existingUrls = new Set();\n\nmergedItems.forEach(item => {\n  const url = normalizeUrl(item.json.profileUrl);\n  if (url) existingUrls.add(url);\n});\n\n// Filter phantom profiles - keep only those not already in Master or New Leads\nconst uniqueProfiles = phantomData.profiles.filter(profile => {\n  const url = normalizeUrl(profile.profileUrl);\n  return url && !existingUrls.has(url);\n});\n\nreturn [{\n  json: {\n    uniqueProfiles,\n    uniqueCount: uniqueProfiles.length,\n    totalScraped: phantomData.profileCount,\n    duplicatesRemoved: phantomData.profileCount - uniqueProfiles.length,\n    selectedRow: phantomData.selectedRow,\n    selectedURL: phantomData.selectedURL,\n    selectedName: phantomData.selectedName\n  }\n}];"
         },
         "id": "dedupe-profiles",
         "name": "Dedupe Against Master + New Leads",
@@ -2961,18 +2961,18 @@
     "description": null,
     "workflowPublishHistory": [
       {
-        "createdAt": "2026-01-22T05:19:00.221Z",
-        "id": 234,
+        "createdAt": "2026-01-22T05:23:26.512Z",
+        "id": 236,
         "workflowId": "dWFsEXELFTJU0W01",
-        "versionId": "9a9309ee-f1c4-4575-9b11-70ed4a18d2d3",
+        "versionId": "4a521c1a-cfa6-4b85-a942-bf09aa92d091",
         "event": "activated",
         "userId": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4"
       },
       {
-        "createdAt": "2026-01-22T05:19:05.333Z",
-        "id": 235,
+        "createdAt": "2026-01-22T05:23:26.944Z",
+        "id": 237,
         "workflowId": "dWFsEXELFTJU0W01",
-        "versionId": "9a9309ee-f1c4-4575-9b11-70ed4a18d2d3",
+        "versionId": "4a521c1a-cfa6-4b85-a942-bf09aa92d091",
         "event": "activated",
         "userId": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4"
       }
