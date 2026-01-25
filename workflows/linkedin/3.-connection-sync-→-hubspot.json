@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-01-22T04:21:46.285Z",
+  "updatedAt": "2026-01-25T02:45:08.251Z",
   "createdAt": "2025-12-19T16:28:57.739Z",
   "id": "a56vnrPo9dsg5mmf",
   "name": "3. Connection Sync → HubSpot",
@@ -8,7 +8,7 @@
   "nodes": [
     {
       "parameters": {
-        "jsCode": "// Prepare data for HubSpot sync\nconst inputItems = $input.all();\n\n// Check if we have input data\nif (!inputItems || inputItems.length === 0) {\n  throw new Error('No input data received from previous node');\n}\n\nreturn inputItems.map(item => {\n  // Validate item structure\n  if (!item || !item.json) {\n    throw new Error('Invalid input item structure - missing json property');\n  }\n  \n  const data = item.json;\n  const fullName = data.fullName || '';\n  const nameParts = fullName.split(' ');\n  const firstName = data.firstName || '';\n  const lastName = data.lastName || '';\n  const companyName = data.company || '';\n  \n  // Generate placeholder email\n  const placeholderEmail = fullName\n    ? fullName.toLowerCase().replace(/[^a-z0-9]/g, '.').replace(/\\.+/g, '.').replace(/^\\.|\\.$/, '') + '@placeholder.linkedin'\n    : 'unknown@placeholder.linkedin';\n  \n  // Generate pseudo-domain\n  const domain = companyName\n    ? companyName.toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 30) + '.com'\n    : '';\n\n  return {\n    json: {\n      ...data,\n      _hs: {\n        firstName: firstName,\n        lastName: lastName,\n        placeholderEmail: placeholderEmail,\n        domain: domain\n      }\n    }\n  };\n});"
+        "jsCode": "// Prepare data for HubSpot sync - now with real emails from Profile Scraper\nconst inputItems = $input.all();\n\n// Check if we have input data\nif (!inputItems || inputItems.length === 0) {\n  throw new Error('No input data received from previous node');\n}\n\nreturn inputItems.map(item => {\n  // Validate item structure\n  if (!item || !item.json) {\n    throw new Error('Invalid input item structure - missing json property');\n  }\n  \n  const data = item.json;\n  const fullName = data.fullName || '';\n  const firstName = data.firstName || '';\n  const lastName = data.lastName || '';\n  const companyName = data.company || '';\n  \n  // Use real email from Profile Scraper if available, otherwise generate placeholder\n  const realEmail = data.email || '';\n  const placeholderEmail = fullName\n    ? fullName.toLowerCase().replace(/[^a-z0-9]/g, '.').replace(/\\.+/g, '.').replace(/^\\.|\\.$/, '') + '@placeholder.linkedin'\n    : 'unknown@placeholder.linkedin';\n  const finalEmail = realEmail || placeholderEmail;\n  const hasRealEmail = !!realEmail;\n  \n  // Use company website from Profile Scraper if available, otherwise generate pseudo-domain\n  const companyWebsite = data.companyWebsite || '';\n  const domain = companyWebsite\n    ? companyWebsite.replace(/^https?:\\/\\//, '').replace(/^www\\./, '').split('/')[0]\n    : (companyName ? companyName.toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 30) + '.com' : '');\n\n  return {\n    json: {\n      ...data,\n      _hs: {\n        firstName: firstName,\n        lastName: lastName,\n        email: finalEmail,\n        hasRealEmail: hasRealEmail,\n        placeholderEmail: placeholderEmail,\n        domain: domain,\n        companyWebsite: companyWebsite,\n        companySize: data.companySize || '',\n        companyIndustry: data.companyIndustry || data.industry || '',\n        companyDescription: data.companyDescription || ''\n      }\n    }\n  };\n});"
       },
       "id": "2769d7b7-41b5-4050-b475-de6bc26ca2b9",
       "name": "Prepare HubSpot Data",
@@ -86,7 +86,7 @@
         "nodeCredentialType": "hubspotOAuth2Api",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ properties: { name: $('Loop Over Items').item.json.company || '', domain: $('Loop Over Items').item.json._hs.domain, linkedin_company_page: $('Loop Over Items').item.json.companyUrl, industry: $('Loop Over Items').item.json.hsIndustry || '' } }) }}",
+        "jsonBody": "={{ JSON.stringify({ properties: { name: $('Loop Over Items').item.json.company || '', domain: $('Loop Over Items').item.json._hs.domain, linkedin_company_page: $('Loop Over Items').item.json.companyLinkedinUrl || $('Loop Over Items').item.json.companyUrl || '', industry: $('Loop Over Items').item.json.hsIndustry || $('Loop Over Items').item.json._hs.companyIndustry || '', website: $('Loop Over Items').item.json._hs.companyWebsite || '', numberofemployees: $('Loop Over Items').item.json._hs.companySize || '', description: $('Loop Over Items').item.json._hs.companyDescription || '' } }) }}",
         "options": {}
       },
       "id": "094ba8de-154c-477b-88c5-6edbf168fdae",
@@ -138,7 +138,7 @@
         "nodeCredentialType": "hubspotOAuth2Api",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ filterGroups: [{ filters: [{ propertyName: 'email', operator: 'EQ', value: $json._hs.placeholderEmail }] }], properties: ['firstname', 'lastname', 'email', 'jobtitle'] }) }}",
+        "jsonBody": "={{ JSON.stringify({ filterGroups: [{ filters: [{ propertyName: 'email', operator: 'EQ', value: $json._hs.email }] }], properties: ['firstname', 'lastname', 'email', 'jobtitle'] }) }}",
         "options": {}
       },
       "id": "dfa66675-ba5c-4b59-a19f-17f32358a4e3",
@@ -197,7 +197,7 @@
         "nodeCredentialType": "hubspotOAuth2Api",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ properties: { firstname: $('Merge Company Results').item.json._hs.firstName, lastname: $('Merge Company Results').item.json._hs.lastName, jobtitle: $('Merge Company Results').item.json.jobTitle || '', company: $('Merge Company Results').item.json.company || '', hs_lead_status: 'CONNECTED' } }) }}",
+        "jsonBody": "={{ JSON.stringify({ properties: { email: $('Merge Company Results').item.json._hs.hasRealEmail ? $('Merge Company Results').item.json._hs.email : undefined, firstname: $('Merge Company Results').item.json._hs.firstName, lastname: $('Merge Company Results').item.json._hs.lastName, jobtitle: $('Merge Company Results').item.json.jobTitle || '', company: $('Merge Company Results').item.json.company || '', hs_lead_status: 'CONNECTED', linkedin_bio: $('Merge Company Results').item.json.summary || '' } }) }}",
         "options": {}
       },
       "id": "aef86f24-5491-4980-a262-d066421a4919",
@@ -223,7 +223,7 @@
         "nodeCredentialType": "hubspotOAuth2Api",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ properties: { firstname: $('Merge Company Results').item.json._hs.firstName, lastname: $('Merge Company Results').item.json._hs.lastName, jobtitle: $('Merge Company Results').item.json.jobTitle || '', company: $('Merge Company Results').item.json.company || '', hs_lead_status: 'CONNECTED', city: $('Merge Company Results').item.json.location || '' } }) }}",
+        "jsonBody": "={{ JSON.stringify({ properties: { email: $('Merge Company Results').item.json._hs.email, firstname: $('Merge Company Results').item.json._hs.firstName, lastname: $('Merge Company Results').item.json._hs.lastName, jobtitle: $('Merge Company Results').item.json.jobTitle || '', company: $('Merge Company Results').item.json.company || '', hs_lead_status: 'CONNECTED', city: $('Merge Company Results').item.json.location || '', linkedin_bio: $('Merge Company Results').item.json.summary || '' } }) }}",
         "options": {}
       },
       "id": "c7577a09-93c6-48b4-b9d2-a2022c875a63",
@@ -385,6 +385,184 @@
         1424
       ],
       "webhookId": "7f6264ba-768e-4271-9384-2ccce1740961"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract profile URLs from new connections for Profile Scraper with email\nconst inputItems = $input.all();\n\nconst profileUrls = inputItems\n  .map(item => item.json.profileUrl || item.json.linkedinProfileUrl || item.json.profileUrlNormalized || '')\n  .filter(url => url && url.includes('linkedin.com'));\n\n// Store the original connection data for later merging\nreturn [{\n  json: {\n    profileUrls,\n    profileCount: profileUrls.length,\n    connectionData: inputItems.map(item => item.json)\n  }\n}];"
+      },
+      "id": "extract-connected-urls",
+      "name": "Extract Connected URLs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        8880,
+        1648
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.phantombuster.com/api/v2/agents/launch",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  id: \"3627182471241497\",\n  bonusArgument: {\n    profileUrls: $json.profileUrls.slice(0, 50),\n    numberOfProfilesToScrape: Math.min($json.profileCount, 50),\n    emailDiscovery: true,\n    enrichWithCompanyData: true\n  }\n}) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "launch-connection-scraper",
+      "name": "Launch Profile Scraper with Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        9104,
+        1648
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "KWeabljbYSzoLpjI",
+          "name": "Phantom Header Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 10,
+        "unit": "minutes"
+      },
+      "id": "wait-for-connection-scraper",
+      "name": "Wait 10 min for Email Scraper",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        9328,
+        1648
+      ],
+      "webhookId": "connection-scraper-wait"
+    },
+    {
+      "parameters": {
+        "url": "={{ 'https://api.phantombuster.com/api/v2/agents/fetch-output?id=3627182471241497&containerId=' + $('Launch Profile Scraper with Email').item.json.containerId }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "check-connection-scraper-status",
+      "name": "Check Email Scraper Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        9568,
+        1648
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "KWeabljbYSzoLpjI",
+          "name": "Phantom Header Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "email-scraper-running",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "running",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "email-scraper-running",
+      "name": "Email Scraper Running?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        9792,
+        1648
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 3,
+        "unit": "minutes"
+      },
+      "id": "wait-more-email-scraper",
+      "name": "Wait 3 More Min Email",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        10016,
+        1536
+      ],
+      "webhookId": "email-scraper-retry-wait"
+    },
+    {
+      "parameters": {
+        "operation": "getOutput",
+        "agentId": "3627182471241497",
+        "additionalFields": {}
+      },
+      "id": "get-email-scraper-output",
+      "name": "Get Email Scraper Output",
+      "type": "n8n-nodes-base.phantombuster",
+      "typeVersion": 1,
+      "position": [
+        10016,
+        1760
+      ],
+      "credentials": {
+        "phantombusterApi": {
+          "id": "UYQpQC8SBIqIkifM",
+          "name": "Phantombuster account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.jsonUrl }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "fetch-email-scraper-json",
+      "name": "Fetch Email Scraper JSON",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        10256,
+        1760
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merge connection data with Profile Scraper results (including email)\n// Get original connection data from Extract Connected URLs node\nlet connectionData = [];\ntry {\n  connectionData = $('Extract Connected URLs').first().json.connectionData || [];\n} catch (e) {\n  connectionData = [];\n}\n\n// Get scraper results with emails\nconst scraperItems = $input.all();\nconst scraperProfiles = scraperItems\n  .filter(item => {\n    const j = item.json || {};\n    return j.profileUrl || j.linkedinProfileUrl;\n  })\n  .map(item => item.json);\n\n// Create a map of scraper data by normalized URL\nconst scraperMap = new Map();\nscraperProfiles.forEach(p => {\n  let url = (p.profileUrl || p.linkedinProfileUrl || '').trim().toLowerCase();\n  url = url.replace('https://www.linkedin.com', 'https://linkedin.com').replace(/\\/$/, '');\n  scraperMap.set(url, p);\n});\n\n// Merge: start with connection data, enrich with scraper data including email\nconst enrichedConnections = connectionData.map(conn => {\n  let url = (conn.profileUrl || conn.linkedinProfileUrl || conn.profileUrlNormalized || '').trim().toLowerCase();\n  url = url.replace('https://www.linkedin.com', 'https://linkedin.com').replace(/\\/$/, '');\n  \n  const scraperData = scraperMap.get(url) || {};\n  \n  return {\n    ...conn,\n    // Email from Profile Scraper\n    email: scraperData.email || scraperData.workEmail || '',\n    // Company data from Profile Scraper\n    companyWebsite: scraperData.companyWebsite || '',\n    companySize: scraperData.companySize || '',\n    companyIndustry: scraperData.companyIndustry || conn.industry || '',\n    companyDescription: scraperData.companyDescription || '',\n    companyLinkedinUrl: scraperData.companyLinkedinUrl || conn.companyUrl || '',\n    // Summary from Profile Scraper\n    summary: scraperData.summary || '',\n    // Keep normalized URL\n    profileUrl: url\n  };\n});\n\n// Return as individual items for the loop\nreturn enrichedConnections.map(conn => ({ json: conn }));"
+      },
+      "id": "merge-connection-email-data",
+      "name": "Merge Connection + Email Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        10496,
+        1760
+      ]
     },
     {
       "parameters": {
@@ -1271,6 +1449,112 @@
       "main": [
         [
           {
+            "node": "Extract Connected URLs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Connected URLs": {
+      "main": [
+        [
+          {
+            "node": "Launch Profile Scraper with Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Launch Profile Scraper with Email": {
+      "main": [
+        [
+          {
+            "node": "Wait 10 min for Email Scraper",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 10 min for Email Scraper": {
+      "main": [
+        [
+          {
+            "node": "Check Email Scraper Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Email Scraper Status": {
+      "main": [
+        [
+          {
+            "node": "Email Scraper Running?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Scraper Running?": {
+      "main": [
+        [
+          {
+            "node": "Wait 3 More Min Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Email Scraper Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 3 More Min Email": {
+      "main": [
+        [
+          {
+            "node": "Check Email Scraper Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Email Scraper Output": {
+      "main": [
+        [
+          {
+            "node": "Fetch Email Scraper JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Email Scraper JSON": {
+      "main": [
+        [
+          {
+            "node": "Merge Connection + Email Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Connection + Email Data": {
+      "main": [
+        [
+          {
             "node": "Prepare HubSpot Data",
             "type": "main",
             "index": 0
@@ -1496,8 +1780,8 @@
     "templateCredsSetupCompleted": true
   },
   "pinData": {},
-  "versionId": "86472a12-c555-4b8d-a651-94dcff31aab0",
-  "activeVersionId": "86472a12-c555-4b8d-a651-94dcff31aab0",
+  "versionId": "cf58e86e-c517-459b-8522-2ddaba8b4273",
+  "activeVersionId": "cf58e86e-c517-459b-8522-2ddaba8b4273",
   "triggerCount": 1,
   "shared": [
     {
@@ -1509,14 +1793,14 @@
     }
   ],
   "activeVersion": {
-    "updatedAt": "2026-01-22T04:22:00.000Z",
-    "createdAt": "2026-01-22T04:21:46.287Z",
-    "versionId": "86472a12-c555-4b8d-a651-94dcff31aab0",
+    "updatedAt": "2026-01-25T01:14:23.019Z",
+    "createdAt": "2026-01-25T01:14:23.019Z",
+    "versionId": "cf58e86e-c517-459b-8522-2ddaba8b4273",
     "workflowId": "a56vnrPo9dsg5mmf",
     "nodes": [
       {
         "parameters": {
-          "jsCode": "// Prepare data for HubSpot sync\nconst inputItems = $input.all();\n\n// Check if we have input data\nif (!inputItems || inputItems.length === 0) {\n  throw new Error('No input data received from previous node');\n}\n\nreturn inputItems.map(item => {\n  // Validate item structure\n  if (!item || !item.json) {\n    throw new Error('Invalid input item structure - missing json property');\n  }\n  \n  const data = item.json;\n  const fullName = data.fullName || '';\n  const nameParts = fullName.split(' ');\n  const firstName = data.firstName || '';\n  const lastName = data.lastName || '';\n  const companyName = data.company || '';\n  \n  // Generate placeholder email\n  const placeholderEmail = fullName\n    ? fullName.toLowerCase().replace(/[^a-z0-9]/g, '.').replace(/\\.+/g, '.').replace(/^\\.|\\.$/, '') + '@placeholder.linkedin'\n    : 'unknown@placeholder.linkedin';\n  \n  // Generate pseudo-domain\n  const domain = companyName\n    ? companyName.toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 30) + '.com'\n    : '';\n\n  return {\n    json: {\n      ...data,\n      _hs: {\n        firstName: firstName,\n        lastName: lastName,\n        placeholderEmail: placeholderEmail,\n        domain: domain\n      }\n    }\n  };\n});"
+          "jsCode": "// Prepare data for HubSpot sync - now with real emails from Profile Scraper\nconst inputItems = $input.all();\n\n// Check if we have input data\nif (!inputItems || inputItems.length === 0) {\n  throw new Error('No input data received from previous node');\n}\n\nreturn inputItems.map(item => {\n  // Validate item structure\n  if (!item || !item.json) {\n    throw new Error('Invalid input item structure - missing json property');\n  }\n  \n  const data = item.json;\n  const fullName = data.fullName || '';\n  const firstName = data.firstName || '';\n  const lastName = data.lastName || '';\n  const companyName = data.company || '';\n  \n  // Use real email from Profile Scraper if available, otherwise generate placeholder\n  const realEmail = data.email || '';\n  const placeholderEmail = fullName\n    ? fullName.toLowerCase().replace(/[^a-z0-9]/g, '.').replace(/\\.+/g, '.').replace(/^\\.|\\.$/, '') + '@placeholder.linkedin'\n    : 'unknown@placeholder.linkedin';\n  const finalEmail = realEmail || placeholderEmail;\n  const hasRealEmail = !!realEmail;\n  \n  // Use company website from Profile Scraper if available, otherwise generate pseudo-domain\n  const companyWebsite = data.companyWebsite || '';\n  const domain = companyWebsite\n    ? companyWebsite.replace(/^https?:\\/\\//, '').replace(/^www\\./, '').split('/')[0]\n    : (companyName ? companyName.toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 30) + '.com' : '');\n\n  return {\n    json: {\n      ...data,\n      _hs: {\n        firstName: firstName,\n        lastName: lastName,\n        email: finalEmail,\n        hasRealEmail: hasRealEmail,\n        placeholderEmail: placeholderEmail,\n        domain: domain,\n        companyWebsite: companyWebsite,\n        companySize: data.companySize || '',\n        companyIndustry: data.companyIndustry || data.industry || '',\n        companyDescription: data.companyDescription || ''\n      }\n    }\n  };\n});"
         },
         "id": "2769d7b7-41b5-4050-b475-de6bc26ca2b9",
         "name": "Prepare HubSpot Data",
@@ -1594,7 +1878,7 @@
           "nodeCredentialType": "hubspotOAuth2Api",
           "sendBody": true,
           "specifyBody": "json",
-          "jsonBody": "={{ JSON.stringify({ properties: { name: $('Loop Over Items').item.json.company || '', domain: $('Loop Over Items').item.json._hs.domain, linkedin_company_page: $('Loop Over Items').item.json.companyUrl, industry: $('Loop Over Items').item.json.hsIndustry || '' } }) }}",
+          "jsonBody": "={{ JSON.stringify({ properties: { name: $('Loop Over Items').item.json.company || '', domain: $('Loop Over Items').item.json._hs.domain, linkedin_company_page: $('Loop Over Items').item.json.companyLinkedinUrl || $('Loop Over Items').item.json.companyUrl || '', industry: $('Loop Over Items').item.json.hsIndustry || $('Loop Over Items').item.json._hs.companyIndustry || '', website: $('Loop Over Items').item.json._hs.companyWebsite || '', numberofemployees: $('Loop Over Items').item.json._hs.companySize || '', description: $('Loop Over Items').item.json._hs.companyDescription || '' } }) }}",
           "options": {}
         },
         "id": "094ba8de-154c-477b-88c5-6edbf168fdae",
@@ -1646,7 +1930,7 @@
           "nodeCredentialType": "hubspotOAuth2Api",
           "sendBody": true,
           "specifyBody": "json",
-          "jsonBody": "={{ JSON.stringify({ filterGroups: [{ filters: [{ propertyName: 'email', operator: 'EQ', value: $json._hs.placeholderEmail }] }], properties: ['firstname', 'lastname', 'email', 'jobtitle'] }) }}",
+          "jsonBody": "={{ JSON.stringify({ filterGroups: [{ filters: [{ propertyName: 'email', operator: 'EQ', value: $json._hs.email }] }], properties: ['firstname', 'lastname', 'email', 'jobtitle'] }) }}",
           "options": {}
         },
         "id": "dfa66675-ba5c-4b59-a19f-17f32358a4e3",
@@ -1705,7 +1989,7 @@
           "nodeCredentialType": "hubspotOAuth2Api",
           "sendBody": true,
           "specifyBody": "json",
-          "jsonBody": "={{ JSON.stringify({ properties: { firstname: $('Merge Company Results').item.json._hs.firstName, lastname: $('Merge Company Results').item.json._hs.lastName, jobtitle: $('Merge Company Results').item.json.jobTitle || '', company: $('Merge Company Results').item.json.company || '', hs_lead_status: 'CONNECTED' } }) }}",
+          "jsonBody": "={{ JSON.stringify({ properties: { email: $('Merge Company Results').item.json._hs.hasRealEmail ? $('Merge Company Results').item.json._hs.email : undefined, firstname: $('Merge Company Results').item.json._hs.firstName, lastname: $('Merge Company Results').item.json._hs.lastName, jobtitle: $('Merge Company Results').item.json.jobTitle || '', company: $('Merge Company Results').item.json.company || '', hs_lead_status: 'CONNECTED', linkedin_bio: $('Merge Company Results').item.json.summary || '' } }) }}",
           "options": {}
         },
         "id": "aef86f24-5491-4980-a262-d066421a4919",
@@ -1731,7 +2015,7 @@
           "nodeCredentialType": "hubspotOAuth2Api",
           "sendBody": true,
           "specifyBody": "json",
-          "jsonBody": "={{ JSON.stringify({ properties: { firstname: $('Merge Company Results').item.json._hs.firstName, lastname: $('Merge Company Results').item.json._hs.lastName, jobtitle: $('Merge Company Results').item.json.jobTitle || '', company: $('Merge Company Results').item.json.company || '', hs_lead_status: 'CONNECTED', city: $('Merge Company Results').item.json.location || '' } }) }}",
+          "jsonBody": "={{ JSON.stringify({ properties: { email: $('Merge Company Results').item.json._hs.email, firstname: $('Merge Company Results').item.json._hs.firstName, lastname: $('Merge Company Results').item.json._hs.lastName, jobtitle: $('Merge Company Results').item.json.jobTitle || '', company: $('Merge Company Results').item.json.company || '', hs_lead_status: 'CONNECTED', city: $('Merge Company Results').item.json.location || '', linkedin_bio: $('Merge Company Results').item.json.summary || '' } }) }}",
           "options": {}
         },
         "id": "c7577a09-93c6-48b4-b9d2-a2022c875a63",
@@ -1893,6 +2177,184 @@
           1424
         ],
         "webhookId": "7f6264ba-768e-4271-9384-2ccce1740961"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Extract profile URLs from new connections for Profile Scraper with email\nconst inputItems = $input.all();\n\nconst profileUrls = inputItems\n  .map(item => item.json.profileUrl || item.json.linkedinProfileUrl || item.json.profileUrlNormalized || '')\n  .filter(url => url && url.includes('linkedin.com'));\n\n// Store the original connection data for later merging\nreturn [{\n  json: {\n    profileUrls,\n    profileCount: profileUrls.length,\n    connectionData: inputItems.map(item => item.json)\n  }\n}];"
+        },
+        "id": "extract-connected-urls",
+        "name": "Extract Connected URLs",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          8880,
+          1648
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.phantombuster.com/api/v2/agents/launch",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpHeaderAuth",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({\n  id: \"3627182471241497\",\n  bonusArgument: {\n    profileUrls: $json.profileUrls.slice(0, 50),\n    numberOfProfilesToScrape: Math.min($json.profileCount, 50),\n    emailDiscovery: true,\n    enrichWithCompanyData: true\n  }\n}) }}",
+          "options": {
+            "timeout": 120000
+          }
+        },
+        "id": "launch-connection-scraper",
+        "name": "Launch Profile Scraper with Email",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          9104,
+          1648
+        ],
+        "credentials": {
+          "httpHeaderAuth": {
+            "id": "KWeabljbYSzoLpjI",
+            "name": "Phantom Header Auth"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "amount": 10,
+          "unit": "minutes"
+        },
+        "id": "wait-for-connection-scraper",
+        "name": "Wait 10 min for Email Scraper",
+        "type": "n8n-nodes-base.wait",
+        "typeVersion": 1.1,
+        "position": [
+          9328,
+          1648
+        ],
+        "webhookId": "connection-scraper-wait"
+      },
+      {
+        "parameters": {
+          "url": "={{ 'https://api.phantombuster.com/api/v2/agents/fetch-output?id=3627182471241497&containerId=' + $('Launch Profile Scraper with Email').item.json.containerId }}",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpHeaderAuth",
+          "options": {
+            "timeout": 30000
+          }
+        },
+        "id": "check-connection-scraper-status",
+        "name": "Check Email Scraper Status",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          9568,
+          1648
+        ],
+        "credentials": {
+          "httpHeaderAuth": {
+            "id": "KWeabljbYSzoLpjI",
+            "name": "Phantom Header Auth"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "email-scraper-running",
+                "leftValue": "={{ $json.status }}",
+                "rightValue": "running",
+                "operator": {
+                  "type": "string",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "email-scraper-running",
+        "name": "Email Scraper Running?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          9792,
+          1648
+        ]
+      },
+      {
+        "parameters": {
+          "amount": 3,
+          "unit": "minutes"
+        },
+        "id": "wait-more-email-scraper",
+        "name": "Wait 3 More Min Email",
+        "type": "n8n-nodes-base.wait",
+        "typeVersion": 1.1,
+        "position": [
+          10016,
+          1536
+        ],
+        "webhookId": "email-scraper-retry-wait"
+      },
+      {
+        "parameters": {
+          "operation": "getOutput",
+          "agentId": "3627182471241497",
+          "additionalFields": {}
+        },
+        "id": "get-email-scraper-output",
+        "name": "Get Email Scraper Output",
+        "type": "n8n-nodes-base.phantombuster",
+        "typeVersion": 1,
+        "position": [
+          10016,
+          1760
+        ],
+        "credentials": {
+          "phantombusterApi": {
+            "id": "UYQpQC8SBIqIkifM",
+            "name": "Phantombuster account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "url": "={{ $json.jsonUrl }}",
+          "options": {
+            "timeout": 60000
+          }
+        },
+        "id": "fetch-email-scraper-json",
+        "name": "Fetch Email Scraper JSON",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          10256,
+          1760
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "// Merge connection data with Profile Scraper results (including email)\n// Get original connection data from Extract Connected URLs node\nlet connectionData = [];\ntry {\n  connectionData = $('Extract Connected URLs').first().json.connectionData || [];\n} catch (e) {\n  connectionData = [];\n}\n\n// Get scraper results with emails\nconst scraperItems = $input.all();\nconst scraperProfiles = scraperItems\n  .filter(item => {\n    const j = item.json || {};\n    return j.profileUrl || j.linkedinProfileUrl;\n  })\n  .map(item => item.json);\n\n// Create a map of scraper data by normalized URL\nconst scraperMap = new Map();\nscraperProfiles.forEach(p => {\n  let url = (p.profileUrl || p.linkedinProfileUrl || '').trim().toLowerCase();\n  url = url.replace('https://www.linkedin.com', 'https://linkedin.com').replace(/\\/$/, '');\n  scraperMap.set(url, p);\n});\n\n// Merge: start with connection data, enrich with scraper data including email\nconst enrichedConnections = connectionData.map(conn => {\n  let url = (conn.profileUrl || conn.linkedinProfileUrl || conn.profileUrlNormalized || '').trim().toLowerCase();\n  url = url.replace('https://www.linkedin.com', 'https://linkedin.com').replace(/\\/$/, '');\n  \n  const scraperData = scraperMap.get(url) || {};\n  \n  return {\n    ...conn,\n    // Email from Profile Scraper\n    email: scraperData.email || scraperData.workEmail || '',\n    // Company data from Profile Scraper\n    companyWebsite: scraperData.companyWebsite || '',\n    companySize: scraperData.companySize || '',\n    companyIndustry: scraperData.companyIndustry || conn.industry || '',\n    companyDescription: scraperData.companyDescription || '',\n    companyLinkedinUrl: scraperData.companyLinkedinUrl || conn.companyUrl || '',\n    // Summary from Profile Scraper\n    summary: scraperData.summary || '',\n    // Keep normalized URL\n    profileUrl: url\n  };\n});\n\n// Return as individual items for the loop\nreturn enrichedConnections.map(conn => ({ json: conn }));"
+        },
+        "id": "merge-connection-email-data",
+        "name": "Merge Connection + Email Data",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          10496,
+          1760
+        ]
       },
       {
         "parameters": {
@@ -2779,6 +3241,112 @@
         "main": [
           [
             {
+              "node": "Extract Connected URLs",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Extract Connected URLs": {
+        "main": [
+          [
+            {
+              "node": "Launch Profile Scraper with Email",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Launch Profile Scraper with Email": {
+        "main": [
+          [
+            {
+              "node": "Wait 10 min for Email Scraper",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Wait 10 min for Email Scraper": {
+        "main": [
+          [
+            {
+              "node": "Check Email Scraper Status",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Check Email Scraper Status": {
+        "main": [
+          [
+            {
+              "node": "Email Scraper Running?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Email Scraper Running?": {
+        "main": [
+          [
+            {
+              "node": "Wait 3 More Min Email",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Get Email Scraper Output",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Wait 3 More Min Email": {
+        "main": [
+          [
+            {
+              "node": "Check Email Scraper Status",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Get Email Scraper Output": {
+        "main": [
+          [
+            {
+              "node": "Fetch Email Scraper JSON",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Fetch Email Scraper JSON": {
+        "main": [
+          [
+            {
+              "node": "Merge Connection + Email Data",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Merge Connection + Email Data": {
+        "main": [
+          [
+            {
               "node": "Prepare HubSpot Data",
               "type": "main",
               "index": 0
@@ -2990,8 +3558,8 @@
       }
     },
     "authors": "Hudson Lorfing",
-    "name": "Version 86472a12",
-    "description": ""
+    "name": null,
+    "description": null
   },
   "tags": [
     {
