@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-01-22T19:46:22.378Z",
+  "updatedAt": "2026-01-25T03:06:58.998Z",
   "createdAt": "2025-12-26T18:55:11.571Z",
   "id": "dWFsEXELFTJU0W01",
   "name": "4. Lead Pipeline Monitor",
@@ -310,7 +310,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({\n  id: \"5278010334212417\",\n  bonusArgument: {\n    search: $json.selectedURL,\n    numberOfResultsPerSearch: 1000\n  }\n}) }}",
+        "jsonBody": "={{ JSON.stringify({\n  id: '4606663815675720',\n  manualLaunch: true,\n  bonusArgument: {\n    salesNavigatorSearchUrl: $json.selectedURL,\n    numberOfResultsPerSearch: 2500,\n    removeDuplicateProfiles: true\n  }\n}) }}",
         "options": {
           "timeout": 120000
         }
@@ -332,7 +332,7 @@
     },
     {
       "parameters": {
-        "url": "={{ 'https://api.phantombuster.com/api/v2/agents/fetch-output?id=5278010334212417&containerId=' + $('Launch Search Export Phantom').item.json.containerId }}",
+        "url": "={{ 'https://api.phantombuster.com/api/v2/agents/fetch-output?id=4606663815675720&containerId=' + $('Launch Search Export Phantom').item.json.containerId }}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "options": {
@@ -404,7 +404,7 @@
     {
       "parameters": {
         "operation": "getOutput",
-        "agentId": "5278010334212417",
+        "agentId": "4606663815675720",
         "additionalFields": {}
       },
       "id": "get-phantom-output",
@@ -440,7 +440,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Parse PhantomBuster output - handles both direct profiles and fetched JSON\nconst allItems = $input.all();\n\n// Debug: Check what we received\nconst firstItem = allItems[0]?.json || {};\nconst hasJsonUrl = !!firstItem.jsonUrl;\nconst hasProfiles = !!firstItem.linkedinProfileUrl || !!firstItem.profileUrl;\n\nconst debugInfo = {\n  itemCount: allItems.length,\n  firstItemKeys: Object.keys(firstItem),\n  sourceType: hasJsonUrl ? 'jsonUrl_metadata' : (hasProfiles ? 'direct_profiles' : 'unknown')\n};\n\n// Get selectedName from Analyze URLs & Select Next node\nlet selectedRow, selectedURL, selectedName;\ntry {\n  const analyzeData = $('Analyze URLs & Select Next').first().json;\n  selectedRow = analyzeData.selectedRow;\n  selectedURL = analyzeData.selectedURL;\n  selectedName = analyzeData.selectedName;\n} catch (e) {\n  selectedRow = null;\n  selectedURL = null;\n  selectedName = null;\n}\n\n// Each item is already a profile - filter and normalize\nconst profiles = allItems\n  .filter(item => {\n    const j = item.json || {};\n    // Skip items that are just metadata (jsonUrl, csvURL)\n    if (j.jsonUrl || j.csvURL) return false;\n    return j.linkedinProfileUrl || j.profileUrl;\n  })\n  .map(item => {\n    const p = item.json;\n    let url = (p.linkedinProfileUrl || p.profileUrl || '').trim().toLowerCase();\n    url = url.replace('https://www.linkedin.com', 'https://linkedin.com').replace(/\\/$/, '');\n    return {\n      ...p,\n      profileUrl: url\n    };\n  });\n\nreturn [{\n  json: {\n    profiles,\n    profileCount: profiles.length,\n    selectedRow,\n    selectedURL,\n    selectedName,\n    phantomStatus: 'finished',\n    _debug: debugInfo\n  }\n}];"
+        "jsCode": "// Parse PhantomBuster JSON fetched from S3 URL\n// n8n HTTP Request auto-splits JSON arrays into multiple items\n// Use $input.all() to collect ALL profile items\nconst allItems = $input.all();\n\n// Debug: Check what we received\nconst debugInfo = {\n  itemCount: allItems.length,\n  firstItemKeys: allItems.length > 0 ? Object.keys(allItems[0].json || {}) : [],\n  hasLinkedinUrl: allItems.length > 0 ? !!(allItems[0].json?.linkedinProfileUrl || allItems[0].json?.profileUrl) : false\n};\n\n// Get selectedName from Analyze URLs & Select Next node\nlet selectedRow, selectedURL, selectedName;\ntry {\n  const analyzeData = $('Analyze URLs & Select Next').first().json;\n  selectedRow = analyzeData.selectedRow;\n  selectedURL = analyzeData.selectedURL;\n  selectedName = analyzeData.selectedName;\n} catch (e) {\n  // Manual trigger - these won't be available\n  selectedRow = null;\n  selectedURL = null;\n  selectedName = null;\n}\n\n// Each item is already a profile - filter and normalize\nconst profiles = allItems\n  .filter(item => {\n    const j = item.json || {};\n    return j.linkedinProfileUrl || j.profileUrl;\n  })\n  .map(item => {\n    const p = item.json;\n    // Normalize URL - remove www and trailing slash for consistency\n    let url = (p.linkedinProfileUrl || p.profileUrl || '').trim().toLowerCase();\n    url = url.replace('https://www.linkedin.com', 'https://linkedin.com').replace(/\\/$/, '');\n    \n    // Return ALL fields from PhantomBuster, plus normalized profileUrl\n    return {\n      ...p,\n      profileUrl: url\n    };\n  });\n\nreturn [{\n  json: {\n    profiles,\n    profileCount: profiles.length,\n    selectedRow,\n    selectedURL,\n    selectedName,\n    phantomStatus: 'finished',\n    _debug: debugInfo\n  }\n}];"
       },
       "id": "parse-phantom-output",
       "name": "Parse Phantom Output",
@@ -511,7 +511,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Deduplicate phantom results against Master List and New Leads\n// Data comes from Merge node (append mode) which combines both sheets\nconst phantomData = $('Parse Phantom Output').first().json;\nconst mergedItems = $input.all();\n\n// Helper function to normalize LinkedIn URLs for comparison\nfunction normalizeUrl(url) {\n  if (!url) return '';\n  return url.trim().toLowerCase()\n    .replace('https://www.linkedin.com', 'https://linkedin.com')\n    .replace(/\\/$/, ''); // remove trailing slash\n}\n\n// Create a single Set for all existing URLs (from both Master and New Leads)\nconst existingUrls = new Set();\n\nmergedItems.forEach(item => {\n  const url = normalizeUrl(item.json.profileUrl);\n  if (url) existingUrls.add(url);\n});\n\n// Filter phantom profiles - keep only those not already in Master or New Leads\nconst uniqueProfiles = phantomData.profiles.filter(profile => {\n  const url = normalizeUrl(profile.profileUrl);\n  return url && !existingUrls.has(url);\n});\n\nreturn [{\n  json: {\n    uniqueProfiles,\n    uniqueCount: uniqueProfiles.length,\n    totalScraped: phantomData.profileCount,\n    duplicatesRemoved: phantomData.profileCount - uniqueProfiles.length,\n    selectedRow: phantomData.selectedRow,\n    selectedURL: phantomData.selectedURL,\n    selectedName: phantomData.selectedName\n  }\n}];"
+        "jsCode": "// Deduplicate phantom results against Master List and New Leads\n// Data comes from Merge node (append mode) which combines both sheets\nconst phantomData = $('Merge Search + Scraper Data').first().json;\nconst mergedItems = $input.all();\n\n// Helper function to normalize LinkedIn URLs for comparison\nfunction normalizeUrl(url) {\n  if (!url) return '';\n  return url.trim().toLowerCase()\n    .replace('https://www.linkedin.com', 'https://linkedin.com')\n    .replace(/\\/$/, ''); // remove trailing slash\n}\n\n// Create a single Set for all existing URLs (from both Master and New Leads)\nconst existingUrls = new Set();\n\nmergedItems.forEach(item => {\n  const url = normalizeUrl(item.json.profileUrl);\n  if (url) existingUrls.add(url);\n});\n\n// Filter phantom profiles - keep only those not already in Master or New Leads\nconst uniqueProfiles = phantomData.profiles.filter(profile => {\n  const url = normalizeUrl(profile.profileUrl);\n  return url && !existingUrls.has(url);\n});\n\nreturn [{\n  json: {\n    uniqueProfiles,\n    uniqueCount: uniqueProfiles.length,\n    totalScraped: phantomData.profileCount,\n    duplicatesRemoved: phantomData.profileCount - uniqueProfiles.length,\n    selectedRow: phantomData.selectedRow,\n    selectedURL: phantomData.selectedURL,\n    selectedName: phantomData.selectedName\n  }\n}];"
       },
       "id": "dedupe-profiles",
       "name": "Dedupe Against Master + New Leads",
@@ -557,7 +557,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Convert unique profiles to array of items for Google Sheets append\n// Include ALL available fields from PhantomBuster output\nconst data = $input.first().json;\nconst profiles = data.uniqueProfiles;\n\nreturn profiles.map(p => ({\n  json: {\n    profileUrl: p.profileUrl || p.linkedinProfileUrl || '',\n    fullName: p.fullName || '',\n    firstName: p.firstName || '',\n    lastName: p.lastName || '',\n    headline: p.headline || '',\n    location: p.location || '',\n    company: p.company || '',\n    companyUrl: p.companyUrl || '',\n    companyId: p.companyId || '',\n    companySlug: p.companySlug || '',\n    industry: p.industry || '',\n    company2: p.company2 || '',\n    companyUrl2: p.companyUrl2 || '',\n    jobTitle: p.jobTitle || '',\n    jobDateRange: p.jobDateRange || '',\n    jobTitle2: p.jobTitle2 || '',\n    jobDateRange2: p.jobDateRange2 || '',\n    school: p.school || '',\n    schoolDegree: p.schoolDegree || '',\n    schoolDateRange: p.schoolDateRange || '',\n    school2: p.school2 || '',\n    schoolDegree2: p.schoolDegree2 || '',\n    schoolDateRange2: p.schoolDateRange2 || '',\n    connectionDegree: p.connectionDegree || '',\n    additionalInfo: p.additionalInfo || '',\n    vmid: p.vmid || '',\n    profileImageUrl: p.profileImageUrl || '',\n    timestamp: p.timestamp || new Date().toISOString()\n  }\n}));"
+        "jsCode": "// Convert unique profiles to array of items for Google Sheets append\n// Include ALL available fields from Search Export + Profile Scraper\nconst data = $input.first().json;\nconst profiles = data.uniqueProfiles;\n\nreturn profiles.map(p => ({\n  json: {\n    profileUrl: p.profileUrl || p.linkedinProfileUrl || '',\n    fullName: p.fullName || '',\n    firstName: p.firstName || '',\n    lastName: p.lastName || '',\n    headline: p.headline || '',\n    location: p.location || '',\n    company: p.company || p.job1Company || '',\n    companyUrl: p.companyUrl || p.companyLinkedinUrl || '',\n    companyId: p.companyId || '',\n    companySlug: p.companySlug || '',\n    industry: p.industry || p.companyIndustry || '',\n    company2: p.company2 || p.job2Company || '',\n    companyUrl2: p.companyUrl2 || '',\n    jobTitle: p.jobTitle || p.job1Title || '',\n    jobDateRange: p.jobDateRange || p.job1Duration || '',\n    jobTitle2: p.jobTitle2 || p.job2Title || '',\n    jobDateRange2: p.jobDateRange2 || p.job2Duration || '',\n    school: p.school || '',\n    schoolDegree: p.schoolDegree || '',\n    schoolDateRange: p.schoolDateRange || '',\n    school2: p.school2 || '',\n    schoolDegree2: p.schoolDegree2 || '',\n    schoolDateRange2: p.schoolDateRange2 || '',\n    connectionDegree: p.connectionDegree || '',\n    additionalInfo: p.additionalInfo || '',\n    vmid: p.vmid || '',\n    profileImageUrl: p.profileImageUrl || '',\n    // Profile Scraper enriched fields\n    summary: p.summary || '',\n    companyWebsite: p.companyWebsite || '',\n    companySize: p.companySize || '',\n    companyIndustry: p.companyIndustry || p.industry || '',\n    companyDescription: p.companyDescription || '',\n    companyLinkedinUrl: p.companyLinkedinUrl || p.companyUrl || '',\n    skills: p.skills || '',\n    timestamp: p.timestamp || new Date().toISOString()\n  }\n}));"
       },
       "id": "prepare-for-append",
       "name": "Prepare for Append",
@@ -870,8 +870,8 @@
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
       "position": [
-        -224,
-        816
+        3008,
+        736
       ]
     },
     {
@@ -1033,6 +1033,183 @@
       ],
       "id": "7915f4cb-2038-451a-a88e-9ed8709dfc28",
       "name": "If no error"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract profile URLs from Search Export results for Profile Scraper\nconst phantomData = $input.first().json;\nconst profiles = phantomData.profiles || [];\n\n// Extract just the profile URLs for the scraper\nconst profileUrls = profiles\n  .map(p => p.linkedinProfileUrl || '')\n  .filter(url => url && url.includes('linkedin.com'));\n\n// Store the original search data for later merging\nreturn [{\n  json: {\n    profileUrls,\n    profileCount: profileUrls.length,\n    searchData: profiles,\n    selectedRow: phantomData.selectedRow,\n    selectedURL: phantomData.selectedURL,\n    selectedName: phantomData.selectedName\n  }\n}];"
+      },
+      "id": "extract-profile-urls",
+      "name": "Extract Profile URLs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4208,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.phantombuster.com/api/v2/agents/launch",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  id: '3627182471241497',\n  manualLaunch: true,\n  bonusArgument: {\n    \"spreadsheetUrl\": \"https://cache1.phantombooster.com/kZNB9hf1HNo/Y67pVwIHxC7shkmKy565kw/result.csv\",\n\t\"columnName\": \"linkedInProfileUrl\",\n    numberOfProfilesToScrape: $json.profileCount,\n    emailDiscovery: false,\n    enrichWithCompanyData: true\n  }\n}) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "launch-profile-scraper",
+      "name": "Launch Profile Scraper",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4448,
+        720
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "KWeabljbYSzoLpjI",
+          "name": "Phantom Header Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 15,
+        "unit": "minutes"
+      },
+      "id": "wait-for-profile-scraper",
+      "name": "Wait 15 min for Scraper",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        4688,
+        720
+      ],
+      "webhookId": "profile-scraper-wait"
+    },
+    {
+      "parameters": {
+        "url": "={{ 'https://api.phantombuster.com/api/v2/agents/fetch-output?id=3627182471241497&containerId=' + $('Launch Profile Scraper').item.json.containerId }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "check-scraper-status",
+      "name": "Check Scraper Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4928,
+        720
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "KWeabljbYSzoLpjI",
+          "name": "Phantom Header Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "scraper-still-running",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "running",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "scraper-still-running",
+      "name": "Scraper Still Running?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        5168,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "unit": "minutes"
+      },
+      "id": "wait-more-for-scraper",
+      "name": "Wait 5 More Min Scraper",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        5408,
+        608
+      ],
+      "webhookId": "scraper-retry-wait"
+    },
+    {
+      "parameters": {
+        "operation": "getOutput",
+        "agentId": "3627182471241497",
+        "additionalFields": {}
+      },
+      "id": "get-scraper-output",
+      "name": "Get Scraper Output",
+      "type": "n8n-nodes-base.phantombuster",
+      "typeVersion": 1,
+      "position": [
+        5408,
+        832
+      ],
+      "credentials": {
+        "phantombusterApi": {
+          "id": "UYQpQC8SBIqIkifM",
+          "name": "Phantombuster account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.jsonUrl }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "fetch-scraper-json",
+      "name": "Fetch Scraper JSON",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        5648,
+        832
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merge Search Export data with Profile Scraper enriched data\n// Get original search data from Extract Profile URLs node\nlet searchData = [];\ntry {\n  searchData = $('Extract Profile URLs').first().json.searchData || [];\n} catch (e) {\n  searchData = [];\n}\n\n// Get scraper results\nconst scraperItems = $input.all();\nconst scraperProfiles = scraperItems\n  .filter(item => {\n    const j = item.json || {};\n    return j.profileUrl || j.linkedinProfileUrl;\n  })\n  .map(item => item.json);\n\n// Create a map of scraper data by normalized URL\nconst scraperMap = new Map();\nscraperProfiles.forEach(p => {\n  let url = (p.profileUrl || p.linkedinProfileUrl || '').trim().toLowerCase();\n  url = url.replace('https://www.linkedin.com', 'https://linkedin.com').replace(/\\/$/, '');\n  scraperMap.set(url, p);\n});\n\n// Merge: start with search data, enrich with scraper data\nconst mergedProfiles = searchData.map(searchProfile => {\n  let url = (searchProfile.profileUrl || searchProfile.linkedinProfileUrl || '').trim().toLowerCase();\n  url = url.replace('https://www.linkedin.com', 'https://linkedin.com').replace(/\\/$/, '');\n  \n  const scraperData = scraperMap.get(url) || {};\n  \n  // Merge - scraper data takes precedence for enriched fields\n  return {\n    ...searchProfile,\n    // Profile Scraper enriched fields\n    summary: scraperData.summary || searchProfile.summary || '',\n    companyWebsite: scraperData.companyWebsite || '',\n    companySize: scraperData.companySize || '',\n    companyIndustry: scraperData.companyIndustry || searchProfile.industry || '',\n    companyDescription: scraperData.companyDescription || '',\n    companyLinkedinUrl: scraperData.companyLinkedinUrl || searchProfile.companyUrl || '',\n    job1Title: scraperData.job1Title || searchProfile.jobTitle || '',\n    job1Company: scraperData.job1Company || searchProfile.company || '',\n    job1Duration: scraperData.job1Duration || searchProfile.jobDateRange || '',\n    job2Title: scraperData.job2Title || searchProfile.jobTitle2 || '',\n    job2Company: scraperData.job2Company || searchProfile.company2 || '',\n    job2Duration: scraperData.job2Duration || searchProfile.jobDateRange2 || '',\n    skills: scraperData.skills || '',\n    // Keep the normalized URL\n    profileUrl: url\n  };\n});\n\n// Get metadata\nlet selectedRow, selectedURL, selectedName;\ntry {\n  const extractData = $('Extract Profile URLs').first().json;\n  selectedRow = extractData.selectedRow;\n  selectedURL = extractData.selectedURL;\n  selectedName = extractData.selectedName;\n} catch (e) {\n  selectedRow = null;\n  selectedURL = null;\n  selectedName = null;\n}\n\nreturn [{\n  json: {\n    profiles: mergedProfiles,\n    profileCount: mergedProfiles.length,\n    scraperProfileCount: scraperProfiles.length,\n    selectedRow,\n    selectedURL,\n    selectedName,\n    enrichmentStatus: 'completed'\n  }\n}];"
+      },
+      "id": "merge-search-scraper",
+      "name": "Merge Search + Scraper Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5888,
+        832
+      ]
     }
   ],
   "connections": {
@@ -1233,6 +1410,112 @@
       ]
     },
     "Parse Phantom Output": {
+      "main": [
+        [
+          {
+            "node": "Extract Profile URLs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Profile URLs": {
+      "main": [
+        [
+          {
+            "node": "Launch Profile Scraper",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Launch Profile Scraper": {
+      "main": [
+        [
+          {
+            "node": "Wait 15 min for Scraper",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 15 min for Scraper": {
+      "main": [
+        [
+          {
+            "node": "Check Scraper Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Scraper Status": {
+      "main": [
+        [
+          {
+            "node": "Scraper Still Running?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scraper Still Running?": {
+      "main": [
+        [
+          {
+            "node": "Wait 5 More Min Scraper",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Scraper Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 5 More Min Scraper": {
+      "main": [
+        [
+          {
+            "node": "Check Scraper Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Scraper Output": {
+      "main": [
+        [
+          {
+            "node": "Fetch Scraper JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Scraper JSON": {
+      "main": [
+        [
+          {
+            "node": "Merge Search + Scraper Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Search + Scraper Data": {
       "main": [
         [
           {
@@ -1504,7 +1787,7 @@
       "main": [
         [
           {
-            "node": "Read Dashboard Metrics",
+            "node": "Get Phantom Output",
             "type": "main",
             "index": 0
           }
@@ -1600,8 +1883,8 @@
       }
     ]
   },
-  "versionId": "a41b64a7-2ed1-4f32-9136-1b0aa981fbe7",
-  "activeVersionId": "a41b64a7-2ed1-4f32-9136-1b0aa981fbe7",
+  "versionId": "f43238d7-184d-4804-85c0-ca861b367a59",
+  "activeVersionId": "da2f1d60-7a29-471e-a010-a6c77707cd32",
   "triggerCount": 2,
   "shared": [
     {
@@ -1613,9 +1896,9 @@
     }
   ],
   "activeVersion": {
-    "updatedAt": "2026-01-22T19:46:56.000Z",
-    "createdAt": "2026-01-22T19:46:22.380Z",
-    "versionId": "a41b64a7-2ed1-4f32-9136-1b0aa981fbe7",
+    "updatedAt": "2026-01-25T02:45:09.053Z",
+    "createdAt": "2026-01-25T02:45:09.053Z",
+    "versionId": "da2f1d60-7a29-471e-a010-a6c77707cd32",
     "workflowId": "dWFsEXELFTJU0W01",
     "nodes": [
       {
@@ -1922,7 +2205,7 @@
           "genericAuthType": "httpHeaderAuth",
           "sendBody": true,
           "specifyBody": "json",
-          "jsonBody": "={{ JSON.stringify({\n  id: \"5278010334212417\",\n  bonusArgument: {\n    search: $json.selectedURL,\n    numberOfResultsPerSearch: 1000\n  }\n}) }}",
+          "jsonBody": "={{ JSON.stringify({\n  id: '4606663815675720',\n  manualLaunch: true,\n  bonusArgument: {\n    salesNavigatorSearchUrl: $json.selectedURL,\n    numberOfResultsPerSearch: 2500,\n    removeDuplicateProfiles: true\n  }\n}) }}",
           "options": {
             "timeout": 120000
           }
@@ -1944,7 +2227,7 @@
       },
       {
         "parameters": {
-          "url": "={{ 'https://api.phantombuster.com/api/v2/agents/fetch-output?id=5278010334212417&containerId=' + $('Launch Search Export Phantom').item.json.containerId }}",
+          "url": "={{ 'https://api.phantombuster.com/api/v2/agents/fetch-output?id=4606663815675720&containerId=' + $('Launch Search Export Phantom').item.json.containerId }}",
           "authentication": "genericCredentialType",
           "genericAuthType": "httpHeaderAuth",
           "options": {
@@ -2016,7 +2299,7 @@
       {
         "parameters": {
           "operation": "getOutput",
-          "agentId": "5278010334212417",
+          "agentId": "4606663815675720",
           "additionalFields": {}
         },
         "id": "get-phantom-output",
@@ -2052,7 +2335,7 @@
       },
       {
         "parameters": {
-          "jsCode": "// Parse PhantomBuster output - handles both direct profiles and fetched JSON\nconst allItems = $input.all();\n\n// Debug: Check what we received\nconst firstItem = allItems[0]?.json || {};\nconst hasJsonUrl = !!firstItem.jsonUrl;\nconst hasProfiles = !!firstItem.linkedinProfileUrl || !!firstItem.profileUrl;\n\nconst debugInfo = {\n  itemCount: allItems.length,\n  firstItemKeys: Object.keys(firstItem),\n  sourceType: hasJsonUrl ? 'jsonUrl_metadata' : (hasProfiles ? 'direct_profiles' : 'unknown')\n};\n\n// Get selectedName from Analyze URLs & Select Next node\nlet selectedRow, selectedURL, selectedName;\ntry {\n  const analyzeData = $('Analyze URLs & Select Next').first().json;\n  selectedRow = analyzeData.selectedRow;\n  selectedURL = analyzeData.selectedURL;\n  selectedName = analyzeData.selectedName;\n} catch (e) {\n  selectedRow = null;\n  selectedURL = null;\n  selectedName = null;\n}\n\n// Each item is already a profile - filter and normalize\nconst profiles = allItems\n  .filter(item => {\n    const j = item.json || {};\n    // Skip items that are just metadata (jsonUrl, csvURL)\n    if (j.jsonUrl || j.csvURL) return false;\n    return j.linkedinProfileUrl || j.profileUrl;\n  })\n  .map(item => {\n    const p = item.json;\n    let url = (p.linkedinProfileUrl || p.profileUrl || '').trim().toLowerCase();\n    url = url.replace('https://www.linkedin.com', 'https://linkedin.com').replace(/\\/$/, '');\n    return {\n      ...p,\n      profileUrl: url\n    };\n  });\n\nreturn [{\n  json: {\n    profiles,\n    profileCount: profiles.length,\n    selectedRow,\n    selectedURL,\n    selectedName,\n    phantomStatus: 'finished',\n    _debug: debugInfo\n  }\n}];"
+          "jsCode": "// Parse PhantomBuster JSON fetched from S3 URL\n// n8n HTTP Request auto-splits JSON arrays into multiple items\n// Use $input.all() to collect ALL profile items\nconst allItems = $input.all();\n\n// Debug: Check what we received\nconst debugInfo = {\n  itemCount: allItems.length,\n  firstItemKeys: allItems.length > 0 ? Object.keys(allItems[0].json || {}) : [],\n  hasLinkedinUrl: allItems.length > 0 ? !!(allItems[0].json?.linkedinProfileUrl || allItems[0].json?.profileUrl) : false\n};\n\n// Get selectedName from Analyze URLs & Select Next node\nlet selectedRow, selectedURL, selectedName;\ntry {\n  const analyzeData = $('Analyze URLs & Select Next').first().json;\n  selectedRow = analyzeData.selectedRow;\n  selectedURL = analyzeData.selectedURL;\n  selectedName = analyzeData.selectedName;\n} catch (e) {\n  // Manual trigger - these won't be available\n  selectedRow = null;\n  selectedURL = null;\n  selectedName = null;\n}\n\n// Each item is already a profile - filter and normalize\nconst profiles = allItems\n  .filter(item => {\n    const j = item.json || {};\n    return j.linkedinProfileUrl || j.profileUrl;\n  })\n  .map(item => {\n    const p = item.json;\n    // Normalize URL - remove www and trailing slash for consistency\n    let url = (p.linkedinProfileUrl || p.profileUrl || '').trim().toLowerCase();\n    url = url.replace('https://www.linkedin.com', 'https://linkedin.com').replace(/\\/$/, '');\n    \n    // Return ALL fields from PhantomBuster, plus normalized profileUrl\n    return {\n      ...p,\n      profileUrl: url\n    };\n  });\n\nreturn [{\n  json: {\n    profiles,\n    profileCount: profiles.length,\n    selectedRow,\n    selectedURL,\n    selectedName,\n    phantomStatus: 'finished',\n    _debug: debugInfo\n  }\n}];"
         },
         "id": "parse-phantom-output",
         "name": "Parse Phantom Output",
@@ -2123,7 +2406,7 @@
       },
       {
         "parameters": {
-          "jsCode": "// Deduplicate phantom results against Master List and New Leads\n// Data comes from Merge node (append mode) which combines both sheets\nconst phantomData = $('Parse Phantom Output').first().json;\nconst mergedItems = $input.all();\n\n// Helper function to normalize LinkedIn URLs for comparison\nfunction normalizeUrl(url) {\n  if (!url) return '';\n  return url.trim().toLowerCase()\n    .replace('https://www.linkedin.com', 'https://linkedin.com')\n    .replace(/\\/$/, ''); // remove trailing slash\n}\n\n// Create a single Set for all existing URLs (from both Master and New Leads)\nconst existingUrls = new Set();\n\nmergedItems.forEach(item => {\n  const url = normalizeUrl(item.json.profileUrl);\n  if (url) existingUrls.add(url);\n});\n\n// Filter phantom profiles - keep only those not already in Master or New Leads\nconst uniqueProfiles = phantomData.profiles.filter(profile => {\n  const url = normalizeUrl(profile.profileUrl);\n  return url && !existingUrls.has(url);\n});\n\nreturn [{\n  json: {\n    uniqueProfiles,\n    uniqueCount: uniqueProfiles.length,\n    totalScraped: phantomData.profileCount,\n    duplicatesRemoved: phantomData.profileCount - uniqueProfiles.length,\n    selectedRow: phantomData.selectedRow,\n    selectedURL: phantomData.selectedURL,\n    selectedName: phantomData.selectedName\n  }\n}];"
+          "jsCode": "// Deduplicate phantom results against Master List and New Leads\n// Data comes from Merge node (append mode) which combines both sheets\nconst phantomData = $('Merge Search + Scraper Data').first().json;\nconst mergedItems = $input.all();\n\n// Helper function to normalize LinkedIn URLs for comparison\nfunction normalizeUrl(url) {\n  if (!url) return '';\n  return url.trim().toLowerCase()\n    .replace('https://www.linkedin.com', 'https://linkedin.com')\n    .replace(/\\/$/, ''); // remove trailing slash\n}\n\n// Create a single Set for all existing URLs (from both Master and New Leads)\nconst existingUrls = new Set();\n\nmergedItems.forEach(item => {\n  const url = normalizeUrl(item.json.profileUrl);\n  if (url) existingUrls.add(url);\n});\n\n// Filter phantom profiles - keep only those not already in Master or New Leads\nconst uniqueProfiles = phantomData.profiles.filter(profile => {\n  const url = normalizeUrl(profile.profileUrl);\n  return url && !existingUrls.has(url);\n});\n\nreturn [{\n  json: {\n    uniqueProfiles,\n    uniqueCount: uniqueProfiles.length,\n    totalScraped: phantomData.profileCount,\n    duplicatesRemoved: phantomData.profileCount - uniqueProfiles.length,\n    selectedRow: phantomData.selectedRow,\n    selectedURL: phantomData.selectedURL,\n    selectedName: phantomData.selectedName\n  }\n}];"
         },
         "id": "dedupe-profiles",
         "name": "Dedupe Against Master + New Leads",
@@ -2169,7 +2452,7 @@
       },
       {
         "parameters": {
-          "jsCode": "// Convert unique profiles to array of items for Google Sheets append\n// Include ALL available fields from PhantomBuster output\nconst data = $input.first().json;\nconst profiles = data.uniqueProfiles;\n\nreturn profiles.map(p => ({\n  json: {\n    profileUrl: p.profileUrl || p.linkedinProfileUrl || '',\n    fullName: p.fullName || '',\n    firstName: p.firstName || '',\n    lastName: p.lastName || '',\n    headline: p.headline || '',\n    location: p.location || '',\n    company: p.company || '',\n    companyUrl: p.companyUrl || '',\n    companyId: p.companyId || '',\n    companySlug: p.companySlug || '',\n    industry: p.industry || '',\n    company2: p.company2 || '',\n    companyUrl2: p.companyUrl2 || '',\n    jobTitle: p.jobTitle || '',\n    jobDateRange: p.jobDateRange || '',\n    jobTitle2: p.jobTitle2 || '',\n    jobDateRange2: p.jobDateRange2 || '',\n    school: p.school || '',\n    schoolDegree: p.schoolDegree || '',\n    schoolDateRange: p.schoolDateRange || '',\n    school2: p.school2 || '',\n    schoolDegree2: p.schoolDegree2 || '',\n    schoolDateRange2: p.schoolDateRange2 || '',\n    connectionDegree: p.connectionDegree || '',\n    additionalInfo: p.additionalInfo || '',\n    vmid: p.vmid || '',\n    profileImageUrl: p.profileImageUrl || '',\n    timestamp: p.timestamp || new Date().toISOString()\n  }\n}));"
+          "jsCode": "// Convert unique profiles to array of items for Google Sheets append\n// Include ALL available fields from Search Export + Profile Scraper\nconst data = $input.first().json;\nconst profiles = data.uniqueProfiles;\n\nreturn profiles.map(p => ({\n  json: {\n    profileUrl: p.profileUrl || p.linkedinProfileUrl || '',\n    fullName: p.fullName || '',\n    firstName: p.firstName || '',\n    lastName: p.lastName || '',\n    headline: p.headline || '',\n    location: p.location || '',\n    company: p.company || p.job1Company || '',\n    companyUrl: p.companyUrl || p.companyLinkedinUrl || '',\n    companyId: p.companyId || '',\n    companySlug: p.companySlug || '',\n    industry: p.industry || p.companyIndustry || '',\n    company2: p.company2 || p.job2Company || '',\n    companyUrl2: p.companyUrl2 || '',\n    jobTitle: p.jobTitle || p.job1Title || '',\n    jobDateRange: p.jobDateRange || p.job1Duration || '',\n    jobTitle2: p.jobTitle2 || p.job2Title || '',\n    jobDateRange2: p.jobDateRange2 || p.job2Duration || '',\n    school: p.school || '',\n    schoolDegree: p.schoolDegree || '',\n    schoolDateRange: p.schoolDateRange || '',\n    school2: p.school2 || '',\n    schoolDegree2: p.schoolDegree2 || '',\n    schoolDateRange2: p.schoolDateRange2 || '',\n    connectionDegree: p.connectionDegree || '',\n    additionalInfo: p.additionalInfo || '',\n    vmid: p.vmid || '',\n    profileImageUrl: p.profileImageUrl || '',\n    // Profile Scraper enriched fields\n    summary: p.summary || '',\n    companyWebsite: p.companyWebsite || '',\n    companySize: p.companySize || '',\n    companyIndustry: p.companyIndustry || p.industry || '',\n    companyDescription: p.companyDescription || '',\n    companyLinkedinUrl: p.companyLinkedinUrl || p.companyUrl || '',\n    skills: p.skills || '',\n    timestamp: p.timestamp || new Date().toISOString()\n  }\n}));"
         },
         "id": "prepare-for-append",
         "name": "Prepare for Append",
@@ -2482,8 +2765,8 @@
         "type": "n8n-nodes-base.manualTrigger",
         "typeVersion": 1,
         "position": [
-          -224,
-          816
+          3008,
+          736
         ]
       },
       {
@@ -2645,6 +2928,183 @@
         ],
         "id": "7915f4cb-2038-451a-a88e-9ed8709dfc28",
         "name": "If no error"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Extract profile URLs from Search Export results for Profile Scraper\nconst phantomData = $input.first().json;\nconst profiles = phantomData.profiles || [];\n\n// Extract just the profile URLs for the scraper\nconst profileUrls = profiles\n  .map(p => p.linkedinProfileUrl || '')\n  .filter(url => url && url.includes('linkedin.com'));\n\n// Store the original search data for later merging\nreturn [{\n  json: {\n    profileUrls,\n    profileCount: profileUrls.length,\n    searchData: profiles,\n    selectedRow: phantomData.selectedRow,\n    selectedURL: phantomData.selectedURL,\n    selectedName: phantomData.selectedName\n  }\n}];"
+        },
+        "id": "extract-profile-urls",
+        "name": "Extract Profile URLs",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          4208,
+          720
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.phantombuster.com/api/v2/agents/launch",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpHeaderAuth",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({\n  id: '3627182471241497',\n  manualLaunch: true,\n  bonusArgument: {\n    inputType: 'profileUrls',\n    spreadsheetUrl: '',\n    profileUrls: $json.profileUrls,\n    numberOfProfilesToScrape: $json.profileCount,\n    emailDiscovery: false,\n    enrichWithCompanyData: true\n  }\n}) }}",
+          "options": {
+            "timeout": 120000
+          }
+        },
+        "id": "launch-profile-scraper",
+        "name": "Launch Profile Scraper",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          4448,
+          720
+        ],
+        "credentials": {
+          "httpHeaderAuth": {
+            "id": "KWeabljbYSzoLpjI",
+            "name": "Phantom Header Auth"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "amount": 15,
+          "unit": "minutes"
+        },
+        "id": "wait-for-profile-scraper",
+        "name": "Wait 15 min for Scraper",
+        "type": "n8n-nodes-base.wait",
+        "typeVersion": 1.1,
+        "position": [
+          4688,
+          720
+        ],
+        "webhookId": "profile-scraper-wait"
+      },
+      {
+        "parameters": {
+          "url": "={{ 'https://api.phantombuster.com/api/v2/agents/fetch-output?id=3627182471241497&containerId=' + $('Launch Profile Scraper').item.json.containerId }}",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpHeaderAuth",
+          "options": {
+            "timeout": 30000
+          }
+        },
+        "id": "check-scraper-status",
+        "name": "Check Scraper Status",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          4928,
+          720
+        ],
+        "credentials": {
+          "httpHeaderAuth": {
+            "id": "KWeabljbYSzoLpjI",
+            "name": "Phantom Header Auth"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "scraper-still-running",
+                "leftValue": "={{ $json.status }}",
+                "rightValue": "running",
+                "operator": {
+                  "type": "string",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "scraper-still-running",
+        "name": "Scraper Still Running?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          5168,
+          720
+        ]
+      },
+      {
+        "parameters": {
+          "unit": "minutes"
+        },
+        "id": "wait-more-for-scraper",
+        "name": "Wait 5 More Min Scraper",
+        "type": "n8n-nodes-base.wait",
+        "typeVersion": 1.1,
+        "position": [
+          5408,
+          608
+        ],
+        "webhookId": "scraper-retry-wait"
+      },
+      {
+        "parameters": {
+          "operation": "getOutput",
+          "agentId": "3627182471241497",
+          "additionalFields": {}
+        },
+        "id": "get-scraper-output",
+        "name": "Get Scraper Output",
+        "type": "n8n-nodes-base.phantombuster",
+        "typeVersion": 1,
+        "position": [
+          5408,
+          832
+        ],
+        "credentials": {
+          "phantombusterApi": {
+            "id": "UYQpQC8SBIqIkifM",
+            "name": "Phantombuster account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "url": "={{ $json.jsonUrl }}",
+          "options": {
+            "timeout": 60000
+          }
+        },
+        "id": "fetch-scraper-json",
+        "name": "Fetch Scraper JSON",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          5648,
+          832
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "// Merge Search Export data with Profile Scraper enriched data\n// Get original search data from Extract Profile URLs node\nlet searchData = [];\ntry {\n  searchData = $('Extract Profile URLs').first().json.searchData || [];\n} catch (e) {\n  searchData = [];\n}\n\n// Get scraper results\nconst scraperItems = $input.all();\nconst scraperProfiles = scraperItems\n  .filter(item => {\n    const j = item.json || {};\n    return j.profileUrl || j.linkedinProfileUrl;\n  })\n  .map(item => item.json);\n\n// Create a map of scraper data by normalized URL\nconst scraperMap = new Map();\nscraperProfiles.forEach(p => {\n  let url = (p.profileUrl || p.linkedinProfileUrl || '').trim().toLowerCase();\n  url = url.replace('https://www.linkedin.com', 'https://linkedin.com').replace(/\\/$/, '');\n  scraperMap.set(url, p);\n});\n\n// Merge: start with search data, enrich with scraper data\nconst mergedProfiles = searchData.map(searchProfile => {\n  let url = (searchProfile.profileUrl || searchProfile.linkedinProfileUrl || '').trim().toLowerCase();\n  url = url.replace('https://www.linkedin.com', 'https://linkedin.com').replace(/\\/$/, '');\n  \n  const scraperData = scraperMap.get(url) || {};\n  \n  // Merge - scraper data takes precedence for enriched fields\n  return {\n    ...searchProfile,\n    // Profile Scraper enriched fields\n    summary: scraperData.summary || searchProfile.summary || '',\n    companyWebsite: scraperData.companyWebsite || '',\n    companySize: scraperData.companySize || '',\n    companyIndustry: scraperData.companyIndustry || searchProfile.industry || '',\n    companyDescription: scraperData.companyDescription || '',\n    companyLinkedinUrl: scraperData.companyLinkedinUrl || searchProfile.companyUrl || '',\n    job1Title: scraperData.job1Title || searchProfile.jobTitle || '',\n    job1Company: scraperData.job1Company || searchProfile.company || '',\n    job1Duration: scraperData.job1Duration || searchProfile.jobDateRange || '',\n    job2Title: scraperData.job2Title || searchProfile.jobTitle2 || '',\n    job2Company: scraperData.job2Company || searchProfile.company2 || '',\n    job2Duration: scraperData.job2Duration || searchProfile.jobDateRange2 || '',\n    skills: scraperData.skills || '',\n    // Keep the normalized URL\n    profileUrl: url\n  };\n});\n\n// Get metadata\nlet selectedRow, selectedURL, selectedName;\ntry {\n  const extractData = $('Extract Profile URLs').first().json;\n  selectedRow = extractData.selectedRow;\n  selectedURL = extractData.selectedURL;\n  selectedName = extractData.selectedName;\n} catch (e) {\n  selectedRow = null;\n  selectedURL = null;\n  selectedName = null;\n}\n\nreturn [{\n  json: {\n    profiles: mergedProfiles,\n    profileCount: mergedProfiles.length,\n    scraperProfileCount: scraperProfiles.length,\n    selectedRow,\n    selectedURL,\n    selectedName,\n    enrichmentStatus: 'completed'\n  }\n}];"
+        },
+        "id": "merge-search-scraper",
+        "name": "Merge Search + Scraper Data",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          5888,
+          832
+        ]
       }
     ],
     "connections": {
@@ -2845,6 +3305,112 @@
         ]
       },
       "Parse Phantom Output": {
+        "main": [
+          [
+            {
+              "node": "Extract Profile URLs",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Extract Profile URLs": {
+        "main": [
+          [
+            {
+              "node": "Launch Profile Scraper",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Launch Profile Scraper": {
+        "main": [
+          [
+            {
+              "node": "Wait 15 min for Scraper",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Wait 15 min for Scraper": {
+        "main": [
+          [
+            {
+              "node": "Check Scraper Status",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Check Scraper Status": {
+        "main": [
+          [
+            {
+              "node": "Scraper Still Running?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Scraper Still Running?": {
+        "main": [
+          [
+            {
+              "node": "Wait 5 More Min Scraper",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Get Scraper Output",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Wait 5 More Min Scraper": {
+        "main": [
+          [
+            {
+              "node": "Check Scraper Status",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Get Scraper Output": {
+        "main": [
+          [
+            {
+              "node": "Fetch Scraper JSON",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Fetch Scraper JSON": {
+        "main": [
+          [
+            {
+              "node": "Merge Search + Scraper Data",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Merge Search + Scraper Data": {
         "main": [
           [
             {
@@ -3116,7 +3682,7 @@
         "main": [
           [
             {
-              "node": "Read Dashboard Metrics",
+              "node": "Get Phantom Output",
               "type": "main",
               "index": 0
             }
@@ -3191,8 +3757,8 @@
       }
     },
     "authors": "Hudson Lorfing",
-    "name": "Version a41b64a7",
-    "description": "Updated changes in error handling"
+    "name": null,
+    "description": null
   },
   "tags": [
     {
