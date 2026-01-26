@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-01-25T02:45:08.251Z",
+  "updatedAt": "2026-01-25T23:02:54.225Z",
   "createdAt": "2025-12-19T16:28:57.739Z",
   "id": "a56vnrPo9dsg5mmf",
   "name": "3. Connection Sync → HubSpot",
@@ -401,13 +401,93 @@
     },
     {
       "parameters": {
+        "operation": "clear",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1xPgob7BwDoDGAOtDPBTvKzhQHl2FUZkJhJG0gEHWdgo"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Sheet1"
+        },
+        "clear": "specificRows",
+        "startIndex": 2,
+        "options": {}
+      },
+      "id": "clear-scraper-sheet",
+      "name": "Clear Scraper Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        8960,
+        1648
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "hf9VoWnqYNXhUZsn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1xPgob7BwDoDGAOtDPBTvKzhQHl2FUZkJhJG0gEHWdgo"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Sheet1"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "linkedInProfileUrl": "={{ $json.profileUrls.map(url => ({ linkedInProfileUrl: url })) }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "linkedInProfileUrl",
+              "displayName": "linkedInProfileUrl",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "append-urls-to-scraper-sheet",
+      "name": "Append URLs to Scraper Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        9024,
+        1648
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "hf9VoWnqYNXhUZsn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
         "method": "POST",
         "url": "https://api.phantombuster.com/api/v2/agents/launch",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({\n  id: \"3627182471241497\",\n  bonusArgument: {\n    profileUrls: $json.profileUrls.slice(0, 50),\n    numberOfProfilesToScrape: Math.min($json.profileCount, 50),\n    emailDiscovery: true,\n    enrichWithCompanyData: true\n  }\n}) }}",
+        "jsonBody": "={{ JSON.stringify({\n  id: '3627182471241497',\n  manualLaunch: true,\n  bonusArgument: {\n    spreadsheetUrl: 'https://docs.google.com/spreadsheets/d/1xPgob7BwDoDGAOtDPBTvKzhQHl2FUZkJhJG0gEHWdgo/edit?gid=0#gid=0',\n    columnName: 'linkedInProfileUrl',\n    numberOfProfilesToScrape: $json.profileCount,\n    emailDiscovery: true,\n    enrichWithCompanyData: true\n  }\n}) }}",
         "options": {
           "timeout": 120000
         }
@@ -1460,6 +1540,28 @@
       "main": [
         [
           {
+            "node": "Clear Scraper Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clear Scraper Sheet": {
+      "main": [
+        [
+          {
+            "node": "Append URLs to Scraper Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append URLs to Scraper Sheet": {
+      "main": [
+        [
+          {
             "node": "Launch Profile Scraper with Email",
             "type": "main",
             "index": 0
@@ -1780,8 +1882,8 @@
     "templateCredsSetupCompleted": true
   },
   "pinData": {},
-  "versionId": "cf58e86e-c517-459b-8522-2ddaba8b4273",
-  "activeVersionId": "cf58e86e-c517-459b-8522-2ddaba8b4273",
+  "versionId": "dc60e7e7-ccba-47f0-9441-de13152aad9a",
+  "activeVersionId": "dc60e7e7-ccba-47f0-9441-de13152aad9a",
   "triggerCount": 1,
   "shared": [
     {
@@ -1793,9 +1895,9 @@
     }
   ],
   "activeVersion": {
-    "updatedAt": "2026-01-25T01:14:23.019Z",
-    "createdAt": "2026-01-25T01:14:23.019Z",
-    "versionId": "cf58e86e-c517-459b-8522-2ddaba8b4273",
+    "updatedAt": "2026-01-25T22:45:10.234Z",
+    "createdAt": "2026-01-25T22:45:10.234Z",
+    "versionId": "dc60e7e7-ccba-47f0-9441-de13152aad9a",
     "workflowId": "a56vnrPo9dsg5mmf",
     "nodes": [
       {
@@ -2193,13 +2295,93 @@
       },
       {
         "parameters": {
+          "operation": "clear",
+          "documentId": {
+            "__rl": true,
+            "mode": "id",
+            "value": "1xPgob7BwDoDGAOtDPBTvKzhQHl2FUZkJhJG0gEHWdgo"
+          },
+          "sheetName": {
+            "__rl": true,
+            "mode": "name",
+            "value": "Sheet1"
+          },
+          "clear": "specificRows",
+          "startIndex": 2,
+          "options": {}
+        },
+        "id": "clear-scraper-sheet",
+        "name": "Clear Scraper Sheet",
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.5,
+        "position": [
+          8960,
+          1648
+        ],
+        "credentials": {
+          "googleSheetsOAuth2Api": {
+            "id": "hf9VoWnqYNXhUZsn",
+            "name": "Google Sheets account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "operation": "append",
+          "documentId": {
+            "__rl": true,
+            "mode": "id",
+            "value": "1xPgob7BwDoDGAOtDPBTvKzhQHl2FUZkJhJG0gEHWdgo"
+          },
+          "sheetName": {
+            "__rl": true,
+            "mode": "name",
+            "value": "Sheet1"
+          },
+          "columns": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "linkedInProfileUrl": "={{ $json.profileUrls.map(url => ({ linkedInProfileUrl: url })) }}"
+            },
+            "matchingColumns": [],
+            "schema": [
+              {
+                "id": "linkedInProfileUrl",
+                "displayName": "linkedInProfileUrl",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "append-urls-to-scraper-sheet",
+        "name": "Append URLs to Scraper Sheet",
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.5,
+        "position": [
+          9024,
+          1648
+        ],
+        "credentials": {
+          "googleSheetsOAuth2Api": {
+            "id": "hf9VoWnqYNXhUZsn",
+            "name": "Google Sheets account"
+          }
+        }
+      },
+      {
+        "parameters": {
           "method": "POST",
           "url": "https://api.phantombuster.com/api/v2/agents/launch",
           "authentication": "genericCredentialType",
           "genericAuthType": "httpHeaderAuth",
           "sendBody": true,
           "specifyBody": "json",
-          "jsonBody": "={{ JSON.stringify({\n  id: \"3627182471241497\",\n  bonusArgument: {\n    profileUrls: $json.profileUrls.slice(0, 50),\n    numberOfProfilesToScrape: Math.min($json.profileCount, 50),\n    emailDiscovery: true,\n    enrichWithCompanyData: true\n  }\n}) }}",
+          "jsonBody": "={{ JSON.stringify({\n  id: '3627182471241497',\n  manualLaunch: true,\n  bonusArgument: {\n    spreadsheetUrl: 'https://docs.google.com/spreadsheets/d/1xPgob7BwDoDGAOtDPBTvKzhQHl2FUZkJhJG0gEHWdgo/edit?gid=0#gid=0',\n    columnName: 'linkedInProfileUrl',\n    numberOfProfilesToScrape: $json.profileCount,\n    emailDiscovery: true,\n    enrichWithCompanyData: true\n  }\n}) }}",
           "options": {
             "timeout": 120000
           }
@@ -3249,6 +3431,28 @@
         ]
       },
       "Extract Connected URLs": {
+        "main": [
+          [
+            {
+              "node": "Clear Scraper Sheet",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Clear Scraper Sheet": {
+        "main": [
+          [
+            {
+              "node": "Append URLs to Scraper Sheet",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Append URLs to Scraper Sheet": {
         "main": [
           [
             {
