@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-01-19T20:53:02.043Z",
+  "updatedAt": "2026-01-27T02:39:23.108Z",
   "createdAt": "2025-12-17T17:34:32.062Z",
   "id": "kjjYKQEXv67Vl5MS",
   "name": "2. LinkedIn Outreach (PhantomBuster)",
@@ -178,7 +178,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Parse PhantomBuster result and determine connection status\n  const originalData = $('Process One at a Time').item.json;\n  const result = $('Fetch Result').item.json;\n\n  let connectionStatus = 'Unknown';\n  let resultMessage = '';\n\n  // First check: Did the phantom finish successfully?\n  const phantomFinished = result.status === 'finished';\n  const output = result.output || '';\n\n  // Check for exit code in output\n  const exitCodeMatch = output.match(/exit code: (\\d+)/);\n  const exitCode = exitCodeMatch ? parseInt(exitCodeMatch[1]) : null;\n\n  // Extract the processed profile URL from output to confirm it's the right one\n  const profileMatch = output.match(/Processing (https:\\/\\/(?:www\\.)?linkedin\\.com\\/in\\/[^\\s.]+)/i);\n  const processedProfile = profileMatch ? profileMatch[1] : null;\n\n  if (!phantomFinished) {\n    // Phantom didn't finish - check if still running or errored\n    connectionStatus = result.status === 'running' ? 'Still Running' : 'Error';\n    resultMessage = `Phantom status: ${result.status}`;\n  } else if (exitCode !== 0 && exitCode !== null) {\n    // Non-zero exit code = error\n    connectionStatus = 'Error';\n    resultMessage = `Exit code: ${exitCode}`;\n  } else {\n    // Phantom finished with exit code 0 - parse the output for result\n\n    // Look for specific status messages in output (case insensitive)\n    const outputLower = output.toLowerCase();\n\n    if (outputLower.includes('invitation sent') || outputLower.includes('invite sent')) {\n      connectionStatus = 'Request Sent';\n      resultMessage = 'Invitation sent successfully';\n    } else if (outputLower.includes('already connected')) {\n      connectionStatus = 'Already Connected';\n      resultMessage = 'Already a 1st degree connection';\n    } else if (outputLower.includes('already invited') || outputLower.includes('pending invitation')) {\n      connectionStatus = 'Already Invited';\n      resultMessage = 'Invitation already pending';\n    } else if (outputLower.includes(\"couldn't find connect button\") || outputLower.includes(\"could not find connect\")) {\n      connectionStatus = 'Cannot Connect';\n      resultMessage = 'Connect button not available';\n    } else if (outputLower.includes('profile is not available') || outputLower.includes('page not found')) {\n      connectionStatus = 'Profile Not Found';\n      resultMessage = 'LinkedIn profile not accessible';\n    } else if (outputLower.includes('rate limit') || outputLower.includes('too many requests')) {\n      connectionStatus = 'Rate Limited';\n      resultMessage = 'LinkedIn rate limit reached';\n    } else if (outputLower.includes('session expired') || outputLower.includes('not logged in')) {\n      connectionStatus = 'Session Error';\n      resultMessage = 'LinkedIn session expired';\n    } else if (output.includes('profiles have been processed') && exitCode === 0) {\n      // Finished processing but no explicit status - likely success\n      connectionStatus = 'Request Sent';\n      resultMessage = 'Processed successfully';\n    } else {\n      // Finished but couldn't determine specific outcome\n      connectionStatus = 'Completed';\n      resultMessage = 'Phantom completed - check manually';\n    }\n  }\n\n  // Also check resultObject if available (some phantoms return structured data)\n  if (result.resultObject) {\n    const ro = Array.isArray(result.resultObject) ? result.resultObject[0] : result.resultObject;\n    if (ro && ro.status) {\n      resultMessage = ro.status;\n    }\n  }\n\n  return [{\n    json: {\n      profileUrl: originalData['profileUrl'],\n      status: connectionStatus,\n      resultMessage: resultMessage,\n      sentDate: new Date().toISOString().split('T')[0],\n      // Debug fields (remove in production)\n      _debug: {\n        phantomStatus: result.status,\n        exitCode: exitCode,\n        processedProfile: processedProfile\n      }\n    }\n  }];"
+        "jsCode": "// Parse PhantomBuster result and determine connection status\nconst originalData = $('Process One at a Time').item.json;\nconst result = $('Fetch Result').item.json;\n\nlet connectionStatus = 'Unknown';\nlet resultMessage = '';\nlet isCriticalError = false;\nlet criticalErrorType = null;\n\n// First check: Did the phantom finish successfully?\nconst phantomFinished = result.status === 'finished';\nconst output = result.output || '';\nconst outputLower = output.toLowerCase();\n\n// Check for exit code in output\nconst exitCodeMatch = output.match(/exit code: (\\d+)/);\nconst exitCode = exitCodeMatch ? parseInt(exitCodeMatch[1]) : null;\n\n// Extract the processed profile URL from output to confirm it's the right one\nconst profileMatch = output.match(/Processing (https:\\/\\/(?:www\\.)?linkedin\\.com\\/in\\/[^\\s.]+)/i);\nconst processedProfile = profileMatch ? profileMatch[1] : null;\n\n// CRITICAL ERROR DETECTION - These should stop the workflow and alert\n// Check for credential/session issues that affect ALL subsequent requests\nif (outputLower.includes('disconnected by linkedin')) {\n  isCriticalError = true;\n  criticalErrorType = 'DISCONNECTED';\n  connectionStatus = 'Critical Error';\n  resultMessage = 'Disconnected by LinkedIn - session may be flagged';\n} else if (outputLower.includes(\"can't connect profile\") || outputLower.includes('cannot connect profile')) {\n  isCriticalError = true;\n  criticalErrorType = 'CONNECTION_FAILED';\n  connectionStatus = 'Critical Error';\n  resultMessage = 'Cannot connect to LinkedIn profile - check session';\n} else if (outputLower.includes('no valid credentials') || outputLower.includes('invalid credentials') || exitCode === 87) {\n  isCriticalError = true;\n  criticalErrorType = 'INVALID_CREDENTIALS';\n  connectionStatus = 'Critical Error';\n  resultMessage = 'Invalid LinkedIn credentials - cookie needs refresh';\n} else if (outputLower.includes('session expired') || outputLower.includes('not logged in') || outputLower.includes('login required')) {\n  isCriticalError = true;\n  criticalErrorType = 'SESSION_EXPIRED';\n  connectionStatus = 'Critical Error';\n  resultMessage = 'LinkedIn session expired - need to re-authenticate';\n} else if (outputLower.includes('account restricted') || outputLower.includes('account suspended')) {\n  isCriticalError = true;\n  criticalErrorType = 'ACCOUNT_RESTRICTED';\n  connectionStatus = 'Critical Error';\n  resultMessage = 'LinkedIn account may be restricted';\n} else if (!phantomFinished) {\n  // Phantom didn't finish - check if still running or errored\n  connectionStatus = result.status === 'running' ? 'Still Running' : 'Error';\n  resultMessage = `Phantom status: ${result.status}`;\n} else if (exitCode !== 0 && exitCode !== null) {\n  // Non-zero exit code = error (but not necessarily critical)\n  connectionStatus = 'Error';\n  resultMessage = `Exit code: ${exitCode}`;\n  // Exit codes 1 and 87 with no specific message might still be credential issues\n  if (exitCode === 87 || (exitCode === 1 && !output.includes('profiles have been processed'))) {\n    isCriticalError = true;\n    criticalErrorType = 'EXIT_CODE_ERROR';\n    resultMessage = `PhantomBuster error (exit code ${exitCode}) - possible credential issue`;\n  }\n} else {\n  // Phantom finished with exit code 0 - parse the output for result\n  if (outputLower.includes('invitation sent') || outputLower.includes('invite sent')) {\n    connectionStatus = 'Request Sent';\n    resultMessage = 'Invitation sent successfully';\n  } else if (outputLower.includes('already connected')) {\n    connectionStatus = 'Already Connected';\n    resultMessage = 'Already a 1st degree connection';\n  } else if (outputLower.includes('already invited') || outputLower.includes('pending invitation')) {\n    connectionStatus = 'Already Invited';\n    resultMessage = 'Invitation already pending';\n  } else if (outputLower.includes(\"couldn't find connect button\") || outputLower.includes(\"could not find connect\")) {\n    connectionStatus = 'Cannot Connect';\n    resultMessage = 'Connect button not available';\n  } else if (outputLower.includes('profile is not available') || outputLower.includes('page not found')) {\n    connectionStatus = 'Profile Not Found';\n    resultMessage = 'LinkedIn profile not accessible';\n  } else if (outputLower.includes('rate limit') || outputLower.includes('too many requests')) {\n    connectionStatus = 'Rate Limited';\n    resultMessage = 'LinkedIn rate limit reached';\n    // Rate limiting is also critical - stop processing\n    isCriticalError = true;\n    criticalErrorType = 'RATE_LIMITED';\n  } else if (output.includes('profiles have been processed') && exitCode === 0) {\n    // Finished processing but no explicit status - likely success\n    connectionStatus = 'Request Sent';\n    resultMessage = 'Processed successfully';\n  } else {\n    // Finished but couldn't determine specific outcome\n    connectionStatus = 'Completed';\n    resultMessage = 'Phantom completed - check manually';\n  }\n}\n\n// Also check resultObject if available (some phantoms return structured data)\nif (result.resultObject) {\n  const ro = Array.isArray(result.resultObject) ? result.resultObject[0] : result.resultObject;\n  if (ro && ro.status) {\n    resultMessage = ro.status;\n  }\n}\n\nreturn [{\n  json: {\n    profileUrl: originalData['profileUrl'],\n    status: connectionStatus,\n    resultMessage: resultMessage,\n    sentDate: new Date().toISOString().split('T')[0],\n    isCriticalError: isCriticalError,\n    criticalErrorType: criticalErrorType,\n    _debug: {\n      phantomStatus: result.status,\n      exitCode: exitCode,\n      processedProfile: processedProfile,\n      outputSnippet: output.substring(output.length - 500)\n    }\n  }\n}];"
       },
       "id": "c595128b-c344-4bdd-a993-caeba0fa3639",
       "name": "Parse Result",
@@ -709,6 +709,78 @@
         720
       ],
       "webhookId": "e66b1416-4fd0-4893-a988-28cfcd7403f9"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "critical-error-check",
+              "leftValue": "={{ $json.isCriticalError }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "critical-error-check",
+      "name": "Critical Error?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        5872,
+        580
+      ]
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "C0A6ES56MU2"
+        },
+        "text": "={{ '🚨 *LinkedIn Outreach STOPPED - Critical Error*\\n\\n*Error Type:* ' + $json.criticalErrorType + '\\n*Message:* ' + $json.resultMessage + '\\n*Profile:* ' + $json.profileUrl + '\\n\\n*Action Required:* Check PhantomBuster credentials and LinkedIn session cookie.\\n\\n_Workflow has been stopped to prevent further issues. Please fix credentials and manually restart._' }}",
+        "otherOptions": {}
+      },
+      "id": "slack-critical-error",
+      "name": "Slack: Critical Error Alert",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        6096,
+        440
+      ],
+      "credentials": {
+        "slackApi": {
+          "id": "wkLpZSqhXl2iesnC",
+          "name": "Chrt Slack App"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "errorMessage": "={{ 'Critical LinkedIn error: ' + $('Parse Result').item.json.criticalErrorType + ' - ' + $('Parse Result').item.json.resultMessage }}"
+      },
+      "id": "stop-on-critical-error",
+      "name": "Stop Workflow (Critical Error)",
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        6320,
+        440
+      ]
     }
   ],
   "connections": {
@@ -800,7 +872,36 @@
       "main": [
         [
           {
+            "node": "Critical Error?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Critical Error?": {
+      "main": [
+        [
+          {
+            "node": "Slack: Critical Error Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
             "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack: Critical Error Alert": {
+      "main": [
+        [
+          {
+            "node": "Stop Workflow (Critical Error)",
             "type": "main",
             "index": 0
           }
@@ -893,8 +994,8 @@
     "templateCredsSetupCompleted": true
   },
   "pinData": {},
-  "versionId": "781b50a1-885a-4aba-b998-10370f431f47",
-  "activeVersionId": "781b50a1-885a-4aba-b998-10370f431f47",
+  "versionId": "2236e381-778f-4910-87f2-d8f817515f6c",
+  "activeVersionId": "2236e381-778f-4910-87f2-d8f817515f6c",
   "triggerCount": 1,
   "shared": [
     {
@@ -906,9 +1007,9 @@
     }
   ],
   "activeVersion": {
-    "updatedAt": "2026-01-19T20:53:14.000Z",
-    "createdAt": "2026-01-19T20:53:02.045Z",
-    "versionId": "781b50a1-885a-4aba-b998-10370f431f47",
+    "updatedAt": "2026-01-27T02:39:16.522Z",
+    "createdAt": "2026-01-27T02:39:16.522Z",
+    "versionId": "2236e381-778f-4910-87f2-d8f817515f6c",
     "workflowId": "kjjYKQEXv67Vl5MS",
     "nodes": [
       {
@@ -1083,7 +1184,7 @@
       },
       {
         "parameters": {
-          "jsCode": "// Parse PhantomBuster result and determine connection status\n  const originalData = $('Process One at a Time').item.json;\n  const result = $('Fetch Result').item.json;\n\n  let connectionStatus = 'Unknown';\n  let resultMessage = '';\n\n  // First check: Did the phantom finish successfully?\n  const phantomFinished = result.status === 'finished';\n  const output = result.output || '';\n\n  // Check for exit code in output\n  const exitCodeMatch = output.match(/exit code: (\\d+)/);\n  const exitCode = exitCodeMatch ? parseInt(exitCodeMatch[1]) : null;\n\n  // Extract the processed profile URL from output to confirm it's the right one\n  const profileMatch = output.match(/Processing (https:\\/\\/(?:www\\.)?linkedin\\.com\\/in\\/[^\\s.]+)/i);\n  const processedProfile = profileMatch ? profileMatch[1] : null;\n\n  if (!phantomFinished) {\n    // Phantom didn't finish - check if still running or errored\n    connectionStatus = result.status === 'running' ? 'Still Running' : 'Error';\n    resultMessage = `Phantom status: ${result.status}`;\n  } else if (exitCode !== 0 && exitCode !== null) {\n    // Non-zero exit code = error\n    connectionStatus = 'Error';\n    resultMessage = `Exit code: ${exitCode}`;\n  } else {\n    // Phantom finished with exit code 0 - parse the output for result\n\n    // Look for specific status messages in output (case insensitive)\n    const outputLower = output.toLowerCase();\n\n    if (outputLower.includes('invitation sent') || outputLower.includes('invite sent')) {\n      connectionStatus = 'Request Sent';\n      resultMessage = 'Invitation sent successfully';\n    } else if (outputLower.includes('already connected')) {\n      connectionStatus = 'Already Connected';\n      resultMessage = 'Already a 1st degree connection';\n    } else if (outputLower.includes('already invited') || outputLower.includes('pending invitation')) {\n      connectionStatus = 'Already Invited';\n      resultMessage = 'Invitation already pending';\n    } else if (outputLower.includes(\"couldn't find connect button\") || outputLower.includes(\"could not find connect\")) {\n      connectionStatus = 'Cannot Connect';\n      resultMessage = 'Connect button not available';\n    } else if (outputLower.includes('profile is not available') || outputLower.includes('page not found')) {\n      connectionStatus = 'Profile Not Found';\n      resultMessage = 'LinkedIn profile not accessible';\n    } else if (outputLower.includes('rate limit') || outputLower.includes('too many requests')) {\n      connectionStatus = 'Rate Limited';\n      resultMessage = 'LinkedIn rate limit reached';\n    } else if (outputLower.includes('session expired') || outputLower.includes('not logged in')) {\n      connectionStatus = 'Session Error';\n      resultMessage = 'LinkedIn session expired';\n    } else if (output.includes('profiles have been processed') && exitCode === 0) {\n      // Finished processing but no explicit status - likely success\n      connectionStatus = 'Request Sent';\n      resultMessage = 'Processed successfully';\n    } else {\n      // Finished but couldn't determine specific outcome\n      connectionStatus = 'Completed';\n      resultMessage = 'Phantom completed - check manually';\n    }\n  }\n\n  // Also check resultObject if available (some phantoms return structured data)\n  if (result.resultObject) {\n    const ro = Array.isArray(result.resultObject) ? result.resultObject[0] : result.resultObject;\n    if (ro && ro.status) {\n      resultMessage = ro.status;\n    }\n  }\n\n  return [{\n    json: {\n      profileUrl: originalData['profileUrl'],\n      status: connectionStatus,\n      resultMessage: resultMessage,\n      sentDate: new Date().toISOString().split('T')[0],\n      // Debug fields (remove in production)\n      _debug: {\n        phantomStatus: result.status,\n        exitCode: exitCode,\n        processedProfile: processedProfile\n      }\n    }\n  }];"
+          "jsCode": "// Parse PhantomBuster result and determine connection status\nconst originalData = $('Process One at a Time').item.json;\nconst result = $('Fetch Result').item.json;\n\nlet connectionStatus = 'Unknown';\nlet resultMessage = '';\nlet isCriticalError = false;\nlet criticalErrorType = null;\n\n// First check: Did the phantom finish successfully?\nconst phantomFinished = result.status === 'finished';\nconst output = result.output || '';\nconst outputLower = output.toLowerCase();\n\n// Check for exit code in output\nconst exitCodeMatch = output.match(/exit code: (\\d+)/);\nconst exitCode = exitCodeMatch ? parseInt(exitCodeMatch[1]) : null;\n\n// Extract the processed profile URL from output to confirm it's the right one\nconst profileMatch = output.match(/Processing (https:\\/\\/(?:www\\.)?linkedin\\.com\\/in\\/[^\\s.]+)/i);\nconst processedProfile = profileMatch ? profileMatch[1] : null;\n\n// CRITICAL ERROR DETECTION - These should stop the workflow and alert\n// Check for credential/session issues that affect ALL subsequent requests\nif (outputLower.includes('disconnected by linkedin')) {\n  isCriticalError = true;\n  criticalErrorType = 'DISCONNECTED';\n  connectionStatus = 'Critical Error';\n  resultMessage = 'Disconnected by LinkedIn - session may be flagged';\n} else if (outputLower.includes(\"can't connect profile\") || outputLower.includes('cannot connect profile')) {\n  isCriticalError = true;\n  criticalErrorType = 'CONNECTION_FAILED';\n  connectionStatus = 'Critical Error';\n  resultMessage = 'Cannot connect to LinkedIn profile - check session';\n} else if (outputLower.includes('no valid credentials') || outputLower.includes('invalid credentials') || exitCode === 87) {\n  isCriticalError = true;\n  criticalErrorType = 'INVALID_CREDENTIALS';\n  connectionStatus = 'Critical Error';\n  resultMessage = 'Invalid LinkedIn credentials - cookie needs refresh';\n} else if (outputLower.includes('session expired') || outputLower.includes('not logged in') || outputLower.includes('login required')) {\n  isCriticalError = true;\n  criticalErrorType = 'SESSION_EXPIRED';\n  connectionStatus = 'Critical Error';\n  resultMessage = 'LinkedIn session expired - need to re-authenticate';\n} else if (outputLower.includes('account restricted') || outputLower.includes('account suspended')) {\n  isCriticalError = true;\n  criticalErrorType = 'ACCOUNT_RESTRICTED';\n  connectionStatus = 'Critical Error';\n  resultMessage = 'LinkedIn account may be restricted';\n} else if (!phantomFinished) {\n  // Phantom didn't finish - check if still running or errored\n  connectionStatus = result.status === 'running' ? 'Still Running' : 'Error';\n  resultMessage = `Phantom status: ${result.status}`;\n} else if (exitCode !== 0 && exitCode !== null) {\n  // Non-zero exit code = error (but not necessarily critical)\n  connectionStatus = 'Error';\n  resultMessage = `Exit code: ${exitCode}`;\n  // Exit codes 1 and 87 with no specific message might still be credential issues\n  if (exitCode === 87 || (exitCode === 1 && !output.includes('profiles have been processed'))) {\n    isCriticalError = true;\n    criticalErrorType = 'EXIT_CODE_ERROR';\n    resultMessage = `PhantomBuster error (exit code ${exitCode}) - possible credential issue`;\n  }\n} else {\n  // Phantom finished with exit code 0 - parse the output for result\n  if (outputLower.includes('invitation sent') || outputLower.includes('invite sent')) {\n    connectionStatus = 'Request Sent';\n    resultMessage = 'Invitation sent successfully';\n  } else if (outputLower.includes('already connected')) {\n    connectionStatus = 'Already Connected';\n    resultMessage = 'Already a 1st degree connection';\n  } else if (outputLower.includes('already invited') || outputLower.includes('pending invitation')) {\n    connectionStatus = 'Already Invited';\n    resultMessage = 'Invitation already pending';\n  } else if (outputLower.includes(\"couldn't find connect button\") || outputLower.includes(\"could not find connect\")) {\n    connectionStatus = 'Cannot Connect';\n    resultMessage = 'Connect button not available';\n  } else if (outputLower.includes('profile is not available') || outputLower.includes('page not found')) {\n    connectionStatus = 'Profile Not Found';\n    resultMessage = 'LinkedIn profile not accessible';\n  } else if (outputLower.includes('rate limit') || outputLower.includes('too many requests')) {\n    connectionStatus = 'Rate Limited';\n    resultMessage = 'LinkedIn rate limit reached';\n    // Rate limiting is also critical - stop processing\n    isCriticalError = true;\n    criticalErrorType = 'RATE_LIMITED';\n  } else if (output.includes('profiles have been processed') && exitCode === 0) {\n    // Finished processing but no explicit status - likely success\n    connectionStatus = 'Request Sent';\n    resultMessage = 'Processed successfully';\n  } else {\n    // Finished but couldn't determine specific outcome\n    connectionStatus = 'Completed';\n    resultMessage = 'Phantom completed - check manually';\n  }\n}\n\n// Also check resultObject if available (some phantoms return structured data)\nif (result.resultObject) {\n  const ro = Array.isArray(result.resultObject) ? result.resultObject[0] : result.resultObject;\n  if (ro && ro.status) {\n    resultMessage = ro.status;\n  }\n}\n\nreturn [{\n  json: {\n    profileUrl: originalData['profileUrl'],\n    status: connectionStatus,\n    resultMessage: resultMessage,\n    sentDate: new Date().toISOString().split('T')[0],\n    isCriticalError: isCriticalError,\n    criticalErrorType: criticalErrorType,\n    _debug: {\n      phantomStatus: result.status,\n      exitCode: exitCode,\n      processedProfile: processedProfile,\n      outputSnippet: output.substring(output.length - 500)\n    }\n  }\n}];"
         },
         "id": "c595128b-c344-4bdd-a993-caeba0fa3639",
         "name": "Parse Result",
@@ -1614,6 +1715,78 @@
           720
         ],
         "webhookId": "e66b1416-4fd0-4893-a988-28cfcd7403f9"
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "critical-error-check",
+                "leftValue": "={{ $json.isCriticalError }}",
+                "rightValue": true,
+                "operator": {
+                  "type": "boolean",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "critical-error-check",
+        "name": "Critical Error?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          5872,
+          580
+        ]
+      },
+      {
+        "parameters": {
+          "select": "channel",
+          "channelId": {
+            "__rl": true,
+            "mode": "id",
+            "value": "C0A6ES56MU2"
+          },
+          "text": "={{ '🚨 *LinkedIn Outreach STOPPED - Critical Error*\\n\\n*Error Type:* ' + $json.criticalErrorType + '\\n*Message:* ' + $json.resultMessage + '\\n*Profile:* ' + $json.profileUrl + '\\n\\n*Action Required:* Check PhantomBuster credentials and LinkedIn session cookie.\\n\\n_Workflow has been stopped to prevent further issues. Please fix credentials and manually restart._' }}",
+          "otherOptions": {}
+        },
+        "id": "slack-critical-error",
+        "name": "Slack: Critical Error Alert",
+        "type": "n8n-nodes-base.slack",
+        "typeVersion": 2.2,
+        "position": [
+          6096,
+          440
+        ],
+        "credentials": {
+          "slackApi": {
+            "id": "wkLpZSqhXl2iesnC",
+            "name": "Chrt Slack App"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "errorMessage": "={{ 'Critical LinkedIn error: ' + $('Parse Result').item.json.criticalErrorType + ' - ' + $('Parse Result').item.json.resultMessage }}"
+        },
+        "id": "stop-on-critical-error",
+        "name": "Stop Workflow (Critical Error)",
+        "type": "n8n-nodes-base.stopAndError",
+        "typeVersion": 1,
+        "position": [
+          6320,
+          440
+        ]
       }
     ],
     "connections": {
@@ -1705,7 +1878,36 @@
         "main": [
           [
             {
+              "node": "Critical Error?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Critical Error?": {
+        "main": [
+          [
+            {
+              "node": "Slack: Critical Error Alert",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
               "node": "Get row(s) in sheet",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Slack: Critical Error Alert": {
+        "main": [
+          [
+            {
+              "node": "Stop Workflow (Critical Error)",
               "type": "main",
               "index": 0
             }
@@ -1780,8 +1982,8 @@
       }
     },
     "authors": "Hudson Lorfing",
-    "name": "Version 781b50a1",
-    "description": "updated to max of 20, min of 16"
+    "name": null,
+    "description": null
   },
   "tags": [
     {
