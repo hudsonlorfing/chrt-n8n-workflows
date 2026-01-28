@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-01-25T23:02:54.945Z",
+  "updatedAt": "2026-01-27T16:11:30.575Z",
   "createdAt": "2025-12-26T18:55:11.571Z",
   "id": "dWFsEXELFTJU0W01",
   "name": "4. Lead Pipeline Monitor",
@@ -835,7 +835,7 @@
       "parameters": {
         "httpMethod": "POST",
         "path": "pipeline-monitor",
-        "responseMode": "responseNode",
+        "responseMode": "lastNode",
         "options": {}
       },
       "id": "webhook-trigger",
@@ -1396,13 +1396,7 @@
     },
     "Done": {
       "main": [
-        [
-          {
-            "node": "Webhook Response",
-            "type": "main",
-            "index": 0
-          }
-        ]
+        []
       ]
     },
     "Wait 30 min for Phantom": {
@@ -1600,8 +1594,8 @@
       }
     ]
   },
-  "versionId": "f14504ae-b604-4eeb-a121-4baa8397549a",
-  "activeVersionId": "f14504ae-b604-4eeb-a121-4baa8397549a",
+  "versionId": "7226c69e-ee4c-420c-a84f-49eb269dd7a9",
+  "activeVersionId": "7226c69e-ee4c-420c-a84f-49eb269dd7a9",
   "triggerCount": 2,
   "shared": [
     {
@@ -1613,9 +1607,9 @@
     }
   ],
   "activeVersion": {
-    "updatedAt": "2026-01-25T22:52:24.855Z",
-    "createdAt": "2026-01-25T22:52:24.855Z",
-    "versionId": "f14504ae-b604-4eeb-a121-4baa8397549a",
+    "updatedAt": "2026-01-27T16:11:30.578Z",
+    "createdAt": "2026-01-27T16:11:30.578Z",
+    "versionId": "7226c69e-ee4c-420c-a84f-49eb269dd7a9",
     "workflowId": "dWFsEXELFTJU0W01",
     "nodes": [
       {
@@ -2447,7 +2441,7 @@
         "parameters": {
           "httpMethod": "POST",
           "path": "pipeline-monitor",
-          "responseMode": "responseNode",
+          "responseMode": "lastNode",
           "options": {}
         },
         "id": "webhook-trigger",
@@ -3008,13 +3002,7 @@
       },
       "Done": {
         "main": [
-          [
-            {
-              "node": "Webhook Response",
-              "type": "main",
-              "index": 0
-            }
-          ]
+          []
         ]
       },
       "Wait 30 min for Phantom": {
