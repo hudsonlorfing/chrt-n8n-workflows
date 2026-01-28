@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-01-25T23:02:52.668Z",
+  "updatedAt": "2026-01-27T18:26:48.013Z",
   "createdAt": "2025-12-17T17:08:43.420Z",
   "id": "aLxwvqoSTkZAQ3fq",
   "name": "1. Lead Ingestion & ICP Scoring",
@@ -535,7 +535,7 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        -26128,
+        -25920,
         3120
       ],
       "credentials": {
@@ -583,7 +583,7 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        -25904,
+        -25696,
         3120
       ],
       "credentials": {
@@ -615,7 +615,7 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.7,
       "position": [
-        -25648,
+        -25440,
         3120
       ],
       "id": "d65f2a38-d4c8-4439-bc8d-60aed73a64f5",
@@ -722,6 +722,20 @@
         -26416,
         2928
       ]
+    },
+    {
+      "parameters": {
+        "amount": "={{ Math.floor( Math.random() * 3 ) + 3}}"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -26144,
+        3120
+      ],
+      "id": "965a4032-535d-4b34-8300-5177cde93702",
+      "name": "Wait",
+      "webhookId": "1a57f751-0ed4-4075-9bc5-bb83d9377ad4"
     }
   ],
   "connections": {
@@ -840,7 +854,7 @@
       "main": [
         [
           {
-            "node": "Add to Master List",
+            "node": "Wait",
             "type": "main",
             "index": 0
           }
@@ -930,6 +944,17 @@
           }
         ]
       ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Add to Master List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
@@ -943,8 +968,8 @@
     "templateCredsSetupCompleted": true
   },
   "pinData": {},
-  "versionId": "b95458fd-716d-4eb0-afe6-db2f0f59e0c6",
-  "activeVersionId": "b95458fd-716d-4eb0-afe6-db2f0f59e0c6",
+  "versionId": "6c8bc3fb-81cc-4195-934d-adfc23026c69",
+  "activeVersionId": "6c8bc3fb-81cc-4195-934d-adfc23026c69",
   "triggerCount": 1,
   "shared": [
     {
@@ -956,9 +981,9 @@
     }
   ],
   "activeVersion": {
-    "updatedAt": "2026-01-25T23:02:52.669Z",
-    "createdAt": "2026-01-25T23:02:52.669Z",
-    "versionId": "b95458fd-716d-4eb0-afe6-db2f0f59e0c6",
+    "updatedAt": "2026-01-27T18:26:50.000Z",
+    "createdAt": "2026-01-27T18:26:48.015Z",
+    "versionId": "6c8bc3fb-81cc-4195-934d-adfc23026c69",
     "workflowId": "aLxwvqoSTkZAQ3fq",
     "nodes": [
       {
@@ -1490,7 +1515,7 @@
         "type": "n8n-nodes-base.googleSheets",
         "typeVersion": 4.5,
         "position": [
-          -26128,
+          -25920,
           3120
         ],
         "credentials": {
@@ -1538,7 +1563,7 @@
         "type": "n8n-nodes-base.googleSheets",
         "typeVersion": 4.5,
         "position": [
-          -25904,
+          -25696,
           3120
         ],
         "credentials": {
@@ -1570,7 +1595,7 @@
         "type": "n8n-nodes-base.googleSheets",
         "typeVersion": 4.7,
         "position": [
-          -25648,
+          -25440,
           3120
         ],
         "id": "d65f2a38-d4c8-4439-bc8d-60aed73a64f5",
@@ -1677,6 +1702,20 @@
           -26416,
           2928
         ]
+      },
+      {
+        "parameters": {
+          "amount": "={{ Math.floor( Math.random() * 3 ) + 3}}"
+        },
+        "type": "n8n-nodes-base.wait",
+        "typeVersion": 1.1,
+        "position": [
+          -26144,
+          3120
+        ],
+        "id": "965a4032-535d-4b34-8300-5177cde93702",
+        "name": "Wait",
+        "webhookId": "1a57f751-0ed4-4075-9bc5-bb83d9377ad4"
       }
     ],
     "connections": {
@@ -1795,7 +1834,7 @@
         "main": [
           [
             {
-              "node": "Add to Master List",
+              "node": "Wait",
               "type": "main",
               "index": 0
             }
@@ -1885,11 +1924,22 @@
             }
           ]
         ]
+      },
+      "Wait": {
+        "main": [
+          [
+            {
+              "node": "Add to Master List",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
       }
     },
     "authors": "Hudson Lorfing",
-    "name": null,
-    "description": null
+    "name": "Version 6c8bc3fb",
+    "description": ""
   },
   "tags": [
     {
