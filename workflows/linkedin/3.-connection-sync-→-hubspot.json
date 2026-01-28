@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-01-27T05:48:09.677Z",
+  "updatedAt": "2026-01-27T17:49:24.594Z",
   "createdAt": "2025-12-19T16:28:57.739Z",
   "id": "a56vnrPo9dsg5mmf",
   "name": "3. Connection Sync → HubSpot",
@@ -8,7 +8,7 @@
   "nodes": [
     {
       "parameters": {
-        "jsCode": "// Prepare data for HubSpot sync - now with real emails from Profile Scraper\nconst inputItems = $input.all();\n\n// Check if we have input data\nif (!inputItems || inputItems.length === 0) {\n  throw new Error('No input data received from previous node');\n}\n\nreturn inputItems.map(item => {\n  // Validate item structure\n  if (!item || !item.json) {\n    throw new Error('Invalid input item structure - missing json property');\n  }\n  \n  const data = item.json;\n  const fullName = data.fullName || '';\n  const firstName = data.firstName || '';\n  const lastName = data.lastName || '';\n  const companyName = data.company || '';\n  \n  // Use real email from Profile Scraper if available, otherwise generate placeholder\n  const realEmail = data.email || '';\n  const placeholderEmail = fullName\n    ? fullName.toLowerCase().replace(/[^a-z0-9]/g, '.').replace(/\\.+/g, '.').replace(/^\\.|\\.$/, '') + '@placeholder.linkedin'\n    : 'unknown@placeholder.linkedin';\n  const finalEmail = realEmail || placeholderEmail;\n  const hasRealEmail = !!realEmail;\n  \n  // Use company website from Profile Scraper if available, otherwise generate pseudo-domain\n  const companyWebsite = data.companyWebsite || '';\n  const domain = companyWebsite\n    ? companyWebsite.replace(/^https?:\\/\\//, '').replace(/^www\\./, '').split('/')[0]\n    : (companyName ? companyName.toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 30) + '.com' : '');\n\n  return {\n    json: {\n      ...data,\n      _hs: {\n        firstName: firstName,\n        lastName: lastName,\n        email: finalEmail,\n        hasRealEmail: hasRealEmail,\n        placeholderEmail: placeholderEmail,\n        domain: domain,\n        companyWebsite: companyWebsite,\n        companySize: data.companySize || '',\n        companyIndustry: data.companyIndustry || data.industry || '',\n        companyDescription: data.companyDescription || ''\n      }\n    }\n  };\n});"
+        "jsCode": "// Prepare data for HubSpot sync - now with real emails from Profile Scraper\nconst inputItems = $input.all();\n\n// Check if we have input data\nif (!inputItems || inputItems.length === 0) {\n  throw new Error('No input data received from previous node');\n}\n\nreturn inputItems.map(item => {\n  // Validate item structure\n  if (!item || !item.json) {\n    throw new Error('Invalid input item structure - missing json property');\n  }\n  \n  const data = item.json;\n  const fullName = data.fullName || '';\n  const firstName = data.firstName || '';\n  const lastName = data.lastName || '';\n  const companyName = data.companyName || data.company || '';\n  \n  // Use real email from Profile Scraper if available, otherwise generate placeholder\n  const realEmail = data.email || '';\n  const placeholderEmail = fullName\n    ? fullName.toLowerCase().replace(/[^a-z0-9]/g, '.').replace(/\\.+/g, '.').replace(/^\\.|\\.$/, '') + '@placeholder.linkedin'\n    : 'unknown@placeholder.linkedin';\n  const finalEmail = realEmail || placeholderEmail;\n  const hasRealEmail = !!realEmail;\n  \n  // Use company website from Profile Scraper if available, otherwise generate pseudo-domain\n  const companyWebsite = data.companyWebsite || '';\n  const domain = companyWebsite\n    ? companyWebsite.replace(/^https?:\\/\\//, '').replace(/^www\\./, '').split('/')[0]\n    : (companyName ? companyName.toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 30) + '.com' : '');\n\n  return {\n    json: {\n      ...data,\n      _hs: {\n        firstName: firstName,\n        lastName: lastName,\n        email: finalEmail,\n        hasRealEmail: hasRealEmail,\n        placeholderEmail: placeholderEmail,\n        domain: domain,\n        companyWebsite: companyWebsite,\n        companySize: (data.companySize || '').toString().replace(/[^0-9]/g, '') || '',\n        companyIndustry: data.companyIndustry || data.industry || '',\n        companyDescription: data.companyDescription || ''\n      }\n    }\n  };\n});"
       },
       "id": "2769d7b7-41b5-4050-b475-de6bc26ca2b9",
       "name": "Prepare HubSpot Data",
@@ -27,7 +27,7 @@
         "nodeCredentialType": "hubspotOAuth2Api",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ filterGroups: [{ filters: [{ propertyName: 'name', operator: 'EQ', value: $json.company || '' }] }], properties: ['name', 'domain', 'industry'] }) }}",
+        "jsonBody": "={{ JSON.stringify({ filterGroups: [{ filters: [{ propertyName: 'name', operator: 'EQ', value: $json.companyName || $json.company || '' }] }], properties: ['name', 'domain', 'industry'] }) }}",
         "options": {}
       },
       "id": "dc9d60f6-d961-4c98-8998-af2449446379",
@@ -35,7 +35,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        11696,
+        11840,
         1600
       ],
       "credentials": {
@@ -86,7 +86,7 @@
         "nodeCredentialType": "hubspotOAuth2Api",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ properties: { name: $('Loop Over Items').item.json.company || '', domain: $('Loop Over Items').item.json._hs.domain, linkedin_company_page: $('Loop Over Items').item.json.companyLinkedinUrl || $('Loop Over Items').item.json.companyUrl || '', industry: $('Loop Over Items').item.json.hsIndustry || $('Loop Over Items').item.json._hs.companyIndustry || '', website: $('Loop Over Items').item.json._hs.companyWebsite || '', numberofemployees: $('Loop Over Items').item.json._hs.companySize || '', description: $('Loop Over Items').item.json._hs.companyDescription || '' } }) }}",
+        "jsonBody": "={{ JSON.stringify({ properties: { name: $('Has Company?').item.json.companyName || $('Has Company?').item.json.company || '', domain: $('Has Company?').item.json._hs.domain, linkedin_company_page: $('Has Company?').item.json.companyLinkedinUrl || $('Has Company?').item.json.companyUrl || '', industry: $('Has Company?').item.json.hsIndustry || $('Has Company?').item.json._hs.companyIndustry || '', website: $('Has Company?').item.json._hs.companyWebsite || '', numberofemployees: $('Has Company?').item.json._hs.companySize || '', description: $('Has Company?').item.json._hs.companyDescription || '' } }) }}",
         "options": {}
       },
       "id": "094ba8de-154c-477b-88c5-6edbf168fdae",
@@ -95,7 +95,7 @@
       "typeVersion": 4.2,
       "position": [
         12208,
-        1568
+        1776
       ],
       "credentials": {
         "hubspotOAuth2Api": {
@@ -126,8 +126,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        12416,
-        1728
+        12448,
+        1776
       ]
     },
     {
@@ -197,7 +197,7 @@
         "nodeCredentialType": "hubspotOAuth2Api",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ properties: { email: $('Merge Company Results').item.json._hs.hasRealEmail ? $('Merge Company Results').item.json._hs.email : undefined, firstname: $('Merge Company Results').item.json._hs.firstName, lastname: $('Merge Company Results').item.json._hs.lastName, jobtitle: $('Merge Company Results').item.json.jobTitle || '', company: $('Merge Company Results').item.json.company || '', hs_lead_status: 'CONNECTED', linkedin_bio: $('Merge Company Results').item.json.summary || '' } }) }}",
+        "jsonBody": "={{ JSON.stringify({ properties: { email: $('Merge Company Results').item.json._hs.hasRealEmail ? $('Merge Company Results').item.json._hs.email : undefined, firstname: $('Merge Company Results').item.json._hs.firstName, lastname: $('Merge Company Results').item.json._hs.lastName, jobtitle: $('Merge Company Results').item.json.jobTitle || '', company: $('Merge Company Results').item.json.companyName || $('Merge Company Results').item.json.company || '', hs_lead_status: 'CONNECTED' } }) }}",
         "options": {}
       },
       "id": "aef86f24-5491-4980-a262-d066421a4919",
@@ -223,7 +223,7 @@
         "nodeCredentialType": "hubspotOAuth2Api",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ properties: { email: $('Merge Company Results').item.json._hs.email, firstname: $('Merge Company Results').item.json._hs.firstName, lastname: $('Merge Company Results').item.json._hs.lastName, jobtitle: $('Merge Company Results').item.json.jobTitle || '', company: $('Merge Company Results').item.json.company || '', hs_lead_status: 'CONNECTED', city: $('Merge Company Results').item.json.location || '', linkedin_bio: $('Merge Company Results').item.json.summary || '' } }) }}",
+        "jsonBody": "={{ JSON.stringify({ properties: { email: $('Merge Company Results').item.json._hs.hasRealEmail ? $('Merge Company Results').item.json._hs.email : undefined, firstname: $('Merge Company Results').item.json._hs.firstName, lastname: $('Merge Company Results').item.json._hs.lastName, jobtitle: $('Merge Company Results').item.json.jobTitle || '', company: $('Merge Company Results').item.json.companyName || $('Merge Company Results').item.json.company || '', hs_lead_status: 'CONNECTED', city: $('Merge Company Results').item.json.location || '' } }) }}",
         "options": {}
       },
       "id": "c7577a09-93c6-48b4-b9d2-a2022c875a63",
@@ -286,8 +286,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        13984,
-        1520
+        14576,
+        1344
       ],
       "credentials": {
         "hubspotOAuth2Api": {
@@ -298,15 +298,89 @@
     },
     {
       "parameters": {
-        "jsCode": "// Final output formatting\nconst item = $('Merge Contact Results').item.json;\nconst today = new Date().toISOString().split('T')[0];\n\nreturn [{\n  json: {\n    profileUrl: item.profileUrl,\n    fullName: item.fullName,\n    company: item.company || '',\n    hubspot: {\n      companyId: item._hs.companyId || null,\n      contactId: item._hs.contactId,\n      companyCreated: item._hs.companyCreated || false,\n      companySkipped: item._hs.companySkipped || false,\n      contactCreated: item._hs.contactCreated,\n      syncDate: today\n    }\n  }\n}];"
+        "url": "={{ 'https://api.hubapi.com/crm/v3/objects/contacts/' + $json._hs.contactId + '/associations/company' }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotOAuth2Api",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "get-contact-associations",
+      "name": "Get Contact Associations",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        13952,
+        1312
+      ],
+      "credentials": {
+        "hubspotOAuth2Api": {
+          "id": "3JZVnZQkHgMfXMRx",
+          "name": "HubSpot account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check if the contact is already associated with the target company\nconst mergeData = $('Merge Contact Results').item.json;\nconst associations = $input.first().json.results || [];\nconst targetCompanyId = mergeData._hs.companyId;\n\n// Check if target company is in the associations list\nconst alreadyAssociated = associations.some(a => a.toObjectId === targetCompanyId || a.toObjectId === String(targetCompanyId));\n\nreturn [{\n  json: {\n    ...mergeData,\n    _hs: {\n      ...mergeData._hs,\n      alreadyAssociated: alreadyAssociated\n    }\n  }\n}];"
+      },
+      "id": "check-association-exists",
+      "name": "Check Association",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        14112,
+        1312
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "already-associated",
+              "leftValue": "={{ $json._hs.alreadyAssociated }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "already-associated-check",
+      "name": "Already Associated?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        14288,
+        1312
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Final output formatting\nconst item = $('Merge Contact Results').item.json;\nconst today = new Date().toISOString().split('T')[0];\n\nreturn [{\n  json: {\n    profileUrl: item.profileUrl,\n    fullName: item.fullName,\n    company: item.companyName || item.company || '',\n    hubspot: {\n      companyId: item._hs.companyId || null,\n      contactId: item._hs.contactId,\n      companyCreated: item._hs.companyCreated || false,\n      companySkipped: item._hs.companySkipped || false,\n      contactCreated: item._hs.contactCreated,\n      syncDate: today\n    }\n  }\n}];"
       },
       "id": "31732689-9943-4f38-a163-2d69ee25e0d4",
       "name": "Format Output",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        14208,
-        1632
+        14736,
+        1552
       ]
     },
     {
@@ -631,6 +705,101 @@
       }
     },
     {
+      "parameters": {},
+      "id": "test-from-email-scraper",
+      "name": "Test: From Email Scraper",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        10048,
+        1824
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "check-jsonurl-exists",
+              "leftValue": "={{ $json.jsonUrl }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-has-jsonurl",
+      "name": "Has jsonUrl?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        10352,
+        1616
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "test-from-merge",
+        "options": {}
+      },
+      "id": "test-webhook-merge",
+      "name": "Test Webhook: From Merge",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        10512,
+        1824
+      ],
+      "webhookId": "test-from-merge"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "check-no-error",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notExists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-no-scraper-error",
+      "name": "Has Direct Profiles?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        10352,
+        1824
+      ]
+    },
+    {
       "parameters": {
         "url": "={{ $json.jsonUrl || '' }}",
         "options": {
@@ -653,7 +822,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Merge connection data with Profile Scraper results (including email)\n// Get original connection data from Find New Connections2 node (upstream merge)\nlet connectionData = [];\ntry {\n  connectionData = $('Find New Connections2').all().map(item => item.json);\n} catch (e) {\n  connectionData = [];\n}\n\n// Get scraper results with emails\nconst scraperItems = $input.all();\nconst scraperProfiles = scraperItems\n  .filter(item => {\n    const j = item.json || {};\n    return j.profileUrl || j.linkedinProfileUrl;\n  })\n  .map(item => item.json);\n\n// Create a map of scraper data by normalized URL\nconst scraperMap = new Map();\nscraperProfiles.forEach(p => {\n  let url = (p.profileUrl || p.linkedinProfileUrl || '').trim().toLowerCase();\n  url = url.replace('https://www.linkedin.com', 'https://linkedin.com').replace(/\\/$/, '');\n  scraperMap.set(url, p);\n});\n\n// Merge: start with connection data, enrich with scraper data including email\nconst enrichedConnections = connectionData.map(conn => {\n  let url = (conn.profileUrl || conn.linkedinProfileUrl || conn.profileUrlNormalized || '').trim().toLowerCase();\n  url = url.replace('https://www.linkedin.com', 'https://linkedin.com').replace(/\\/$/, '');\n  \n  const scraperData = scraperMap.get(url) || {};\n  \n  return {\n    ...conn,\n    // Email from Profile Scraper\n    email: scraperData.email || scraperData.workEmail || '',\n    // Company data from Profile Scraper\n    companyWebsite: scraperData.companyWebsite || '',\n    companySize: scraperData.companySize || '',\n    companyIndustry: scraperData.companyIndustry || conn.industry || '',\n    companyDescription: scraperData.companyDescription || '',\n    companyLinkedinUrl: scraperData.companyLinkedinUrl || conn.companyUrl || '',\n    // Summary from Profile Scraper\n    summary: scraperData.summary || '',\n    // Keep normalized URL\n    profileUrl: url\n  };\n});\n\n// Return as individual items for the loop\nreturn enrichedConnections.map(conn => ({ json: conn }));"
+        "jsCode": "// Merge connection data with Profile Scraper results (including email)\n// Handles: 1) profiles from HTTP fetch, 2) direct Phantombuster output, 3) webhook test input\n// Also handles partial testing where upstream nodes may not have run\n\n// Get original connection data from Find New Connections2 node (upstream merge)\nlet connectionData = [];\ntry {\n  connectionData = $('Find New Connections2').all().map(item => item.json);\n} catch (e) {\n  // Node not executed (partial test run) - connectionData stays empty\n  connectionData = [];\n}\n\n// Get scraper results - handle multiple input formats\nconst scraperItems = $input.all();\nlet scraperProfiles = [];\n\nscraperItems.forEach(item => {\n  const j = item.json || {};\n  \n  // Case 1: Webhook input with profiles in 'body' array\n  if (Array.isArray(j.body)) {\n    j.body.forEach(bodyItem => {\n      const profile = bodyItem.json || bodyItem;\n      if (profile.profileUrl || profile.linkedinProfileUrl) {\n        scraperProfiles.push(profile);\n      }\n    });\n  }\n  // Case 2: Direct profile with profileUrl/linkedinProfileUrl\n  else if (j.profileUrl || j.linkedinProfileUrl) {\n    scraperProfiles.push(j);\n  }\n  // Case 3: Phantombuster output with embedded profile array in 'output' field\n  else if (Array.isArray(j.output)) {\n    scraperProfiles.push(...j.output.filter(p => p.profileUrl || p.linkedinProfileUrl));\n  }\n  // Case 4: Single profile in 'output' object\n  else if (j.output && (j.output.profileUrl || j.output.linkedinProfileUrl)) {\n    scraperProfiles.push(j.output);\n  }\n});\n\n// Create a map of scraper data by normalized URL\nconst scraperMap = new Map();\nscraperProfiles.forEach(p => {\n  let url = (p.profileUrl || p.linkedinProfileUrl || '').trim().toLowerCase();\n  url = url.replace('https://www.linkedin.com', 'https://linkedin.com').replace(/\\/$/, '');\n  if (url) scraperMap.set(url, p);\n});\n\n// If no connection data from upstream (partial test), use scraper profiles as base\nif (connectionData.length === 0 && scraperProfiles.length > 0) {\n  const enrichedFromScraper = scraperProfiles.map(p => {\n    let url = (p.profileUrl || p.linkedinProfileUrl || '').trim().toLowerCase();\n    url = url.replace('https://www.linkedin.com', 'https://linkedin.com').replace(/\\/$/, '');\n    \n    return {\n      profileUrl: url,\n      linkedinProfileUrl: p.linkedinProfileUrl || p.profileUrl || '',\n      firstName: p.firstName || '',\n      lastName: p.lastName || '',\n      fullName: `${p.firstName || ''} ${p.lastName || ''}`.trim() || 'Unknown',\n      headline: p.linkedinHeadline || p.headline || '',\n      location: p.location || '',\n      email: p.professionalEmail || p.email || p.workEmail || '',\n      companyName: p.companyName || p.linkedinCompanyName || '',\n      companyWebsite: p.companyWebsite || p.linkedinCompanyWebsite || '',\n      companySize: p.linkedinCompanySize || '',\n      companyIndustry: p.companyIndustry || p.linkedinCompanyIndustry || '',\n      hsIndustry: p.hsIndustry || '',\n      companyDescription: p.linkedinCompanyDescription || '',\n      companyLinkedinUrl: p.linkedinCompanyUrl || '',\n      jobTitle: p.linkedinJobTitle || '',\n      jobDateRange: p.linkedinJobDateRange || '',\n      connectionDegree: p.connectionDegree || '',\n      _source: 'scraper_direct'\n    };\n  });\n  \n  return enrichedFromScraper.map(conn => ({ json: conn }));\n}\n\n// Normal flow: merge connection data with scraper data\nconst enrichedConnections = connectionData.map(conn => {\n  let url = (conn.profileUrl || conn.linkedinProfileUrl || conn.profileUrlNormalized || '').trim().toLowerCase();\n  url = url.replace('https://www.linkedin.com', 'https://linkedin.com').replace(/\\/$/, '');\n  \n  const scraperData = scraperMap.get(url) || {};\n  \n  return {\n    ...conn,\n    email: scraperData.professionalEmail || scraperData.email || scraperData.workEmail || '',\n    companyWebsite: scraperData.companyWebsite || scraperData.linkedinCompanyWebsite || '',\n    companySize: scraperData.linkedinCompanySize || scraperData.companySize || '',\n    companyIndustry: scraperData.companyIndustry || scraperData.linkedinCompanyIndustry || conn.industry || '',\n    hsIndustry: conn.hsIndustry || '',\n    companyDescription: scraperData.linkedinCompanyDescription || scraperData.companyDescription || '',\n    companyLinkedinUrl: scraperData.linkedinCompanyUrl || scraperData.companyLinkedinUrl || conn.companyUrl || '',\n    summary: scraperData.summary || '',\n    profileUrl: url\n  };\n});\n\nreturn enrichedConnections.map(conn => ({ json: conn }));"
       },
       "id": "merge-connection-email-data",
       "name": "Merge Connection + Email Data",
@@ -1193,8 +1362,8 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        12432,
-        1648
+        14896,
+        2016
       ],
       "credentials": {
         "googleSheetsOAuth2Api": {
@@ -1212,8 +1381,8 @@
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
       "position": [
-        11280,
-        1904
+        11184,
+        1504
       ]
     },
     {
@@ -1223,8 +1392,8 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        11552,
-        1808
+        11504,
+        1488
       ]
     },
     {
@@ -1262,8 +1431,8 @@
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        11568,
-        1920
+        11744,
+        1264
       ],
       "webhookId": "a4843833-8e00-4d9f-8263-f31413f38084"
     },
@@ -1279,7 +1448,7 @@
           "conditions": [
             {
               "id": "has-company",
-              "leftValue": "={{ $json.company }}",
+              "leftValue": "={{ $json.companyName || $json.company }}",
               "rightValue": "",
               "operator": {
                 "type": "string",
@@ -1297,8 +1466,86 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        11392,
+        11584,
         1616
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "has-hs-industry",
+              "leftValue": "={{ $json.hsIndustry }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "needs-industry-mapping",
+      "name": "Needs Industry Mapping?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        11200,
+        1616
+      ]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "claude-sonnet-4-5-20250929"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "={{ `Map this LinkedIn industry to the closest HubSpot industry enum. Return ONLY the enum value, nothing else.\n\nLinkedIn Industry: ${$json.companyIndustry || $json._hs.companyIndustry || 'Unknown'}\n\nValid HubSpot enums: ACCOUNTING, AIRLINES_AVIATION, ALTERNATIVE_DISPUTE_RESOLUTION, ALTERNATIVE_MEDICINE, ANIMATION, APPAREL_FASHION, ARCHITECTURE_PLANNING, ARTS_AND_CRAFTS, AUTOMOTIVE, AVIATION_AEROSPACE, BANKING, BIOTECHNOLOGY, BROADCAST_MEDIA, BUILDING_MATERIALS, BUSINESS_SUPPLIES_AND_EQUIPMENT, CAPITAL_MARKETS, CHEMICALS, CIVIC_SOCIAL_ORGANIZATION, CIVIL_ENGINEERING, COMMERCIAL_REAL_ESTATE, COMPUTER_NETWORK_SECURITY, COMPUTER_GAMES, COMPUTER_HARDWARE, COMPUTER_NETWORKING, COMPUTER_SOFTWARE, INTERNET, CONSTRUCTION, CONSUMER_ELECTRONICS, CONSUMER_GOODS, CONSUMER_SERVICES, COSMETICS, DAIRY, DEFENSE_SPACE, DESIGN, EDUCATION_MANAGEMENT, E_LEARNING, ELECTRICAL_ELECTRONIC_MANUFACTURING, ENTERTAINMENT, ENVIRONMENTAL_SERVICES, EVENTS_SERVICES, EXECUTIVE_OFFICE, FACILITIES_SERVICES, FARMING, FINANCIAL_SERVICES, FINE_ART, FISHERY, FOOD_BEVERAGES, FOOD_PRODUCTION, FUND_RAISING, FURNITURE, GAMBLING_CASINOS, GLASS_CERAMICS_CONCRETE, GOVERNMENT_ADMINISTRATION, GOVERNMENT_RELATIONS, GRAPHIC_DESIGN, HEALTH_WELLNESS_AND_FITNESS, HIGHER_EDUCATION, HOSPITAL_HEALTH_CARE, HOSPITALITY, HUMAN_RESOURCES, IMPORT_AND_EXPORT, INDIVIDUAL_FAMILY_SERVICES, INDUSTRIAL_AUTOMATION, INFORMATION_SERVICES, INFORMATION_TECHNOLOGY_AND_SERVICES, INSURANCE, INTERNATIONAL_AFFAIRS, INTERNATIONAL_TRADE_AND_DEVELOPMENT, INVESTMENT_BANKING, INVESTMENT_MANAGEMENT, JUDICIARY, LAW_ENFORCEMENT, LAW_PRACTICE, LEGAL_SERVICES, LEGISLATIVE_OFFICE, LEISURE_TRAVEL_TOURISM, LIBRARIES, LOGISTICS_AND_SUPPLY_CHAIN, LUXURY_GOODS_JEWELRY, MACHINERY, MANAGEMENT_CONSULTING, MARITIME, MARKET_RESEARCH, MARKETING_AND_ADVERTISING, MECHANICAL_OR_INDUSTRIAL_ENGINEERING, MEDIA_PRODUCTION, MEDICAL_DEVICES, MEDICAL_PRACTICE, MENTAL_HEALTH_CARE, MILITARY, MINING_METALS, MOTION_PICTURES_AND_FILM, MUSEUMS_AND_INSTITUTIONS, MUSIC, NANOTECHNOLOGY, NEWSPAPERS, NON_PROFIT_ORGANIZATION_MANAGEMENT, OIL_ENERGY, ONLINE_MEDIA, OUTSOURCING_OFFSHORING, PACKAGE_FREIGHT_DELIVERY, PACKAGING_AND_CONTAINERS, PAPER_FOREST_PRODUCTS, PERFORMING_ARTS, PHARMACEUTICALS, PHILANTHROPY, PHOTOGRAPHY, PLASTICS, POLITICAL_ORGANIZATION, PRIMARY_SECONDARY_EDUCATION, PRINTING, PROFESSIONAL_TRAINING_COACHING, PROGRAM_DEVELOPMENT, PUBLIC_POLICY, PUBLIC_RELATIONS_AND_COMMUNICATIONS, PUBLIC_SAFETY, PUBLISHING, RAILROAD_MANUFACTURE, RANCHING, REAL_ESTATE, RECREATIONAL_FACILITIES_AND_SERVICES, RELIGIOUS_INSTITUTIONS, RENEWABLES_ENVIRONMENT, RESEARCH, RESTAURANTS, RETAIL, SECURITY_AND_INVESTIGATIONS, SEMICONDUCTORS, SHIPBUILDING, SPORTING_GOODS, SPORTS, STAFFING_AND_RECRUITING, SUPERMARKETS, TELECOMMUNICATIONS, TEXTILES, THINK_TANKS, TOBACCO, TRANSLATION_AND_LOCALIZATION, TRANSPORTATION_TRUCKING_RAILROAD, UTILITIES, VENTURE_CAPITAL_PRIVATE_EQUITY, VETERINARY, WAREHOUSING, WHOLESALE, WINE_AND_SPIRITS, WIRELESS, WRITING_AND_EDITING, MOBILE_GAMES\n\nExamples:\n- \"Hospital & Health Care\" -> HOSPITAL_HEALTH_CARE\n- \"Hospitals and Health Care\" -> HOSPITAL_HEALTH_CARE\n- \"Biotechnology Research\" -> BIOTECHNOLOGY\n- \"Aviation & Aerospace\" -> AVIATION_AEROSPACE` }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ai-map-industry",
+      "name": "AI Map Industry",
+      "type": "@n8n/n8n-nodes-langchain.anthropic",
+      "typeVersion": 1,
+      "position": [
+        11232,
+        1952
+      ],
+      "credentials": {
+        "anthropicApi": {
+          "id": "B6k4mmzjw7OzEK5c",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Store the AI-mapped industry in the item\nconst item = $('Needs Industry Mapping?').item.json;\nconst aiOutput = $input.first().json;\n\n// The Anthropic node outputs content array directly\nconst aiResponse = (aiOutput.content && aiOutput.content[0] && aiOutput.content[0].text) \n  ? aiOutput.content[0].text.trim() \n  : '';\n\nreturn [{\n  json: {\n    ...item,\n    hsIndustry: aiResponse\n  }\n}];"
+      },
+      "id": "store-mapped-industry",
+      "name": "Store Mapped Industry",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        11456,
+        1952
       ]
     },
     {
@@ -1347,17 +1594,6 @@
         13824,
         1616
       ]
-    },
-    {
-      "parameters": {},
-      "type": "n8n-nodes-base.manualTrigger",
-      "typeVersion": 1,
-      "position": [
-        9808,
-        2000
-      ],
-      "id": "528a27e4-be0a-4652-86b8-bdf254f851e5",
-      "name": "When clicking ‘Execute workflow’"
     }
   ],
   "connections": {
@@ -1682,11 +1918,63 @@
       "main": [
         [
           {
-            "node": "Fetch Email Scraper JSON",
+            "node": "Has jsonUrl?",
             "type": "main",
             "index": 0
           }
         ]
+      ]
+    },
+    "Test: From Email Scraper": {
+      "main": [
+        [
+          {
+            "node": "Get Email Scraper Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Test Webhook: From Merge": {
+      "main": [
+        [
+          {
+            "node": "Merge Connection + Email Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has jsonUrl?": {
+      "main": [
+        [
+          {
+            "node": "Fetch Email Scraper JSON",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Has Direct Profiles?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Direct Profiles?": {
+      "main": [
+        [
+          {
+            "node": "Merge Connection + Email Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
       ]
     },
     "Fetch Email Scraper JSON": {
@@ -1859,7 +2147,7 @@
       "main": [
         [
           {
-            "node": "Associate Contact → Company",
+            "node": "Get Contact Associations",
             "type": "main",
             "index": 0
           }
@@ -1874,6 +2162,46 @@
       ]
     },
     "Wait": {
+      "main": [
+        [
+          {
+            "node": "Needs Industry Mapping?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Needs Industry Mapping?": {
+      "main": [
+        [
+          {
+            "node": "Has Company?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI Map Industry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Map Industry": {
+      "main": [
+        [
+          {
+            "node": "Store Mapped Industry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Mapped Industry": {
       "main": [
         [
           {
@@ -1913,11 +2241,40 @@
         ]
       ]
     },
-    "When clicking ‘Execute workflow’": {
+    "Get Contact Associations": {
       "main": [
         [
           {
-            "node": "Get Email Scraper Output",
+            "node": "Check Association",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Association": {
+      "main": [
+        [
+          {
+            "node": "Already Associated?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Already Associated?": {
+      "main": [
+        [
+          {
+            "node": "Format Output",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Associate Contact → Company",
             "type": "main",
             "index": 0
           }
@@ -1940,9 +2297,9 @@
     "templateCredsSetupCompleted": true
   },
   "pinData": {},
-  "versionId": "d12cafa4-e347-452b-b3b2-f37140c8bdb0",
-  "activeVersionId": "2146cc9d-3ff7-4f57-a971-e2187d5c333d",
-  "triggerCount": 2,
+  "versionId": "16a12b43-7338-402c-8d39-ab053e0df12e",
+  "activeVersionId": "16a12b43-7338-402c-8d39-ab053e0df12e",
+  "triggerCount": 3,
   "shared": [
     {
       "updatedAt": "2025-12-24T03:18:02.180Z",
@@ -1953,14 +2310,14 @@
     }
   ],
   "activeVersion": {
-    "updatedAt": "2026-01-27T05:13:18.093Z",
-    "createdAt": "2026-01-27T05:13:18.093Z",
-    "versionId": "2146cc9d-3ff7-4f57-a971-e2187d5c333d",
+    "updatedAt": "2026-01-27T17:49:51.000Z",
+    "createdAt": "2026-01-27T17:49:24.596Z",
+    "versionId": "16a12b43-7338-402c-8d39-ab053e0df12e",
     "workflowId": "a56vnrPo9dsg5mmf",
     "nodes": [
       {
         "parameters": {
-          "jsCode": "// Prepare data for HubSpot sync - now with real emails from Profile Scraper\nconst inputItems = $input.all();\n\n// Check if we have input data\nif (!inputItems || inputItems.length === 0) {\n  throw new Error('No input data received from previous node');\n}\n\nreturn inputItems.map(item => {\n  // Validate item structure\n  if (!item || !item.json) {\n    throw new Error('Invalid input item structure - missing json property');\n  }\n  \n  const data = item.json;\n  const fullName = data.fullName || '';\n  const firstName = data.firstName || '';\n  const lastName = data.lastName || '';\n  const companyName = data.company || '';\n  \n  // Use real email from Profile Scraper if available, otherwise generate placeholder\n  const realEmail = data.email || '';\n  const placeholderEmail = fullName\n    ? fullName.toLowerCase().replace(/[^a-z0-9]/g, '.').replace(/\\.+/g, '.').replace(/^\\.|\\.$/, '') + '@placeholder.linkedin'\n    : 'unknown@placeholder.linkedin';\n  const finalEmail = realEmail || placeholderEmail;\n  const hasRealEmail = !!realEmail;\n  \n  // Use company website from Profile Scraper if available, otherwise generate pseudo-domain\n  const companyWebsite = data.companyWebsite || '';\n  const domain = companyWebsite\n    ? companyWebsite.replace(/^https?:\\/\\//, '').replace(/^www\\./, '').split('/')[0]\n    : (companyName ? companyName.toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 30) + '.com' : '');\n\n  return {\n    json: {\n      ...data,\n      _hs: {\n        firstName: firstName,\n        lastName: lastName,\n        email: finalEmail,\n        hasRealEmail: hasRealEmail,\n        placeholderEmail: placeholderEmail,\n        domain: domain,\n        companyWebsite: companyWebsite,\n        companySize: data.companySize || '',\n        companyIndustry: data.companyIndustry || data.industry || '',\n        companyDescription: data.companyDescription || ''\n      }\n    }\n  };\n});"
+          "jsCode": "// Prepare data for HubSpot sync - now with real emails from Profile Scraper\nconst inputItems = $input.all();\n\n// Check if we have input data\nif (!inputItems || inputItems.length === 0) {\n  throw new Error('No input data received from previous node');\n}\n\nreturn inputItems.map(item => {\n  // Validate item structure\n  if (!item || !item.json) {\n    throw new Error('Invalid input item structure - missing json property');\n  }\n  \n  const data = item.json;\n  const fullName = data.fullName || '';\n  const firstName = data.firstName || '';\n  const lastName = data.lastName || '';\n  const companyName = data.companyName || data.company || '';\n  \n  // Use real email from Profile Scraper if available, otherwise generate placeholder\n  const realEmail = data.email || '';\n  const placeholderEmail = fullName\n    ? fullName.toLowerCase().replace(/[^a-z0-9]/g, '.').replace(/\\.+/g, '.').replace(/^\\.|\\.$/, '') + '@placeholder.linkedin'\n    : 'unknown@placeholder.linkedin';\n  const finalEmail = realEmail || placeholderEmail;\n  const hasRealEmail = !!realEmail;\n  \n  // Use company website from Profile Scraper if available, otherwise generate pseudo-domain\n  const companyWebsite = data.companyWebsite || '';\n  const domain = companyWebsite\n    ? companyWebsite.replace(/^https?:\\/\\//, '').replace(/^www\\./, '').split('/')[0]\n    : (companyName ? companyName.toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 30) + '.com' : '');\n\n  return {\n    json: {\n      ...data,\n      _hs: {\n        firstName: firstName,\n        lastName: lastName,\n        email: finalEmail,\n        hasRealEmail: hasRealEmail,\n        placeholderEmail: placeholderEmail,\n        domain: domain,\n        companyWebsite: companyWebsite,\n        companySize: (data.companySize || '').toString().replace(/[^0-9]/g, '') || '',\n        companyIndustry: data.companyIndustry || data.industry || '',\n        companyDescription: data.companyDescription || ''\n      }\n    }\n  };\n});"
         },
         "id": "2769d7b7-41b5-4050-b475-de6bc26ca2b9",
         "name": "Prepare HubSpot Data",
@@ -1979,7 +2336,7 @@
           "nodeCredentialType": "hubspotOAuth2Api",
           "sendBody": true,
           "specifyBody": "json",
-          "jsonBody": "={{ JSON.stringify({ filterGroups: [{ filters: [{ propertyName: 'name', operator: 'EQ', value: $json.company || '' }] }], properties: ['name', 'domain', 'industry'] }) }}",
+          "jsonBody": "={{ JSON.stringify({ filterGroups: [{ filters: [{ propertyName: 'name', operator: 'EQ', value: $json.companyName || $json.company || '' }] }], properties: ['name', 'domain', 'industry'] }) }}",
           "options": {}
         },
         "id": "dc9d60f6-d961-4c98-8998-af2449446379",
@@ -1987,7 +2344,7 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          11696,
+          11840,
           1600
         ],
         "credentials": {
@@ -2038,7 +2395,7 @@
           "nodeCredentialType": "hubspotOAuth2Api",
           "sendBody": true,
           "specifyBody": "json",
-          "jsonBody": "={{ JSON.stringify({ properties: { name: $('Loop Over Items').item.json.company || '', domain: $('Loop Over Items').item.json._hs.domain, linkedin_company_page: $('Loop Over Items').item.json.companyLinkedinUrl || $('Loop Over Items').item.json.companyUrl || '', industry: $('Loop Over Items').item.json.hsIndustry || $('Loop Over Items').item.json._hs.companyIndustry || '', website: $('Loop Over Items').item.json._hs.companyWebsite || '', numberofemployees: $('Loop Over Items').item.json._hs.companySize || '', description: $('Loop Over Items').item.json._hs.companyDescription || '' } }) }}",
+          "jsonBody": "={{ JSON.stringify({ properties: { name: $('Has Company?').item.json.companyName || $('Has Company?').item.json.company || '', domain: $('Has Company?').item.json._hs.domain, linkedin_company_page: $('Has Company?').item.json.companyLinkedinUrl || $('Has Company?').item.json.companyUrl || '', industry: $('Has Company?').item.json.hsIndustry || $('Has Company?').item.json._hs.companyIndustry || '', website: $('Has Company?').item.json._hs.companyWebsite || '', numberofemployees: $('Has Company?').item.json._hs.companySize || '', description: $('Has Company?').item.json._hs.companyDescription || '' } }) }}",
           "options": {}
         },
         "id": "094ba8de-154c-477b-88c5-6edbf168fdae",
@@ -2047,7 +2404,7 @@
         "typeVersion": 4.2,
         "position": [
           12208,
-          1568
+          1776
         ],
         "credentials": {
           "hubspotOAuth2Api": {
@@ -2078,8 +2435,8 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          12416,
-          1728
+          12448,
+          1776
         ]
       },
       {
@@ -2149,7 +2506,7 @@
           "nodeCredentialType": "hubspotOAuth2Api",
           "sendBody": true,
           "specifyBody": "json",
-          "jsonBody": "={{ JSON.stringify({ properties: { email: $('Merge Company Results').item.json._hs.hasRealEmail ? $('Merge Company Results').item.json._hs.email : undefined, firstname: $('Merge Company Results').item.json._hs.firstName, lastname: $('Merge Company Results').item.json._hs.lastName, jobtitle: $('Merge Company Results').item.json.jobTitle || '', company: $('Merge Company Results').item.json.company || '', hs_lead_status: 'CONNECTED', linkedin_bio: $('Merge Company Results').item.json.summary || '' } }) }}",
+          "jsonBody": "={{ JSON.stringify({ properties: { email: $('Merge Company Results').item.json._hs.hasRealEmail ? $('Merge Company Results').item.json._hs.email : undefined, firstname: $('Merge Company Results').item.json._hs.firstName, lastname: $('Merge Company Results').item.json._hs.lastName, jobtitle: $('Merge Company Results').item.json.jobTitle || '', company: $('Merge Company Results').item.json.companyName || $('Merge Company Results').item.json.company || '', hs_lead_status: 'CONNECTED' } }) }}",
           "options": {}
         },
         "id": "aef86f24-5491-4980-a262-d066421a4919",
@@ -2175,7 +2532,7 @@
           "nodeCredentialType": "hubspotOAuth2Api",
           "sendBody": true,
           "specifyBody": "json",
-          "jsonBody": "={{ JSON.stringify({ properties: { email: $('Merge Company Results').item.json._hs.email, firstname: $('Merge Company Results').item.json._hs.firstName, lastname: $('Merge Company Results').item.json._hs.lastName, jobtitle: $('Merge Company Results').item.json.jobTitle || '', company: $('Merge Company Results').item.json.company || '', hs_lead_status: 'CONNECTED', city: $('Merge Company Results').item.json.location || '', linkedin_bio: $('Merge Company Results').item.json.summary || '' } }) }}",
+          "jsonBody": "={{ JSON.stringify({ properties: { email: $('Merge Company Results').item.json._hs.hasRealEmail ? $('Merge Company Results').item.json._hs.email : undefined, firstname: $('Merge Company Results').item.json._hs.firstName, lastname: $('Merge Company Results').item.json._hs.lastName, jobtitle: $('Merge Company Results').item.json.jobTitle || '', company: $('Merge Company Results').item.json.companyName || $('Merge Company Results').item.json.company || '', hs_lead_status: 'CONNECTED', city: $('Merge Company Results').item.json.location || '' } }) }}",
           "options": {}
         },
         "id": "c7577a09-93c6-48b4-b9d2-a2022c875a63",
@@ -2238,8 +2595,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          13984,
-          1520
+          14576,
+          1344
         ],
         "credentials": {
           "hubspotOAuth2Api": {
@@ -2250,15 +2607,89 @@
       },
       {
         "parameters": {
-          "jsCode": "// Final output formatting\nconst item = $('Merge Contact Results').item.json;\nconst today = new Date().toISOString().split('T')[0];\n\nreturn [{\n  json: {\n    profileUrl: item.profileUrl,\n    fullName: item.fullName,\n    company: item.company || '',\n    hubspot: {\n      companyId: item._hs.companyId || null,\n      contactId: item._hs.contactId,\n      companyCreated: item._hs.companyCreated || false,\n      companySkipped: item._hs.companySkipped || false,\n      contactCreated: item._hs.contactCreated,\n      syncDate: today\n    }\n  }\n}];"
+          "url": "={{ 'https://api.hubapi.com/crm/v3/objects/contacts/' + $json._hs.contactId + '/associations/company' }}",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "hubspotOAuth2Api",
+          "options": {
+            "response": {
+              "response": {
+                "neverError": true
+              }
+            }
+          }
+        },
+        "id": "get-contact-associations",
+        "name": "Get Contact Associations",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          13952,
+          1312
+        ],
+        "credentials": {
+          "hubspotOAuth2Api": {
+            "id": "3JZVnZQkHgMfXMRx",
+            "name": "HubSpot account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "// Check if the contact is already associated with the target company\nconst mergeData = $('Merge Contact Results').item.json;\nconst associations = $input.first().json.results || [];\nconst targetCompanyId = mergeData._hs.companyId;\n\n// Check if target company is in the associations list\nconst alreadyAssociated = associations.some(a => a.toObjectId === targetCompanyId || a.toObjectId === String(targetCompanyId));\n\nreturn [{\n  json: {\n    ...mergeData,\n    _hs: {\n      ...mergeData._hs,\n      alreadyAssociated: alreadyAssociated\n    }\n  }\n}];"
+        },
+        "id": "check-association-exists",
+        "name": "Check Association",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          14112,
+          1312
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "already-associated",
+                "leftValue": "={{ $json._hs.alreadyAssociated }}",
+                "rightValue": true,
+                "operator": {
+                  "type": "boolean",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "already-associated-check",
+        "name": "Already Associated?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          14288,
+          1312
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "// Final output formatting\nconst item = $('Merge Contact Results').item.json;\nconst today = new Date().toISOString().split('T')[0];\n\nreturn [{\n  json: {\n    profileUrl: item.profileUrl,\n    fullName: item.fullName,\n    company: item.companyName || item.company || '',\n    hubspot: {\n      companyId: item._hs.companyId || null,\n      contactId: item._hs.contactId,\n      companyCreated: item._hs.companyCreated || false,\n      companySkipped: item._hs.companySkipped || false,\n      contactCreated: item._hs.contactCreated,\n      syncDate: today\n    }\n  }\n}];"
         },
         "id": "31732689-9943-4f38-a163-2d69ee25e0d4",
         "name": "Format Output",
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          14208,
-          1632
+          14736,
+          1552
         ]
       },
       {
@@ -2293,7 +2724,7 @@
         "typeVersion": 2,
         "position": [
           6752,
-          1736
+          1744
         ],
         "webhookId": "connection-sync-test-webhook"
       },
@@ -2583,15 +3014,110 @@
         }
       },
       {
+        "parameters": {},
+        "id": "test-from-email-scraper",
+        "name": "Test: From Email Scraper",
+        "type": "n8n-nodes-base.manualTrigger",
+        "typeVersion": 1,
+        "position": [
+          10048,
+          1824
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 3
+            },
+            "conditions": [
+              {
+                "id": "check-jsonurl-exists",
+                "leftValue": "={{ $json.jsonUrl }}",
+                "rightValue": "",
+                "operator": {
+                  "type": "string",
+                  "operation": "exists",
+                  "singleValue": true
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "if-has-jsonurl",
+        "name": "Has jsonUrl?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.3,
+        "position": [
+          10352,
+          1616
+        ]
+      },
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "test-from-merge",
+          "options": {}
+        },
+        "id": "test-webhook-merge",
+        "name": "Test Webhook: From Merge",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          10512,
+          1824
+        ],
+        "webhookId": "test-from-merge"
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 3
+            },
+            "conditions": [
+              {
+                "id": "check-no-error",
+                "leftValue": "={{ $json.error }}",
+                "rightValue": "",
+                "operator": {
+                  "type": "string",
+                  "operation": "notExists",
+                  "singleValue": true
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "if-no-scraper-error",
+        "name": "Has Direct Profiles?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.3,
+        "position": [
+          10352,
+          1824
+        ]
+      },
+      {
         "parameters": {
           "url": "={{ $json.jsonUrl || '' }}",
           "options": {
-            "timeout": 60000,
             "response": {
               "response": {
                 "neverError": true
               }
-            }
+            },
+            "timeout": 60000
           }
         },
         "id": "fetch-email-scraper-json",
@@ -2605,7 +3131,7 @@
       },
       {
         "parameters": {
-          "jsCode": "// Merge connection data with Profile Scraper results (including email)\n// Get original connection data from Find New Connections2 node (upstream merge)\nlet connectionData = [];\ntry {\n  connectionData = $('Find New Connections2').all().map(item => item.json);\n} catch (e) {\n  connectionData = [];\n}\n\n// Get scraper results with emails\nconst scraperItems = $input.all();\nconst scraperProfiles = scraperItems\n  .filter(item => {\n    const j = item.json || {};\n    return j.profileUrl || j.linkedinProfileUrl;\n  })\n  .map(item => item.json);\n\n// Create a map of scraper data by normalized URL\nconst scraperMap = new Map();\nscraperProfiles.forEach(p => {\n  let url = (p.profileUrl || p.linkedinProfileUrl || '').trim().toLowerCase();\n  url = url.replace('https://www.linkedin.com', 'https://linkedin.com').replace(/\\/$/, '');\n  scraperMap.set(url, p);\n});\n\n// Merge: start with connection data, enrich with scraper data including email\nconst enrichedConnections = connectionData.map(conn => {\n  let url = (conn.profileUrl || conn.linkedinProfileUrl || conn.profileUrlNormalized || '').trim().toLowerCase();\n  url = url.replace('https://www.linkedin.com', 'https://linkedin.com').replace(/\\/$/, '');\n  \n  const scraperData = scraperMap.get(url) || {};\n  \n  return {\n    ...conn,\n    // Email from Profile Scraper\n    email: scraperData.email || scraperData.workEmail || '',\n    // Company data from Profile Scraper\n    companyWebsite: scraperData.companyWebsite || '',\n    companySize: scraperData.companySize || '',\n    companyIndustry: scraperData.companyIndustry || conn.industry || '',\n    companyDescription: scraperData.companyDescription || '',\n    companyLinkedinUrl: scraperData.companyLinkedinUrl || conn.companyUrl || '',\n    // Summary from Profile Scraper\n    summary: scraperData.summary || '',\n    // Keep normalized URL\n    profileUrl: url\n  };\n});\n\n// Return as individual items for the loop\nreturn enrichedConnections.map(conn => ({ json: conn }));"
+          "jsCode": "// Merge connection data with Profile Scraper results (including email)\n// Handles: 1) profiles from HTTP fetch, 2) direct Phantombuster output, 3) webhook test input\n// Also handles partial testing where upstream nodes may not have run\n\n// Get original connection data from Find New Connections2 node (upstream merge)\nlet connectionData = [];\ntry {\n  connectionData = $('Find New Connections2').all().map(item => item.json);\n} catch (e) {\n  // Node not executed (partial test run) - connectionData stays empty\n  connectionData = [];\n}\n\n// Get scraper results - handle multiple input formats\nconst scraperItems = $input.all();\nlet scraperProfiles = [];\n\nscraperItems.forEach(item => {\n  const j = item.json || {};\n  \n  // Case 1: Webhook input with profiles in 'body' array\n  if (Array.isArray(j.body)) {\n    j.body.forEach(bodyItem => {\n      const profile = bodyItem.json || bodyItem;\n      if (profile.profileUrl || profile.linkedinProfileUrl) {\n        scraperProfiles.push(profile);\n      }\n    });\n  }\n  // Case 2: Direct profile with profileUrl/linkedinProfileUrl\n  else if (j.profileUrl || j.linkedinProfileUrl) {\n    scraperProfiles.push(j);\n  }\n  // Case 3: Phantombuster output with embedded profile array in 'output' field\n  else if (Array.isArray(j.output)) {\n    scraperProfiles.push(...j.output.filter(p => p.profileUrl || p.linkedinProfileUrl));\n  }\n  // Case 4: Single profile in 'output' object\n  else if (j.output && (j.output.profileUrl || j.output.linkedinProfileUrl)) {\n    scraperProfiles.push(j.output);\n  }\n});\n\n// Create a map of scraper data by normalized URL\nconst scraperMap = new Map();\nscraperProfiles.forEach(p => {\n  let url = (p.profileUrl || p.linkedinProfileUrl || '').trim().toLowerCase();\n  url = url.replace('https://www.linkedin.com', 'https://linkedin.com').replace(/\\/$/, '');\n  if (url) scraperMap.set(url, p);\n});\n\n// If no connection data from upstream (partial test), use scraper profiles as base\nif (connectionData.length === 0 && scraperProfiles.length > 0) {\n  const enrichedFromScraper = scraperProfiles.map(p => {\n    let url = (p.profileUrl || p.linkedinProfileUrl || '').trim().toLowerCase();\n    url = url.replace('https://www.linkedin.com', 'https://linkedin.com').replace(/\\/$/, '');\n    \n    return {\n      profileUrl: url,\n      linkedinProfileUrl: p.linkedinProfileUrl || p.profileUrl || '',\n      firstName: p.firstName || '',\n      lastName: p.lastName || '',\n      fullName: `${p.firstName || ''} ${p.lastName || ''}`.trim() || 'Unknown',\n      headline: p.linkedinHeadline || p.headline || '',\n      location: p.location || '',\n      email: p.professionalEmail || p.email || p.workEmail || '',\n      companyName: p.companyName || p.linkedinCompanyName || '',\n      companyWebsite: p.companyWebsite || p.linkedinCompanyWebsite || '',\n      companySize: p.linkedinCompanySize || '',\n      companyIndustry: p.companyIndustry || p.linkedinCompanyIndustry || '',\n      hsIndustry: p.hsIndustry || '',\n      companyDescription: p.linkedinCompanyDescription || '',\n      companyLinkedinUrl: p.linkedinCompanyUrl || '',\n      jobTitle: p.linkedinJobTitle || '',\n      jobDateRange: p.linkedinJobDateRange || '',\n      connectionDegree: p.connectionDegree || '',\n      _source: 'scraper_direct'\n    };\n  });\n  \n  return enrichedFromScraper.map(conn => ({ json: conn }));\n}\n\n// Normal flow: merge connection data with scraper data\nconst enrichedConnections = connectionData.map(conn => {\n  let url = (conn.profileUrl || conn.linkedinProfileUrl || conn.profileUrlNormalized || '').trim().toLowerCase();\n  url = url.replace('https://www.linkedin.com', 'https://linkedin.com').replace(/\\/$/, '');\n  \n  const scraperData = scraperMap.get(url) || {};\n  \n  return {\n    ...conn,\n    email: scraperData.professionalEmail || scraperData.email || scraperData.workEmail || '',\n    companyWebsite: scraperData.companyWebsite || scraperData.linkedinCompanyWebsite || '',\n    companySize: scraperData.linkedinCompanySize || scraperData.companySize || '',\n    companyIndustry: scraperData.companyIndustry || scraperData.linkedinCompanyIndustry || conn.industry || '',\n    hsIndustry: conn.hsIndustry || '',\n    companyDescription: scraperData.linkedinCompanyDescription || scraperData.companyDescription || '',\n    companyLinkedinUrl: scraperData.linkedinCompanyUrl || scraperData.companyLinkedinUrl || conn.companyUrl || '',\n    summary: scraperData.summary || '',\n    profileUrl: url\n  };\n});\n\nreturn enrichedConnections.map(conn => ({ json: conn }));"
         },
         "id": "merge-connection-email-data",
         "name": "Merge Connection + Email Data",
@@ -3145,8 +3671,8 @@
         "type": "n8n-nodes-base.googleSheets",
         "typeVersion": 4.5,
         "position": [
-          12432,
-          1648
+          14896,
+          2016
         ],
         "credentials": {
           "googleSheetsOAuth2Api": {
@@ -3164,8 +3690,8 @@
         "type": "n8n-nodes-base.splitInBatches",
         "typeVersion": 3,
         "position": [
-          11280,
-          1904
+          11184,
+          1504
         ]
       },
       {
@@ -3175,8 +3701,8 @@
         "type": "n8n-nodes-base.noOp",
         "typeVersion": 1,
         "position": [
-          11552,
-          1808
+          11504,
+          1488
         ]
       },
       {
@@ -3214,8 +3740,8 @@
         "type": "n8n-nodes-base.wait",
         "typeVersion": 1.1,
         "position": [
-          11568,
-          1920
+          11744,
+          1264
         ],
         "webhookId": "a4843833-8e00-4d9f-8263-f31413f38084"
       },
@@ -3231,7 +3757,7 @@
             "conditions": [
               {
                 "id": "has-company",
-                "leftValue": "={{ $json.company }}",
+                "leftValue": "={{ $json.companyName || $json.company }}",
                 "rightValue": "",
                 "operator": {
                   "type": "string",
@@ -3249,8 +3775,86 @@
         "type": "n8n-nodes-base.if",
         "typeVersion": 2.2,
         "position": [
-          11392,
+          11584,
           1616
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "has-hs-industry",
+                "leftValue": "={{ $json.hsIndustry }}",
+                "rightValue": "",
+                "operator": {
+                  "type": "string",
+                  "operation": "notEmpty",
+                  "singleValue": true
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "needs-industry-mapping",
+        "name": "Needs Industry Mapping?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          11200,
+          1616
+        ]
+      },
+      {
+        "parameters": {
+          "modelId": {
+            "__rl": true,
+            "mode": "id",
+            "value": "claude-sonnet-4-5-20250929"
+          },
+          "messages": {
+            "values": [
+              {
+                "content": "={{ `Map this LinkedIn industry to the closest HubSpot industry enum. Return ONLY the enum value, nothing else.\n\nLinkedIn Industry: ${$json.companyIndustry || $json._hs.companyIndustry || 'Unknown'}\n\nValid HubSpot enums: ACCOUNTING, AIRLINES_AVIATION, ALTERNATIVE_DISPUTE_RESOLUTION, ALTERNATIVE_MEDICINE, ANIMATION, APPAREL_FASHION, ARCHITECTURE_PLANNING, ARTS_AND_CRAFTS, AUTOMOTIVE, AVIATION_AEROSPACE, BANKING, BIOTECHNOLOGY, BROADCAST_MEDIA, BUILDING_MATERIALS, BUSINESS_SUPPLIES_AND_EQUIPMENT, CAPITAL_MARKETS, CHEMICALS, CIVIC_SOCIAL_ORGANIZATION, CIVIL_ENGINEERING, COMMERCIAL_REAL_ESTATE, COMPUTER_NETWORK_SECURITY, COMPUTER_GAMES, COMPUTER_HARDWARE, COMPUTER_NETWORKING, COMPUTER_SOFTWARE, INTERNET, CONSTRUCTION, CONSUMER_ELECTRONICS, CONSUMER_GOODS, CONSUMER_SERVICES, COSMETICS, DAIRY, DEFENSE_SPACE, DESIGN, EDUCATION_MANAGEMENT, E_LEARNING, ELECTRICAL_ELECTRONIC_MANUFACTURING, ENTERTAINMENT, ENVIRONMENTAL_SERVICES, EVENTS_SERVICES, EXECUTIVE_OFFICE, FACILITIES_SERVICES, FARMING, FINANCIAL_SERVICES, FINE_ART, FISHERY, FOOD_BEVERAGES, FOOD_PRODUCTION, FUND_RAISING, FURNITURE, GAMBLING_CASINOS, GLASS_CERAMICS_CONCRETE, GOVERNMENT_ADMINISTRATION, GOVERNMENT_RELATIONS, GRAPHIC_DESIGN, HEALTH_WELLNESS_AND_FITNESS, HIGHER_EDUCATION, HOSPITAL_HEALTH_CARE, HOSPITALITY, HUMAN_RESOURCES, IMPORT_AND_EXPORT, INDIVIDUAL_FAMILY_SERVICES, INDUSTRIAL_AUTOMATION, INFORMATION_SERVICES, INFORMATION_TECHNOLOGY_AND_SERVICES, INSURANCE, INTERNATIONAL_AFFAIRS, INTERNATIONAL_TRADE_AND_DEVELOPMENT, INVESTMENT_BANKING, INVESTMENT_MANAGEMENT, JUDICIARY, LAW_ENFORCEMENT, LAW_PRACTICE, LEGAL_SERVICES, LEGISLATIVE_OFFICE, LEISURE_TRAVEL_TOURISM, LIBRARIES, LOGISTICS_AND_SUPPLY_CHAIN, LUXURY_GOODS_JEWELRY, MACHINERY, MANAGEMENT_CONSULTING, MARITIME, MARKET_RESEARCH, MARKETING_AND_ADVERTISING, MECHANICAL_OR_INDUSTRIAL_ENGINEERING, MEDIA_PRODUCTION, MEDICAL_DEVICES, MEDICAL_PRACTICE, MENTAL_HEALTH_CARE, MILITARY, MINING_METALS, MOTION_PICTURES_AND_FILM, MUSEUMS_AND_INSTITUTIONS, MUSIC, NANOTECHNOLOGY, NEWSPAPERS, NON_PROFIT_ORGANIZATION_MANAGEMENT, OIL_ENERGY, ONLINE_MEDIA, OUTSOURCING_OFFSHORING, PACKAGE_FREIGHT_DELIVERY, PACKAGING_AND_CONTAINERS, PAPER_FOREST_PRODUCTS, PERFORMING_ARTS, PHARMACEUTICALS, PHILANTHROPY, PHOTOGRAPHY, PLASTICS, POLITICAL_ORGANIZATION, PRIMARY_SECONDARY_EDUCATION, PRINTING, PROFESSIONAL_TRAINING_COACHING, PROGRAM_DEVELOPMENT, PUBLIC_POLICY, PUBLIC_RELATIONS_AND_COMMUNICATIONS, PUBLIC_SAFETY, PUBLISHING, RAILROAD_MANUFACTURE, RANCHING, REAL_ESTATE, RECREATIONAL_FACILITIES_AND_SERVICES, RELIGIOUS_INSTITUTIONS, RENEWABLES_ENVIRONMENT, RESEARCH, RESTAURANTS, RETAIL, SECURITY_AND_INVESTIGATIONS, SEMICONDUCTORS, SHIPBUILDING, SPORTING_GOODS, SPORTS, STAFFING_AND_RECRUITING, SUPERMARKETS, TELECOMMUNICATIONS, TEXTILES, THINK_TANKS, TOBACCO, TRANSLATION_AND_LOCALIZATION, TRANSPORTATION_TRUCKING_RAILROAD, UTILITIES, VENTURE_CAPITAL_PRIVATE_EQUITY, VETERINARY, WAREHOUSING, WHOLESALE, WINE_AND_SPIRITS, WIRELESS, WRITING_AND_EDITING, MOBILE_GAMES\n\nExamples:\n- \"Hospital & Health Care\" -> HOSPITAL_HEALTH_CARE\n- \"Hospitals and Health Care\" -> HOSPITAL_HEALTH_CARE\n- \"Biotechnology Research\" -> BIOTECHNOLOGY\n- \"Aviation & Aerospace\" -> AVIATION_AEROSPACE` }}"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "ai-map-industry",
+        "name": "AI Map Industry",
+        "type": "@n8n/n8n-nodes-langchain.anthropic",
+        "typeVersion": 1,
+        "position": [
+          11232,
+          1952
+        ],
+        "credentials": {
+          "anthropicApi": {
+            "id": "B6k4mmzjw7OzEK5c",
+            "name": "Anthropic account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "// Store the AI-mapped industry in the item\nconst item = $('Needs Industry Mapping?').item.json;\nconst aiOutput = $input.first().json;\n\n// The Anthropic node outputs content array directly\nconst aiResponse = (aiOutput.content && aiOutput.content[0] && aiOutput.content[0].text) \n  ? aiOutput.content[0].text.trim() \n  : '';\n\nreturn [{\n  json: {\n    ...item,\n    hsIndustry: aiResponse\n  }\n}];"
+        },
+        "id": "store-mapped-industry",
+        "name": "Store Mapped Industry",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          11456,
+          1952
         ]
       },
       {
@@ -3623,11 +4227,63 @@
         "main": [
           [
             {
-              "node": "Fetch Email Scraper JSON",
+              "node": "Has jsonUrl?",
               "type": "main",
               "index": 0
             }
           ]
+        ]
+      },
+      "Test: From Email Scraper": {
+        "main": [
+          [
+            {
+              "node": "Get Email Scraper Output",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Test Webhook: From Merge": {
+        "main": [
+          [
+            {
+              "node": "Merge Connection + Email Data",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Has jsonUrl?": {
+        "main": [
+          [
+            {
+              "node": "Fetch Email Scraper JSON",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Has Direct Profiles?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Has Direct Profiles?": {
+        "main": [
+          [
+            {
+              "node": "Merge Connection + Email Data",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          []
         ]
       },
       "Fetch Email Scraper JSON": {
@@ -3800,7 +4456,7 @@
         "main": [
           [
             {
-              "node": "Associate Contact → Company",
+              "node": "Get Contact Associations",
               "type": "main",
               "index": 0
             }
@@ -3815,6 +4471,46 @@
         ]
       },
       "Wait": {
+        "main": [
+          [
+            {
+              "node": "Needs Industry Mapping?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Needs Industry Mapping?": {
+        "main": [
+          [
+            {
+              "node": "Has Company?",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "AI Map Industry",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "AI Map Industry": {
+        "main": [
+          [
+            {
+              "node": "Store Mapped Industry",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Store Mapped Industry": {
         "main": [
           [
             {
@@ -3853,11 +4549,51 @@
             }
           ]
         ]
+      },
+      "Get Contact Associations": {
+        "main": [
+          [
+            {
+              "node": "Check Association",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Check Association": {
+        "main": [
+          [
+            {
+              "node": "Already Associated?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Already Associated?": {
+        "main": [
+          [
+            {
+              "node": "Format Output",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Associate Contact → Company",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
       }
     },
     "authors": "Hudson Lorfing",
-    "name": null,
-    "description": null
+    "name": "Version 16a12b43",
+    "description": ""
   },
   "tags": [
     {
