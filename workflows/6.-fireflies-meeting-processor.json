@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-01-05T12:08:51.168Z",
+  "updatedAt": "2026-01-27T18:28:43.611Z",
   "createdAt": "2026-01-05T08:02:32.274Z",
   "id": "D8nDH8ECyadToNHp",
   "name": "6. Fireflies Meeting Processor",
@@ -25,6 +25,23 @@
     },
     {
       "parameters": {
+        "httpMethod": "GET",
+        "path": "meeting-intel-retry",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "name": "Retry Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        500
+      ],
+      "webhookId": "meeting-intel-retry",
+      "id": "retry-webhook-001"
+    },
+    {
+      "parameters": {
         "respondWith": "text",
         "responseBody": "={{ JSON.stringify({status: 'received', meetingId: $json.meetingId || $json.body?.meetingId || 'unknown'}) }}"
       },
@@ -39,7 +56,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Extract meetingId from Fireflies webhook payload\nconst webhook = $input.first().json;\nconst body = webhook.body || webhook;\nconst meetingId = body.meetingId || body.meeting_id || body.id;\n\nif (!meetingId) {\n  throw new Error('No meetingId in webhook payload: ' + JSON.stringify(body).substring(0, 200));\n}\n\nconsole.log('Received Fireflies webhook for meeting:', meetingId);\nreturn [{ json: { meetingId, eventType: body.eventType || 'Transcription completed' } }];"
+        "jsCode": "// Handle both webhook payload and retry query params\nconst input = $input.first().json;\n\n// Check for retry via query params\nif (input.query?.id) {\n  return [{ json: { meetingId: input.query.id, eventType: 'Manual retry', isRetry: true } }];\n}\n\n// Standard webhook payload\nconst body = input.body || input;\nconst meetingId = body.meetingId || body.meeting_id || body.id;\n\nif (!meetingId) {\n  throw new Error('No meetingId in webhook payload: ' + JSON.stringify(body).substring(0, 200));\n}\n\nconsole.log('Received Fireflies webhook for meeting:', meetingId);\nreturn [{ json: { meetingId, eventType: body.eventType || 'Transcription completed', isRetry: false } }];"
       },
       "name": "Extract Meeting ID",
       "type": "n8n-nodes-base.code",
@@ -53,19 +70,60 @@
     {
       "parameters": {
         "method": "POST",
+        "url": "https://utvoxshpxzsgsliworwh.supabase.co/rest/v1/meetings",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=representation,resolution=merge-duplicates"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ fireflies_meeting_id: $json.meetingId, status: 'pending' }) }}",
+        "options": {}
+      },
+      "name": "Supabase: Insert Meeting",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        550,
+        300
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "HRBgSj7d6TFZA8kL",
+          "name": "Supabase account 2"
+        }
+      },
+      "id": "supabase-insert-001"
+    },
+    {
+      "parameters": {
+        "method": "POST",
         "url": "https://api.fireflies.ai/graphql",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ query: `{ transcript(id: \"${$json.meetingId}\") { id title date duration organizer_email participants sentences { speaker_name text } summary { overview } } }` }) }}",
-        "options": {}
+        "jsonBody": "={{ JSON.stringify({ query: `{ transcript(id: \"${$('Extract Meeting ID').first().json.meetingId}\") { id title date duration organizer_email participants sentences { speaker_name text } summary { overview } } }` }) }}",
+        "options": {
+          "retry": {
+            "enabled": true,
+            "maxRetries": 3,
+            "waitBetweenRetries": 5000
+          }
+        }
       },
       "name": "Fireflies: Fetch Transcript",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        660,
+        770,
         300
       ],
       "credentials": {
@@ -85,10 +143,45 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        880,
+        990,
         200
       ],
       "id": "37b5849c-d20a-4d97-b5bd-4b5fa094d115"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://utvoxshpxzsgsliworwh.supabase.co/rest/v1/meetings?fireflies_meeting_id=eq.{{ $json.meetingId }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ hash: $json.hash, title: $json.title, person_name: $json.personName, date: $json.date, date_str: $json.dateStr, duration_seconds: $json.duration, duration_mins: $json.durationMins, attendees: $json.attendees, attendees_list: $json.attendeesList, fireflies_url: $json.firefliesUrl, transcript: $json.transcript, transcript_length: $json.transcriptLength, estimated_tokens: $json.estimatedTokens, summary: $json.summary, status: 'transcript_fetched', transcript_fetched_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "name": "Supabase: Update Transcript",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        200
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "HRBgSj7d6TFZA8kL",
+          "name": "Supabase account 2"
+        }
+      },
+      "id": "supabase-update-transcript-001"
     },
     {
       "parameters": {
@@ -102,7 +195,7 @@
           "conditions": [
             {
               "id": "has-transcript",
-              "leftValue": "={{ $json.transcript.length }}",
+              "leftValue": "={{ $('Process Transcript').first().json.transcript.length }}",
               "rightValue": 50,
               "operator": {
                 "type": "number",
@@ -118,7 +211,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        1100,
+        1320,
         200
       ],
       "id": "dcb68a11-9050-4886-a05d-3b741d8845ff"
@@ -129,7 +222,7 @@
         "url": "http://srv1230891.hstgr.cloud:3853/auto-detect",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ title: $json.title, participants: $json.attendeesList, transcript: $json.transcript.substring(0, 2000), duration: $json.durationMins }) }}",
+        "jsonBody": "={{ JSON.stringify({ title: $('Process Transcript').first().json.title, participants: $('Process Transcript').first().json.attendeesList, transcript: $('Process Transcript').first().json.transcript.substring(0, 2000), duration: $('Process Transcript').first().json.durationMins }) }}",
         "options": {
           "timeout": 30000
         }
@@ -138,7 +231,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1320,
+        1540,
         100
       ],
       "id": "3c9f7f87-60cc-4ef2-99f3-05dec98ad5cb"
@@ -151,28 +244,45 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1540,
+        1760,
         100
       ],
       "id": "bfe90c61-c321-4d09-b651-5d76889ac6af"
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "http://srv1230891.hstgr.cloud:3852/store",
+        "method": "PATCH",
+        "url": "=https://utvoxshpxzsgsliworwh.supabase.co/rest/v1/meetings?hash=eq.{{ $json.hash }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ hash: $json.hash, meeting: $json }) }}",
+        "jsonBody": "={{ JSON.stringify({ workspace: $json.workspace, workspace_confidence: $json.workspaceConfidence, is_external: $json.isExternal, meeting_type: $json.meetingType, suggested_apps: $json.suggestedApps, app_confidence: $json.appConfidence, status: 'ready' }) }}",
         "options": {}
       },
-      "name": "VPS: Store Meeting",
+      "name": "Supabase: Update Detection",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1760,
+        1980,
         100
       ],
-      "id": "3c7c5cb1-7223-4ce3-81a7-d332c16845a6"
+      "credentials": {
+        "supabaseApi": {
+          "id": "HRBgSj7d6TFZA8kL",
+          "name": "Supabase account 2"
+        }
+      },
+      "id": "supabase-update-detection-001"
     },
     {
       "parameters": {
@@ -190,7 +300,7 @@
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.2,
       "position": [
-        1980,
+        2200,
         100
       ],
       "id": "aaee7e6c-553c-4dc2-8fbd-d6d97dba2d4b",
@@ -207,10 +317,58 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        1320,
+        1540,
         300
       ],
       "id": "ea802433-ef50-4b3c-9280-4eea935dc3a9"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse error for clean message\nconst rawError = JSON.stringify($json).substring(0, 1000);\nconst meetingId = $('Extract Meeting ID').first().json.meetingId;\n\nlet errorType = 'unknown';\nlet errorMessage = 'Unknown error occurred';\n\nif (rawError.includes('502') || rawError.includes('Bad gateway') || rawError.includes('bad gateway')) {\n  errorType = 'api_unavailable';\n  errorMessage = 'Fireflies API temporarily unavailable (502)';\n} else if (rawError.includes('503') || rawError.includes('Service Unavailable')) {\n  errorType = 'api_unavailable';\n  errorMessage = 'Fireflies API service unavailable (503)';\n} else if (rawError.includes('401') || rawError.includes('Unauthorized') || rawError.includes('unauthorized')) {\n  errorType = 'auth_failed';\n  errorMessage = 'Fireflies API authentication failed';\n} else if (rawError.includes('403') || rawError.includes('Forbidden')) {\n  errorType = 'auth_failed';\n  errorMessage = 'Fireflies API access forbidden';\n} else if (rawError.includes('429') || rawError.includes('Too Many Requests') || rawError.includes('rate limit')) {\n  errorType = 'rate_limited';\n  errorMessage = 'Fireflies API rate limit exceeded';\n} else if (rawError.includes('404') || rawError.includes('not found') || rawError.includes('Not Found')) {\n  errorType = 'not_found';\n  errorMessage = 'Meeting transcript not found in Fireflies';\n} else if (rawError.includes('timeout') || rawError.includes('ETIMEDOUT') || rawError.includes('ECONNRESET')) {\n  errorType = 'timeout';\n  errorMessage = 'Fireflies API request timed out';\n}\n\nreturn [{ json: { errorType, errorMessage, meetingId, rawError: rawError.substring(0, 200) } }];"
+      },
+      "name": "Parse Error Type",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        990,
+        400
+      ],
+      "id": "parse-error-type-001"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://utvoxshpxzsgsliworwh.supabase.co/rest/v1/meetings?fireflies_meeting_id=eq.{{ $json.meetingId }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ status: 'failed', error_type: $json.errorType, error_message: $json.errorMessage, retry_count: 0 }) }}",
+        "options": {}
+      },
+      "name": "Supabase: Mark Failed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1210,
+        400
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "HRBgSj7d6TFZA8kL",
+          "name": "Supabase account 2"
+        }
+      },
+      "id": "supabase-mark-failed-001"
     },
     {
       "parameters": {
@@ -220,14 +378,14 @@
           "mode": "id",
           "value": "C0A79PHB5JL"
         },
-        "text": "={{ '❌ Fireflies API Error: ' + ($json.error || $json.errors?.[0]?.message || 'Unknown error') + '\\nMeeting ID: ' + $('Extract Meeting ID').first().json.meetingId }}",
+        "text": "={{ '⚠️ *Meeting Processing Failed*\\n\\n' + '📋 Meeting ID: `' + $('Parse Error Type').first().json.meetingId + '`\\n' + '❌ Error: ' + $('Parse Error Type').first().json.errorMessage + '\\n\\n' + '💾 Saved to Supabase for retry\\n' + '🔄 Retry: `/webhook/meeting-intel-retry?id=' + $('Parse Error Type').first().json.meetingId + '`' }}",
         "otherOptions": {}
       },
       "name": "Slack: API Error",
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.2,
       "position": [
-        880,
+        1430,
         400
       ],
       "id": "7b68c755-369e-4974-a3bb-0c645fcee945",
@@ -237,6 +395,19 @@
           "name": "Chrt Slack App"
         }
       }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Handle retry webhook - just pass through to Extract Meeting ID\nconst query = $input.first().json.query || {};\nconst meetingId = query.id;\n\nif (!meetingId) {\n  throw new Error('Meeting ID required. Use ?id=<fireflies_meeting_id>');\n}\n\nreturn [{ json: { meetingId, eventType: 'Manual retry', isRetry: true, query } }];"
+      },
+      "name": "Parse Retry Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        500
+      ],
+      "id": "parse-retry-request-001"
     }
   ],
   "connections": {
@@ -245,6 +416,28 @@
         [
           {
             "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retry Webhook": {
+      "main": [
+        [
+          {
+            "node": "Parse Retry Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Retry Request": {
+      "main": [
+        [
+          {
+            "node": "Supabase: Insert Meeting",
             "type": "main",
             "index": 0
           }
@@ -266,6 +459,17 @@
       "main": [
         [
           {
+            "node": "Supabase: Insert Meeting",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase: Insert Meeting": {
+      "main": [
+        [
+          {
             "node": "Fireflies: Fetch Transcript",
             "type": "main",
             "index": 0
@@ -284,7 +488,7 @@
         ],
         [
           {
-            "node": "Slack: API Error",
+            "node": "Parse Error Type",
             "type": "main",
             "index": 0
           }
@@ -292,6 +496,17 @@
       ]
     },
     "Process Transcript": {
+      "main": [
+        [
+          {
+            "node": "Supabase: Update Transcript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase: Update Transcript": {
       "main": [
         [
           {
@@ -335,18 +550,40 @@
       "main": [
         [
           {
-            "node": "VPS: Store Meeting",
+            "node": "Supabase: Update Detection",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "VPS: Store Meeting": {
+    "Supabase: Update Detection": {
       "main": [
         [
           {
             "node": "Slack: Intel Form",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Error Type": {
+      "main": [
+        [
+          {
+            "node": "Supabase: Mark Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase: Mark Failed": {
+      "main": [
+        [
+          {
+            "node": "Slack: API Error",
             "type": "main",
             "index": 0
           }
@@ -363,9 +600,9 @@
   "staticData": null,
   "meta": null,
   "pinData": null,
-  "versionId": "ea06caa6-4a0b-4b13-86bd-27454e20cb80",
-  "activeVersionId": "ea06caa6-4a0b-4b13-86bd-27454e20cb80",
-  "triggerCount": 1,
+  "versionId": "f02cc5f2-3d92-4763-92bb-271628d66bc6",
+  "activeVersionId": "f02cc5f2-3d92-4763-92bb-271628d66bc6",
+  "triggerCount": 2,
   "shared": [
     {
       "updatedAt": "2026-01-05T09:19:17.698Z",
@@ -376,9 +613,9 @@
     }
   ],
   "activeVersion": {
-    "updatedAt": "2026-01-05T12:08:51.169Z",
-    "createdAt": "2026-01-05T12:08:51.169Z",
-    "versionId": "ea06caa6-4a0b-4b13-86bd-27454e20cb80",
+    "updatedAt": "2026-01-27T18:28:43.613Z",
+    "createdAt": "2026-01-27T18:28:43.613Z",
+    "versionId": "f02cc5f2-3d92-4763-92bb-271628d66bc6",
     "workflowId": "D8nDH8ECyadToNHp",
     "nodes": [
       {
@@ -400,6 +637,23 @@
       },
       {
         "parameters": {
+          "httpMethod": "GET",
+          "path": "meeting-intel-retry",
+          "responseMode": "lastNode",
+          "options": {}
+        },
+        "name": "Retry Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          0,
+          500
+        ],
+        "webhookId": "meeting-intel-retry",
+        "id": "retry-webhook-001"
+      },
+      {
+        "parameters": {
           "respondWith": "text",
           "responseBody": "={{ JSON.stringify({status: 'received', meetingId: $json.meetingId || $json.body?.meetingId || 'unknown'}) }}"
         },
@@ -414,7 +668,7 @@
       },
       {
         "parameters": {
-          "jsCode": "// Extract meetingId from Fireflies webhook payload\nconst webhook = $input.first().json;\nconst body = webhook.body || webhook;\nconst meetingId = body.meetingId || body.meeting_id || body.id;\n\nif (!meetingId) {\n  throw new Error('No meetingId in webhook payload: ' + JSON.stringify(body).substring(0, 200));\n}\n\nconsole.log('Received Fireflies webhook for meeting:', meetingId);\nreturn [{ json: { meetingId, eventType: body.eventType || 'Transcription completed' } }];"
+          "jsCode": "// Handle both webhook payload and retry query params\nconst input = $input.first().json;\n\n// Check for retry via query params\nif (input.query?.id) {\n  return [{ json: { meetingId: input.query.id, eventType: 'Manual retry', isRetry: true } }];\n}\n\n// Standard webhook payload\nconst body = input.body || input;\nconst meetingId = body.meetingId || body.meeting_id || body.id;\n\nif (!meetingId) {\n  throw new Error('No meetingId in webhook payload: ' + JSON.stringify(body).substring(0, 200));\n}\n\nconsole.log('Received Fireflies webhook for meeting:', meetingId);\nreturn [{ json: { meetingId, eventType: body.eventType || 'Transcription completed', isRetry: false } }];"
         },
         "name": "Extract Meeting ID",
         "type": "n8n-nodes-base.code",
@@ -428,19 +682,60 @@
       {
         "parameters": {
           "method": "POST",
+          "url": "https://utvoxshpxzsgsliworwh.supabase.co/rest/v1/meetings",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "supabaseApi",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Prefer",
+                "value": "return=representation,resolution=merge-duplicates"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ fireflies_meeting_id: $json.meetingId, status: 'pending' }) }}",
+          "options": {}
+        },
+        "name": "Supabase: Insert Meeting",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          550,
+          300
+        ],
+        "credentials": {
+          "supabaseApi": {
+            "id": "HRBgSj7d6TFZA8kL",
+            "name": "Supabase account 2"
+          }
+        },
+        "id": "supabase-insert-001"
+      },
+      {
+        "parameters": {
+          "method": "POST",
           "url": "https://api.fireflies.ai/graphql",
           "authentication": "genericCredentialType",
           "genericAuthType": "httpHeaderAuth",
           "sendBody": true,
           "specifyBody": "json",
-          "jsonBody": "={{ JSON.stringify({ query: `{ transcript(id: \"${$json.meetingId}\") { id title date duration organizer_email participants sentences { speaker_name text } summary { overview } } }` }) }}",
-          "options": {}
+          "jsonBody": "={{ JSON.stringify({ query: `{ transcript(id: \"${$('Extract Meeting ID').first().json.meetingId}\") { id title date duration organizer_email participants sentences { speaker_name text } summary { overview } } }` }) }}",
+          "options": {
+            "retry": {
+              "enabled": true,
+              "maxRetries": 3,
+              "waitBetweenRetries": 5000
+            }
+          }
         },
         "name": "Fireflies: Fetch Transcript",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          660,
+          770,
           300
         ],
         "credentials": {
@@ -460,10 +755,45 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          880,
+          990,
           200
         ],
         "id": "37b5849c-d20a-4d97-b5bd-4b5fa094d115"
+      },
+      {
+        "parameters": {
+          "method": "PATCH",
+          "url": "=https://utvoxshpxzsgsliworwh.supabase.co/rest/v1/meetings?fireflies_meeting_id=eq.{{ $json.meetingId }}",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "supabaseApi",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Prefer",
+                "value": "return=representation"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ hash: $json.hash, title: $json.title, person_name: $json.personName, date: $json.date, date_str: $json.dateStr, duration_seconds: $json.duration, duration_mins: $json.durationMins, attendees: $json.attendees, attendees_list: $json.attendeesList, fireflies_url: $json.firefliesUrl, transcript: $json.transcript, transcript_length: $json.transcriptLength, estimated_tokens: $json.estimatedTokens, summary: $json.summary, status: 'transcript_fetched', transcript_fetched_at: new Date().toISOString() }) }}",
+          "options": {}
+        },
+        "name": "Supabase: Update Transcript",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1100,
+          200
+        ],
+        "credentials": {
+          "supabaseApi": {
+            "id": "HRBgSj7d6TFZA8kL",
+            "name": "Supabase account 2"
+          }
+        },
+        "id": "supabase-update-transcript-001"
       },
       {
         "parameters": {
@@ -477,7 +807,7 @@
             "conditions": [
               {
                 "id": "has-transcript",
-                "leftValue": "={{ $json.transcript.length }}",
+                "leftValue": "={{ $('Process Transcript').first().json.transcript.length }}",
                 "rightValue": 50,
                 "operator": {
                   "type": "number",
@@ -493,7 +823,7 @@
         "type": "n8n-nodes-base.if",
         "typeVersion": 2.2,
         "position": [
-          1100,
+          1320,
           200
         ],
         "id": "dcb68a11-9050-4886-a05d-3b741d8845ff"
@@ -504,7 +834,7 @@
           "url": "http://srv1230891.hstgr.cloud:3853/auto-detect",
           "sendBody": true,
           "specifyBody": "json",
-          "jsonBody": "={{ JSON.stringify({ title: $json.title, participants: $json.attendeesList, transcript: $json.transcript.substring(0, 2000), duration: $json.durationMins }) }}",
+          "jsonBody": "={{ JSON.stringify({ title: $('Process Transcript').first().json.title, participants: $('Process Transcript').first().json.attendeesList, transcript: $('Process Transcript').first().json.transcript.substring(0, 2000), duration: $('Process Transcript').first().json.durationMins }) }}",
           "options": {
             "timeout": 30000
           }
@@ -513,7 +843,7 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          1320,
+          1540,
           100
         ],
         "id": "3c9f7f87-60cc-4ef2-99f3-05dec98ad5cb"
@@ -526,28 +856,45 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          1540,
+          1760,
           100
         ],
         "id": "bfe90c61-c321-4d09-b651-5d76889ac6af"
       },
       {
         "parameters": {
-          "method": "POST",
-          "url": "http://srv1230891.hstgr.cloud:3852/store",
+          "method": "PATCH",
+          "url": "=https://utvoxshpxzsgsliworwh.supabase.co/rest/v1/meetings?hash=eq.{{ $json.hash }}",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "supabaseApi",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Prefer",
+                "value": "return=representation"
+              }
+            ]
+          },
           "sendBody": true,
           "specifyBody": "json",
-          "jsonBody": "={{ JSON.stringify({ hash: $json.hash, meeting: $json }) }}",
+          "jsonBody": "={{ JSON.stringify({ workspace: $json.workspace, workspace_confidence: $json.workspaceConfidence, is_external: $json.isExternal, meeting_type: $json.meetingType, suggested_apps: $json.suggestedApps, app_confidence: $json.appConfidence, status: 'ready' }) }}",
           "options": {}
         },
-        "name": "VPS: Store Meeting",
+        "name": "Supabase: Update Detection",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          1760,
+          1980,
           100
         ],
-        "id": "3c7c5cb1-7223-4ce3-81a7-d332c16845a6"
+        "credentials": {
+          "supabaseApi": {
+            "id": "HRBgSj7d6TFZA8kL",
+            "name": "Supabase account 2"
+          }
+        },
+        "id": "supabase-update-detection-001"
       },
       {
         "parameters": {
@@ -565,7 +912,7 @@
         "type": "n8n-nodes-base.slack",
         "typeVersion": 2.2,
         "position": [
-          1980,
+          2200,
           100
         ],
         "id": "aaee7e6c-553c-4dc2-8fbd-d6d97dba2d4b",
@@ -582,10 +929,58 @@
         "type": "n8n-nodes-base.noOp",
         "typeVersion": 1,
         "position": [
-          1320,
+          1540,
           300
         ],
         "id": "ea802433-ef50-4b3c-9280-4eea935dc3a9"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Parse error for clean message\nconst rawError = JSON.stringify($json).substring(0, 1000);\nconst meetingId = $('Extract Meeting ID').first().json.meetingId;\n\nlet errorType = 'unknown';\nlet errorMessage = 'Unknown error occurred';\n\nif (rawError.includes('502') || rawError.includes('Bad gateway') || rawError.includes('bad gateway')) {\n  errorType = 'api_unavailable';\n  errorMessage = 'Fireflies API temporarily unavailable (502)';\n} else if (rawError.includes('503') || rawError.includes('Service Unavailable')) {\n  errorType = 'api_unavailable';\n  errorMessage = 'Fireflies API service unavailable (503)';\n} else if (rawError.includes('401') || rawError.includes('Unauthorized') || rawError.includes('unauthorized')) {\n  errorType = 'auth_failed';\n  errorMessage = 'Fireflies API authentication failed';\n} else if (rawError.includes('403') || rawError.includes('Forbidden')) {\n  errorType = 'auth_failed';\n  errorMessage = 'Fireflies API access forbidden';\n} else if (rawError.includes('429') || rawError.includes('Too Many Requests') || rawError.includes('rate limit')) {\n  errorType = 'rate_limited';\n  errorMessage = 'Fireflies API rate limit exceeded';\n} else if (rawError.includes('404') || rawError.includes('not found') || rawError.includes('Not Found')) {\n  errorType = 'not_found';\n  errorMessage = 'Meeting transcript not found in Fireflies';\n} else if (rawError.includes('timeout') || rawError.includes('ETIMEDOUT') || rawError.includes('ECONNRESET')) {\n  errorType = 'timeout';\n  errorMessage = 'Fireflies API request timed out';\n}\n\nreturn [{ json: { errorType, errorMessage, meetingId, rawError: rawError.substring(0, 200) } }];"
+        },
+        "name": "Parse Error Type",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          990,
+          400
+        ],
+        "id": "parse-error-type-001"
+      },
+      {
+        "parameters": {
+          "method": "PATCH",
+          "url": "=https://utvoxshpxzsgsliworwh.supabase.co/rest/v1/meetings?fireflies_meeting_id=eq.{{ $json.meetingId }}",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "supabaseApi",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Prefer",
+                "value": "return=representation"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ status: 'failed', error_type: $json.errorType, error_message: $json.errorMessage, retry_count: 0 }) }}",
+          "options": {}
+        },
+        "name": "Supabase: Mark Failed",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1210,
+          400
+        ],
+        "credentials": {
+          "supabaseApi": {
+            "id": "HRBgSj7d6TFZA8kL",
+            "name": "Supabase account 2"
+          }
+        },
+        "id": "supabase-mark-failed-001"
       },
       {
         "parameters": {
@@ -595,14 +990,14 @@
             "mode": "id",
             "value": "C0A79PHB5JL"
           },
-          "text": "={{ '❌ Fireflies API Error: ' + ($json.error || $json.errors?.[0]?.message || 'Unknown error') + '\\nMeeting ID: ' + $('Extract Meeting ID').first().json.meetingId }}",
+          "text": "={{ '⚠️ *Meeting Processing Failed*\\n\\n' + '📋 Meeting ID: `' + $('Parse Error Type').first().json.meetingId + '`\\n' + '❌ Error: ' + $('Parse Error Type').first().json.errorMessage + '\\n\\n' + '💾 Saved to Supabase for retry\\n' + '🔄 Retry: `/webhook/meeting-intel-retry?id=' + $('Parse Error Type').first().json.meetingId + '`' }}",
           "otherOptions": {}
         },
         "name": "Slack: API Error",
         "type": "n8n-nodes-base.slack",
         "typeVersion": 2.2,
         "position": [
-          880,
+          1430,
           400
         ],
         "id": "7b68c755-369e-4974-a3bb-0c645fcee945",
@@ -612,6 +1007,19 @@
             "name": "Chrt Slack App"
           }
         }
+      },
+      {
+        "parameters": {
+          "jsCode": "// Handle retry webhook - just pass through to Extract Meeting ID\nconst query = $input.first().json.query || {};\nconst meetingId = query.id;\n\nif (!meetingId) {\n  throw new Error('Meeting ID required. Use ?id=<fireflies_meeting_id>');\n}\n\nreturn [{ json: { meetingId, eventType: 'Manual retry', isRetry: true, query } }];"
+        },
+        "name": "Parse Retry Request",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          220,
+          500
+        ],
+        "id": "parse-retry-request-001"
       }
     ],
     "connections": {
@@ -620,6 +1028,28 @@
           [
             {
               "node": "Respond OK",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Retry Webhook": {
+        "main": [
+          [
+            {
+              "node": "Parse Retry Request",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Parse Retry Request": {
+        "main": [
+          [
+            {
+              "node": "Supabase: Insert Meeting",
               "type": "main",
               "index": 0
             }
@@ -641,6 +1071,17 @@
         "main": [
           [
             {
+              "node": "Supabase: Insert Meeting",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Supabase: Insert Meeting": {
+        "main": [
+          [
+            {
               "node": "Fireflies: Fetch Transcript",
               "type": "main",
               "index": 0
@@ -659,7 +1100,7 @@
           ],
           [
             {
-              "node": "Slack: API Error",
+              "node": "Parse Error Type",
               "type": "main",
               "index": 0
             }
@@ -667,6 +1108,17 @@
         ]
       },
       "Process Transcript": {
+        "main": [
+          [
+            {
+              "node": "Supabase: Update Transcript",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Supabase: Update Transcript": {
         "main": [
           [
             {
@@ -710,18 +1162,40 @@
         "main": [
           [
             {
-              "node": "VPS: Store Meeting",
+              "node": "Supabase: Update Detection",
               "type": "main",
               "index": 0
             }
           ]
         ]
       },
-      "VPS: Store Meeting": {
+      "Supabase: Update Detection": {
         "main": [
           [
             {
               "node": "Slack: Intel Form",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Parse Error Type": {
+        "main": [
+          [
+            {
+              "node": "Supabase: Mark Failed",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Supabase: Mark Failed": {
+        "main": [
+          [
+            {
+              "node": "Slack: API Error",
               "type": "main",
               "index": 0
             }
