@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-01-05T10:10:08.854Z",
+  "updatedAt": "2026-01-27T18:28:44.337Z",
   "createdAt": "2026-01-05T08:02:39.361Z",
   "id": "0PjeQ9VgbUgE5lnD",
   "name": "7. Slack Interaction Handler",
@@ -86,22 +86,30 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "=http://srv1230891.hstgr.cloud:3852/retrieve/{{ $('Parse Slack Payload').first().json.hash }}",
+        "url": "=https://utvoxshpxzsgsliworwh.supabase.co/rest/v1/meetings?hash=eq.{{ $('Parse Slack Payload').first().json.hash }}&select=*",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
         "options": {}
       },
-      "name": "VPS: Retrieve Meeting",
+      "name": "Supabase: Get Meeting",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
         880,
         200
       ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "HRBgSj7d6TFZA8kL",
+          "name": "Supabase account 2"
+        }
+      },
       "onError": "continueErrorOutput",
-      "id": "79d72a7d-98b1-4dc6-b65f-ae61d469b128"
+      "id": "supabase-get-meeting-001"
     },
     {
       "parameters": {
-        "jsCode": "const meeting = $input.first().json;\nconst slack = $('Parse Slack Payload').first().json;\n\nconst workspace = slack.workspaceOverride || meeting.workspace || 'chrt';\nconst apps = slack.appsOverride || meeting.suggestedApps || [{ id: 'general-notes', weight: 1.0 }];\n\n// Recording type: 'normal' = standard meeting, 'singular' = recorded conversation without attendees\nconst recordingType = slack.recordingType || 'normal';\n// Detail level: 'standard' = normal notes, 'context' = detailed context notes\nconst detailLevel = slack.detailLevel || 'standard';\n\n// Merge attendees: for singular recordings, use additional attendees; for normal, append to existing\nlet finalAttendees = meeting.attendees || '';\nif (slack.additionalAttendees) {\n  if (recordingType === 'singular') {\n    // For singular recordings, use the manually entered attendees as primary\n    finalAttendees = slack.additionalAttendees;\n  } else {\n    // For normal meetings, append additional attendees\n    finalAttendees = finalAttendees ? finalAttendees + ', ' + slack.additionalAttendees : slack.additionalAttendees;\n  }\n}\n\nreturn [{ json: {\n  ...meeting,\n  finalWorkspace: workspace,\n  finalApps: apps,\n  recordingType: recordingType,\n  detailLevel: detailLevel,\n  attendees: finalAttendees,\n  additionalAttendees: slack.additionalAttendees || '',\n  customContext: slack.customContext,\n  user: slack.user,\n  responseUrl: slack.responseUrl\n} }];"
+        "jsCode": "// Extract meeting from Supabase response (returns array)\nconst response = $input.first().json;\nconst meeting = Array.isArray(response) ? response[0] : response;\n\nif (!meeting || !meeting.hash) {\n  throw new Error('Meeting not found in Supabase');\n}\n\n// Map Supabase column names back to workflow expected names\nconst slack = $('Parse Slack Payload').first().json;\n\nconst workspace = slack.workspaceOverride || meeting.workspace || 'chrt';\nconst apps = slack.appsOverride || meeting.suggested_apps || [{ id: 'general-notes', weight: 1.0 }];\n\nconst recordingType = slack.recordingType || meeting.recording_type || 'normal';\nconst detailLevel = slack.detailLevel || meeting.detail_level || 'standard';\n\nlet finalAttendees = meeting.attendees || '';\nif (slack.additionalAttendees) {\n  if (recordingType === 'singular') {\n    finalAttendees = slack.additionalAttendees;\n  } else {\n    finalAttendees = finalAttendees ? finalAttendees + ', ' + slack.additionalAttendees : slack.additionalAttendees;\n  }\n}\n\nreturn [{ json: {\n  // Original meeting data from Supabase\n  meetingId: meeting.fireflies_meeting_id,\n  hash: meeting.hash,\n  title: meeting.title,\n  personName: meeting.person_name,\n  date: meeting.date,\n  dateStr: meeting.date_str,\n  duration: meeting.duration_seconds,\n  durationMins: meeting.duration_mins,\n  attendees: finalAttendees,\n  attendeesList: meeting.attendees_list || [],\n  firefliesUrl: meeting.fireflies_url,\n  transcript: meeting.transcript,\n  transcriptLength: meeting.transcript_length,\n  estimatedTokens: meeting.estimated_tokens,\n  summary: meeting.summary,\n  workspace: meeting.workspace,\n  workspaceConfidence: meeting.workspace_confidence,\n  isExternal: meeting.is_external,\n  meetingType: meeting.meeting_type,\n  suggestedApps: meeting.suggested_apps,\n  appConfidence: meeting.app_confidence,\n  // Merged overrides\n  finalWorkspace: workspace,\n  finalApps: apps,\n  recordingType: recordingType,\n  detailLevel: detailLevel,\n  additionalAttendees: slack.additionalAttendees || '',\n  customContext: slack.customContext,\n  user: slack.user,\n  responseUrl: slack.responseUrl\n} }];"
       },
       "name": "Merge Overrides",
       "type": "n8n-nodes-base.code",
@@ -114,18 +122,53 @@
     },
     {
       "parameters": {
+        "method": "PATCH",
+        "url": "=https://utvoxshpxzsgsliworwh.supabase.co/rest/v1/meetings?hash=eq.{{ $('Parse Slack Payload').first().json.hash }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ status: 'processing', analysis_started_at: new Date().toISOString(), final_workspace: $json.finalWorkspace, final_apps: $json.finalApps, recording_type: $json.recordingType, detail_level: $json.detailLevel, additional_attendees: $json.additionalAttendees, custom_context: $json.customContext, processed_by: $json.user }) }}",
+        "options": {}
+      },
+      "name": "Supabase: Mark Processing",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1210,
+        200
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "HRBgSj7d6TFZA8kL",
+          "name": "Supabase account 2"
+        }
+      },
+      "id": "supabase-mark-processing-001"
+    },
+    {
+      "parameters": {
         "method": "POST",
         "url": "={{ $('Parse Slack Payload').first().json.responseUrl }}",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ replace_original: true, text: '⏳ *Analyzing:* ' + $json.title + '\\n\\n🤖 Using: ' + $json.finalApps.map(a => a.id + ' (' + Math.round(a.weight * 100) + '%)').join(', ') + '\\n📂 Workspace: ' + $json.finalWorkspace }) }}",
+        "jsonBody": "={{ JSON.stringify({ replace_original: true, text: '⏳ *Analyzing:* ' + $('Merge Overrides').first().json.title + '\\n\\n🤖 Using: ' + $('Merge Overrides').first().json.finalApps.map(a => a.id + ' (' + Math.round(a.weight * 100) + '%)').join(', ') + '\\n📂 Workspace: ' + $('Merge Overrides').first().json.finalWorkspace }) }}",
         "options": {}
       },
       "name": "Slack: Processing",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1320,
+        1430,
         200
       ],
       "id": "f24eb243-1bca-485f-acc2-c35205305936"
@@ -145,7 +188,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1540,
+        1650,
         200
       ],
       "onError": "continueErrorOutput",
@@ -153,16 +196,51 @@
     },
     {
       "parameters": {
-        "jsCode": "const merged = $('Merge Overrides').first().json;\nconst analysis = $input.first().json;\n\nif (analysis.error) {\n  throw new Error('AI analysis failed: ' + analysis.error);\n}\n\nconst content = analysis.content || '';\nconst dateStr = merged.dateStr || new Date().toISOString().split('T')[0];\nconst workspace = merged.finalWorkspace;\n\nconst attendeeList = (merged.attendees || '').split(',').map(a => a.trim()).filter(Boolean);\nconst externalAttendees = attendeeList.filter(a => !a.toLowerCase().includes('hudson') && !a.toLowerCase().includes('chrt.com'));\n\nlet personName = merged.personName || '';\nif (!personName || personName === 'Unknown') {\n  if (externalAttendees.length > 0) {\n    const email = externalAttendees[0];\n    if (email.includes('@')) {\n      personName = email.split('@')[0].split('.').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');\n    } else {\n      personName = email;\n    }\n  } else {\n    personName = 'Team';\n  }\n}\nconst safePerson = personName.replace(/[^a-zA-Z0-9 -]/g, '').trim();\n\n// Build people list for Person note creation\nconst participantNames = [];\nattendeeList.forEach(a => {\n  let name, email = '', company = '';\n  if (a.includes('@')) {\n    email = a;\n    const domain = a.split('@')[1];\n    company = domain ? domain.split('.')[0].charAt(0).toUpperCase() + domain.split('.')[0].slice(1) : '';\n    name = a.split('@')[0].split('.').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');\n  } else {\n    name = a;\n  }\n  const safeName = name.replace(/[^a-zA-Z0-9 -]/g, '').trim();\n  if (safeName && safeName.toLowerCase() !== 'hudson lorfing') {\n    participantNames.push({ name: safeName, email, company });\n  }\n});\n\nconst participants = participantNames.map(p => `\"[[👤${p.name}]]\"`);\n\nconst displayTitle = `${dateStr}꞉ Meeting with ${safePerson}`;\nconst fileName = `${displayTitle}.md`;\nconst filePath = `${workspace}/${fileName}`;\n\nconst apps = merged.finalApps;\nconst appsUsed = apps.map(a => a.id).join(', ');\nconst frontmatter = `---\\nup: \\nin:\\n  - \"[[Meetings]]\"\\nrelated: \\ncreated: ${dateStr}\\ntags:\\n  - meeting\\n  - ${workspace}\\nmeeting_date: ${dateStr}\\nmeeting_with: \"[[👤${safePerson}]]\"\\nparticipants:\\n${participants.map(p => `  - ${p}`).join('\\n')}\\nworkspace: ${workspace}\\nanalysis_apps: [${appsUsed}]\\nmodel: ${analysis.model || 'gemini'}\\nprocessed_by: ${merged.user}\\none-liner: \\n---\\n\\n# ${displayTitle}\\n*Meeting on ${dateStr}*\\n\\n## Participants\\n${participants.map(p => `- ${p}`).join('\\n')}\\n\\n`;\n\nconst fullContent = frontmatter + content;\nconst primaryEmail = externalAttendees.find(a => a.includes('@')) || '';\nconst summary = content.substring(0, 500) + (content.length > 500 ? '...' : '');\nconst useHubSpot = workspace === 'chrt' && merged.isExternal;\n\nreturn [{ json: { filePath, fileName, content: fullContent, title: merged.title, displayTitle, date: dateStr, workspace, primaryEmail, summary, personName: safePerson, useHubSpot, apps, model: analysis.model, responseUrl: merged.responseUrl, participantNames } }];"
+        "jsCode": "const merged = $('Merge Overrides').first().json;\nconst analysis = $input.first().json;\n\nif (analysis.error) {\n  throw new Error('AI analysis failed: ' + analysis.error);\n}\n\nconst content = analysis.content || '';\nconst dateStr = merged.dateStr || new Date().toISOString().split('T')[0];\nconst workspace = merged.finalWorkspace;\n\nconst attendeeList = (merged.attendees || '').split(',').map(a => a.trim()).filter(Boolean);\nconst externalAttendees = attendeeList.filter(a => !a.toLowerCase().includes('hudson') && !a.toLowerCase().includes('chrt.com'));\n\nlet personName = merged.personName || '';\nif (!personName || personName === 'Unknown') {\n  if (externalAttendees.length > 0) {\n    const email = externalAttendees[0];\n    if (email.includes('@')) {\n      personName = email.split('@')[0].split('.').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');\n    } else {\n      personName = email;\n    }\n  } else {\n    personName = 'Team';\n  }\n}\nconst safePerson = personName.replace(/[^a-zA-Z0-9 -]/g, '').trim();\n\nconst participantNames = [];\nattendeeList.forEach(a => {\n  let name, email = '', company = '';\n  if (a.includes('@')) {\n    email = a;\n    const domain = a.split('@')[1];\n    company = domain ? domain.split('.')[0].charAt(0).toUpperCase() + domain.split('.')[0].slice(1) : '';\n    name = a.split('@')[0].split('.').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');\n  } else {\n    name = a;\n  }\n  const safeName = name.replace(/[^a-zA-Z0-9 -]/g, '').trim();\n  if (safeName && safeName.toLowerCase() !== 'hudson lorfing') {\n    participantNames.push({ name: safeName, email, company });\n  }\n});\n\nconst participants = participantNames.map(p => `\"[[👤${p.name}]]\"`);\n\nconst displayTitle = `${dateStr}꞉ Meeting with ${safePerson}`;\nconst fileName = `${displayTitle}.md`;\nconst filePath = `${workspace}/${fileName}`;\n\nconst apps = merged.finalApps;\nconst appsUsed = apps.map(a => a.id).join(', ');\nconst frontmatter = `---\\nup: \\nin:\\n  - \"[[Meetings]]\"\\nrelated: \\ncreated: ${dateStr}\\ntags:\\n  - meeting\\n  - ${workspace}\\nmeeting_date: ${dateStr}\\nmeeting_with: \"[[👤${safePerson}]]\"\\nparticipants:\\n${participants.map(p => `  - ${p}`).join('\\n')}\\nworkspace: ${workspace}\\nanalysis_apps: [${appsUsed}]\\nmodel: ${analysis.model || 'gemini'}\\nprocessed_by: ${merged.user}\\none-liner: \\n---\\n\\n# ${displayTitle}\\n*Meeting on ${dateStr}*\\n\\n## Participants\\n${participants.map(p => `- ${p}`).join('\\n')}\\n\\n`;\n\nconst fullContent = frontmatter + content;\nconst primaryEmail = externalAttendees.find(a => a.includes('@')) || '';\nconst summary = content.substring(0, 500) + (content.length > 500 ? '...' : '');\nconst useHubSpot = workspace === 'chrt' && merged.isExternal;\n\nreturn [{ json: { hash: merged.hash, filePath, fileName, content: fullContent, analysisOutput: content, title: merged.title, displayTitle, date: dateStr, workspace, primaryEmail, summary, personName: safePerson, useHubSpot, apps, model: analysis.model, responseUrl: merged.responseUrl, participantNames } }];"
       },
       "name": "Prepare Content",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1760,
+        1870,
         200
       ],
       "id": "85d82602-7181-405b-a39b-fe391f0e2567"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://utvoxshpxzsgsliworwh.supabase.co/rest/v1/meetings?hash=eq.{{ $json.hash }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ analysis_output: $json.analysisOutput, analysis_model: $json.model, github_path: $json.filePath, status: 'completed', completed_at: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "name": "Supabase: Store Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1980,
+        200
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "HRBgSj7d6TFZA8kL",
+          "name": "Supabase account 2"
+        }
+      },
+      "id": "supabase-store-analysis-001"
     },
     {
       "parameters": {
@@ -178,16 +256,16 @@
           "mode": "name",
           "value": "meeting-notes"
         },
-        "filePath": "={{ $json.filePath }}",
-        "fileContent": "={{ $json.content }}",
-        "commitMessage": "={{ 'Add meeting (' + $json.workspace + '): ' + $json.displayTitle }}",
+        "filePath": "={{ $('Prepare Content').first().json.filePath }}",
+        "fileContent": "={{ $('Prepare Content').first().json.content }}",
+        "commitMessage": "={{ 'Add meeting (' + $('Prepare Content').first().json.workspace + '): ' + $('Prepare Content').first().json.displayTitle }}",
         "additionalParameters": {}
       },
       "name": "GitHub: Commit Meeting",
       "type": "n8n-nodes-base.github",
       "typeVersion": 1.1,
       "position": [
-        1980,
+        2200,
         200
       ],
       "credentials": {
@@ -201,26 +279,26 @@
     },
     {
       "parameters": {
-        "jsCode": "// Skip person note creation - people already exist in Obsidian vaults\n// Just pass through the prep data\nconst prep = $('Prepare Content').first().json;\nreturn [{ json: { ...prep, personNotes: [] } }];"
+        "jsCode": "// Skip person note creation - people already exist in Obsidian vaults\nconst prep = $('Prepare Content').first().json;\nreturn [{ json: { ...prep, personNotes: [] } }];"
       },
       "name": "Prepare Person Notes",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2200,
+        2420,
         200
       ],
       "id": "f25fc827-21fc-43cd-a491-ac3e9022855a"
     },
     {
       "parameters": {
-        "jsCode": "// Create person notes one at a time via GitHub API\nconst data = $input.first().json;\nconst personNotes = data.personNotes || [];\n\nif (personNotes.length === 0) {\n  return [{ json: { ...data, peopleCreated: 0 } }];\n}\n\n// We'll use the GitHub API directly to create files\n// This node outputs the person notes for the next node to process\nconst outputs = personNotes.map(note => ({\n  json: {\n    ...data,\n    currentPerson: note\n  }\n}));\n\n// If no people to create, just pass through\nif (outputs.length === 0) {\n  return [{ json: { ...data, peopleCreated: 0 } }];\n}\n\nreturn outputs;"
+        "jsCode": "const data = $input.first().json;\nconst personNotes = data.personNotes || [];\n\nif (personNotes.length === 0) {\n  return [{ json: { ...data, peopleCreated: 0 } }];\n}\n\nconst outputs = personNotes.map(note => ({\n  json: {\n    ...data,\n    currentPerson: note\n  }\n}));\n\nif (outputs.length === 0) {\n  return [{ json: { ...data, peopleCreated: 0 } }];\n}\n\nreturn outputs;"
       },
       "name": "Split Person Notes",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2420,
+        2640,
         200
       ],
       "id": "04e49830-eda2-4379-9f69-45fbda126411"
@@ -248,7 +326,7 @@
       "type": "n8n-nodes-base.github",
       "typeVersion": 1.1,
       "position": [
-        2640,
+        2860,
         200
       ],
       "credentials": {
@@ -288,7 +366,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        2860,
+        3080,
         200
       ],
       "id": "5a0d9a2d-7ac1-4b64-92a3-c6c50ff8436f"
@@ -308,7 +386,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        3080,
+        3300,
         100
       ],
       "credentials": {
@@ -348,7 +426,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        3300,
+        3520,
         100
       ],
       "id": "16a7a1d2-1ea2-48d7-875e-4cf57ebaa34d"
@@ -368,7 +446,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        3520,
+        3740,
         0
       ],
       "credentials": {
@@ -386,33 +464,17 @@
         "url": "={{ $('Prepare Content').first().json.responseUrl }}",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ replace_original: true, text: '✅ *Meeting Analyzed!*\\n\\n📝 ' + $('Prepare Content').first().json.displayTitle + '\\n📂 ' + $('Prepare Content').first().json.workspace + '\\n🤖 Apps: ' + $('Prepare Content').first().json.apps.map(a => a.id).join(', ') + '\\n👥 People: ' + ($('Prepare Content').first().json.participantNames || []).map(p => p.name).join(', ') + '\\n📁 ' + $('Prepare Content').first().json.filePath + ($('Prepare Content').first().json.useHubSpot ? '\\n🔗 HubSpot: ' + ($('HubSpot: Search Contact').first()?.json?.results?.length > 0 ? 'Note added' : 'No contact match') : '') + '\\n\\n<https://github.com/hudsonlorfing/meeting-notes/blob/main/' + encodeURIComponent($('Prepare Content').first().json.filePath) + '|View on GitHub>' }) }}",
+        "jsonBody": "={{ JSON.stringify({ replace_original: true, text: '✅ *Meeting Analyzed!*\\n\\n📝 ' + $('Prepare Content').first().json.displayTitle + '\\n📂 ' + $('Prepare Content').first().json.workspace + '\\n🤖 Apps: ' + $('Prepare Content').first().json.apps.map(a => a.id).join(', ') + '\\n👥 People: ' + ($('Prepare Content').first().json.participantNames || []).map(p => p.name).join(', ') + '\\n📁 ' + $('Prepare Content').first().json.filePath + ($('Prepare Content').first().json.useHubSpot ? '\\n🔗 HubSpot: ' + ($('HubSpot: Search Contact').first()?.json?.results?.length > 0 ? 'Note added' : 'No contact match') : '') + '\\n💾 Stored in Supabase\\n\\n<https://github.com/hudsonlorfing/meeting-notes/blob/main/' + encodeURIComponent($('Prepare Content').first().json.filePath) + '|View on GitHub>' }) }}",
         "options": {}
       },
       "name": "Slack: Success",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        3740,
-        200
-      ],
-      "id": "cbd44a38-ec4d-4ae1-89b1-c819782cb9a4"
-    },
-    {
-      "parameters": {
-        "method": "DELETE",
-        "url": "=http://srv1230891.hstgr.cloud:3852/delete/{{ $('Parse Slack Payload').first().json.hash }}",
-        "options": {}
-      },
-      "name": "VPS: Cleanup",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
         3960,
         200
       ],
-      "continueOnFail": true,
-      "id": "2dc60bd3-1f0f-45d6-abf0-f6eff520d4f1"
+      "id": "cbd44a38-ec4d-4ae1-89b1-c819782cb9a4"
     },
     {
       "parameters": {
@@ -427,7 +489,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1760,
+        1870,
         400
       ],
       "id": "fd985765-7754-419b-a83e-eccb56c53062"
@@ -449,7 +511,7 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        3080,
+        3300,
         300
       ],
       "id": "f8815f76-6cba-4027-8ea2-9b1519a7a0e4"
@@ -460,7 +522,7 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        3520,
+        3740,
         200
       ],
       "id": "515853a4-2997-4f3d-aafc-bd7f2995db8b"
@@ -504,7 +566,7 @@
       "main": [
         [
           {
-            "node": "VPS: Retrieve Meeting",
+            "node": "Supabase: Get Meeting",
             "type": "main",
             "index": 0
           }
@@ -518,7 +580,7 @@
         ]
       ]
     },
-    "VPS: Retrieve Meeting": {
+    "Supabase: Get Meeting": {
       "main": [
         [
           {
@@ -537,6 +599,17 @@
       ]
     },
     "Merge Overrides": {
+      "main": [
+        [
+          {
+            "node": "Supabase: Mark Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase: Mark Processing": {
       "main": [
         [
           {
@@ -577,6 +650,17 @@
       ]
     },
     "Prepare Content": {
+      "main": [
+        [
+          {
+            "node": "Supabase: Store Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase: Store Analysis": {
       "main": [
         [
           {
@@ -710,17 +794,6 @@
           }
         ]
       ]
-    },
-    "Slack: Success": {
-      "main": [
-        [
-          {
-            "node": "VPS: Cleanup",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
     }
   },
   "settings": {
@@ -732,8 +805,8 @@
   "staticData": null,
   "meta": null,
   "pinData": null,
-  "versionId": "57e13b6c-e9b6-48df-9233-fb76a83d7da2",
-  "activeVersionId": "57e13b6c-e9b6-48df-9233-fb76a83d7da2",
+  "versionId": "b2b4184b-cde9-4db9-8368-dfcc73d29cdd",
+  "activeVersionId": "b2b4184b-cde9-4db9-8368-dfcc73d29cdd",
   "triggerCount": 1,
   "shared": [
     {
@@ -745,9 +818,9 @@
     }
   ],
   "activeVersion": {
-    "updatedAt": "2026-01-05T10:10:08.855Z",
-    "createdAt": "2026-01-05T10:10:08.855Z",
-    "versionId": "57e13b6c-e9b6-48df-9233-fb76a83d7da2",
+    "updatedAt": "2026-01-27T18:28:44.342Z",
+    "createdAt": "2026-01-27T18:28:44.342Z",
+    "versionId": "b2b4184b-cde9-4db9-8368-dfcc73d29cdd",
     "workflowId": "0PjeQ9VgbUgE5lnD",
     "nodes": [
       {
@@ -830,22 +903,30 @@
       {
         "parameters": {
           "method": "GET",
-          "url": "=http://srv1230891.hstgr.cloud:3852/retrieve/{{ $('Parse Slack Payload').first().json.hash }}",
+          "url": "=https://utvoxshpxzsgsliworwh.supabase.co/rest/v1/meetings?hash=eq.{{ $('Parse Slack Payload').first().json.hash }}&select=*",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "supabaseApi",
           "options": {}
         },
-        "name": "VPS: Retrieve Meeting",
+        "name": "Supabase: Get Meeting",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
           880,
           200
         ],
+        "credentials": {
+          "supabaseApi": {
+            "id": "HRBgSj7d6TFZA8kL",
+            "name": "Supabase account 2"
+          }
+        },
         "onError": "continueErrorOutput",
-        "id": "79d72a7d-98b1-4dc6-b65f-ae61d469b128"
+        "id": "supabase-get-meeting-001"
       },
       {
         "parameters": {
-          "jsCode": "const meeting = $input.first().json;\nconst slack = $('Parse Slack Payload').first().json;\n\nconst workspace = slack.workspaceOverride || meeting.workspace || 'chrt';\nconst apps = slack.appsOverride || meeting.suggestedApps || [{ id: 'general-notes', weight: 1.0 }];\n\n// Recording type: 'normal' = standard meeting, 'singular' = recorded conversation without attendees\nconst recordingType = slack.recordingType || 'normal';\n// Detail level: 'standard' = normal notes, 'context' = detailed context notes\nconst detailLevel = slack.detailLevel || 'standard';\n\n// Merge attendees: for singular recordings, use additional attendees; for normal, append to existing\nlet finalAttendees = meeting.attendees || '';\nif (slack.additionalAttendees) {\n  if (recordingType === 'singular') {\n    // For singular recordings, use the manually entered attendees as primary\n    finalAttendees = slack.additionalAttendees;\n  } else {\n    // For normal meetings, append additional attendees\n    finalAttendees = finalAttendees ? finalAttendees + ', ' + slack.additionalAttendees : slack.additionalAttendees;\n  }\n}\n\nreturn [{ json: {\n  ...meeting,\n  finalWorkspace: workspace,\n  finalApps: apps,\n  recordingType: recordingType,\n  detailLevel: detailLevel,\n  attendees: finalAttendees,\n  additionalAttendees: slack.additionalAttendees || '',\n  customContext: slack.customContext,\n  user: slack.user,\n  responseUrl: slack.responseUrl\n} }];"
+          "jsCode": "// Extract meeting from Supabase response (returns array)\nconst response = $input.first().json;\nconst meeting = Array.isArray(response) ? response[0] : response;\n\nif (!meeting || !meeting.hash) {\n  throw new Error('Meeting not found in Supabase');\n}\n\n// Map Supabase column names back to workflow expected names\nconst slack = $('Parse Slack Payload').first().json;\n\nconst workspace = slack.workspaceOverride || meeting.workspace || 'chrt';\nconst apps = slack.appsOverride || meeting.suggested_apps || [{ id: 'general-notes', weight: 1.0 }];\n\nconst recordingType = slack.recordingType || meeting.recording_type || 'normal';\nconst detailLevel = slack.detailLevel || meeting.detail_level || 'standard';\n\nlet finalAttendees = meeting.attendees || '';\nif (slack.additionalAttendees) {\n  if (recordingType === 'singular') {\n    finalAttendees = slack.additionalAttendees;\n  } else {\n    finalAttendees = finalAttendees ? finalAttendees + ', ' + slack.additionalAttendees : slack.additionalAttendees;\n  }\n}\n\nreturn [{ json: {\n  // Original meeting data from Supabase\n  meetingId: meeting.fireflies_meeting_id,\n  hash: meeting.hash,\n  title: meeting.title,\n  personName: meeting.person_name,\n  date: meeting.date,\n  dateStr: meeting.date_str,\n  duration: meeting.duration_seconds,\n  durationMins: meeting.duration_mins,\n  attendees: finalAttendees,\n  attendeesList: meeting.attendees_list || [],\n  firefliesUrl: meeting.fireflies_url,\n  transcript: meeting.transcript,\n  transcriptLength: meeting.transcript_length,\n  estimatedTokens: meeting.estimated_tokens,\n  summary: meeting.summary,\n  workspace: meeting.workspace,\n  workspaceConfidence: meeting.workspace_confidence,\n  isExternal: meeting.is_external,\n  meetingType: meeting.meeting_type,\n  suggestedApps: meeting.suggested_apps,\n  appConfidence: meeting.app_confidence,\n  // Merged overrides\n  finalWorkspace: workspace,\n  finalApps: apps,\n  recordingType: recordingType,\n  detailLevel: detailLevel,\n  additionalAttendees: slack.additionalAttendees || '',\n  customContext: slack.customContext,\n  user: slack.user,\n  responseUrl: slack.responseUrl\n} }];"
         },
         "name": "Merge Overrides",
         "type": "n8n-nodes-base.code",
@@ -858,18 +939,53 @@
       },
       {
         "parameters": {
+          "method": "PATCH",
+          "url": "=https://utvoxshpxzsgsliworwh.supabase.co/rest/v1/meetings?hash=eq.{{ $('Parse Slack Payload').first().json.hash }}",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "supabaseApi",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Prefer",
+                "value": "return=representation"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ status: 'processing', analysis_started_at: new Date().toISOString(), final_workspace: $json.finalWorkspace, final_apps: $json.finalApps, recording_type: $json.recordingType, detail_level: $json.detailLevel, additional_attendees: $json.additionalAttendees, custom_context: $json.customContext, processed_by: $json.user }) }}",
+          "options": {}
+        },
+        "name": "Supabase: Mark Processing",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1210,
+          200
+        ],
+        "credentials": {
+          "supabaseApi": {
+            "id": "HRBgSj7d6TFZA8kL",
+            "name": "Supabase account 2"
+          }
+        },
+        "id": "supabase-mark-processing-001"
+      },
+      {
+        "parameters": {
           "method": "POST",
           "url": "={{ $('Parse Slack Payload').first().json.responseUrl }}",
           "sendBody": true,
           "specifyBody": "json",
-          "jsonBody": "={{ JSON.stringify({ replace_original: true, text: '⏳ *Analyzing:* ' + $json.title + '\\n\\n🤖 Using: ' + $json.finalApps.map(a => a.id + ' (' + Math.round(a.weight * 100) + '%)').join(', ') + '\\n📂 Workspace: ' + $json.finalWorkspace }) }}",
+          "jsonBody": "={{ JSON.stringify({ replace_original: true, text: '⏳ *Analyzing:* ' + $('Merge Overrides').first().json.title + '\\n\\n🤖 Using: ' + $('Merge Overrides').first().json.finalApps.map(a => a.id + ' (' + Math.round(a.weight * 100) + '%)').join(', ') + '\\n📂 Workspace: ' + $('Merge Overrides').first().json.finalWorkspace }) }}",
           "options": {}
         },
         "name": "Slack: Processing",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          1320,
+          1430,
           200
         ],
         "id": "f24eb243-1bca-485f-acc2-c35205305936"
@@ -889,7 +1005,7 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          1540,
+          1650,
           200
         ],
         "onError": "continueErrorOutput",
@@ -897,16 +1013,51 @@
       },
       {
         "parameters": {
-          "jsCode": "const merged = $('Merge Overrides').first().json;\nconst analysis = $input.first().json;\n\nif (analysis.error) {\n  throw new Error('AI analysis failed: ' + analysis.error);\n}\n\nconst content = analysis.content || '';\nconst dateStr = merged.dateStr || new Date().toISOString().split('T')[0];\nconst workspace = merged.finalWorkspace;\n\nconst attendeeList = (merged.attendees || '').split(',').map(a => a.trim()).filter(Boolean);\nconst externalAttendees = attendeeList.filter(a => !a.toLowerCase().includes('hudson') && !a.toLowerCase().includes('chrt.com'));\n\nlet personName = merged.personName || '';\nif (!personName || personName === 'Unknown') {\n  if (externalAttendees.length > 0) {\n    const email = externalAttendees[0];\n    if (email.includes('@')) {\n      personName = email.split('@')[0].split('.').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');\n    } else {\n      personName = email;\n    }\n  } else {\n    personName = 'Team';\n  }\n}\nconst safePerson = personName.replace(/[^a-zA-Z0-9 -]/g, '').trim();\n\n// Build people list for Person note creation\nconst participantNames = [];\nattendeeList.forEach(a => {\n  let name, email = '', company = '';\n  if (a.includes('@')) {\n    email = a;\n    const domain = a.split('@')[1];\n    company = domain ? domain.split('.')[0].charAt(0).toUpperCase() + domain.split('.')[0].slice(1) : '';\n    name = a.split('@')[0].split('.').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');\n  } else {\n    name = a;\n  }\n  const safeName = name.replace(/[^a-zA-Z0-9 -]/g, '').trim();\n  if (safeName && safeName.toLowerCase() !== 'hudson lorfing') {\n    participantNames.push({ name: safeName, email, company });\n  }\n});\n\nconst participants = participantNames.map(p => `\"[[👤${p.name}]]\"`);\n\nconst displayTitle = `${dateStr}꞉ Meeting with ${safePerson}`;\nconst fileName = `${displayTitle}.md`;\nconst filePath = `${workspace}/${fileName}`;\n\nconst apps = merged.finalApps;\nconst appsUsed = apps.map(a => a.id).join(', ');\nconst frontmatter = `---\\nup: \\nin:\\n  - \"[[Meetings]]\"\\nrelated: \\ncreated: ${dateStr}\\ntags:\\n  - meeting\\n  - ${workspace}\\nmeeting_date: ${dateStr}\\nmeeting_with: \"[[👤${safePerson}]]\"\\nparticipants:\\n${participants.map(p => `  - ${p}`).join('\\n')}\\nworkspace: ${workspace}\\nanalysis_apps: [${appsUsed}]\\nmodel: ${analysis.model || 'gemini'}\\nprocessed_by: ${merged.user}\\none-liner: \\n---\\n\\n# ${displayTitle}\\n*Meeting on ${dateStr}*\\n\\n## Participants\\n${participants.map(p => `- ${p}`).join('\\n')}\\n\\n`;\n\nconst fullContent = frontmatter + content;\nconst primaryEmail = externalAttendees.find(a => a.includes('@')) || '';\nconst summary = content.substring(0, 500) + (content.length > 500 ? '...' : '');\nconst useHubSpot = workspace === 'chrt' && merged.isExternal;\n\nreturn [{ json: { filePath, fileName, content: fullContent, title: merged.title, displayTitle, date: dateStr, workspace, primaryEmail, summary, personName: safePerson, useHubSpot, apps, model: analysis.model, responseUrl: merged.responseUrl, participantNames } }];"
+          "jsCode": "const merged = $('Merge Overrides').first().json;\nconst analysis = $input.first().json;\n\nif (analysis.error) {\n  throw new Error('AI analysis failed: ' + analysis.error);\n}\n\nconst content = analysis.content || '';\nconst dateStr = merged.dateStr || new Date().toISOString().split('T')[0];\nconst workspace = merged.finalWorkspace;\n\nconst attendeeList = (merged.attendees || '').split(',').map(a => a.trim()).filter(Boolean);\nconst externalAttendees = attendeeList.filter(a => !a.toLowerCase().includes('hudson') && !a.toLowerCase().includes('chrt.com'));\n\nlet personName = merged.personName || '';\nif (!personName || personName === 'Unknown') {\n  if (externalAttendees.length > 0) {\n    const email = externalAttendees[0];\n    if (email.includes('@')) {\n      personName = email.split('@')[0].split('.').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');\n    } else {\n      personName = email;\n    }\n  } else {\n    personName = 'Team';\n  }\n}\nconst safePerson = personName.replace(/[^a-zA-Z0-9 -]/g, '').trim();\n\nconst participantNames = [];\nattendeeList.forEach(a => {\n  let name, email = '', company = '';\n  if (a.includes('@')) {\n    email = a;\n    const domain = a.split('@')[1];\n    company = domain ? domain.split('.')[0].charAt(0).toUpperCase() + domain.split('.')[0].slice(1) : '';\n    name = a.split('@')[0].split('.').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');\n  } else {\n    name = a;\n  }\n  const safeName = name.replace(/[^a-zA-Z0-9 -]/g, '').trim();\n  if (safeName && safeName.toLowerCase() !== 'hudson lorfing') {\n    participantNames.push({ name: safeName, email, company });\n  }\n});\n\nconst participants = participantNames.map(p => `\"[[👤${p.name}]]\"`);\n\nconst displayTitle = `${dateStr}꞉ Meeting with ${safePerson}`;\nconst fileName = `${displayTitle}.md`;\nconst filePath = `${workspace}/${fileName}`;\n\nconst apps = merged.finalApps;\nconst appsUsed = apps.map(a => a.id).join(', ');\nconst frontmatter = `---\\nup: \\nin:\\n  - \"[[Meetings]]\"\\nrelated: \\ncreated: ${dateStr}\\ntags:\\n  - meeting\\n  - ${workspace}\\nmeeting_date: ${dateStr}\\nmeeting_with: \"[[👤${safePerson}]]\"\\nparticipants:\\n${participants.map(p => `  - ${p}`).join('\\n')}\\nworkspace: ${workspace}\\nanalysis_apps: [${appsUsed}]\\nmodel: ${analysis.model || 'gemini'}\\nprocessed_by: ${merged.user}\\none-liner: \\n---\\n\\n# ${displayTitle}\\n*Meeting on ${dateStr}*\\n\\n## Participants\\n${participants.map(p => `- ${p}`).join('\\n')}\\n\\n`;\n\nconst fullContent = frontmatter + content;\nconst primaryEmail = externalAttendees.find(a => a.includes('@')) || '';\nconst summary = content.substring(0, 500) + (content.length > 500 ? '...' : '');\nconst useHubSpot = workspace === 'chrt' && merged.isExternal;\n\nreturn [{ json: { hash: merged.hash, filePath, fileName, content: fullContent, analysisOutput: content, title: merged.title, displayTitle, date: dateStr, workspace, primaryEmail, summary, personName: safePerson, useHubSpot, apps, model: analysis.model, responseUrl: merged.responseUrl, participantNames } }];"
         },
         "name": "Prepare Content",
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          1760,
+          1870,
           200
         ],
         "id": "85d82602-7181-405b-a39b-fe391f0e2567"
+      },
+      {
+        "parameters": {
+          "method": "PATCH",
+          "url": "=https://utvoxshpxzsgsliworwh.supabase.co/rest/v1/meetings?hash=eq.{{ $json.hash }}",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "supabaseApi",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Prefer",
+                "value": "return=representation"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ analysis_output: $json.analysisOutput, analysis_model: $json.model, github_path: $json.filePath, status: 'completed', completed_at: new Date().toISOString() }) }}",
+          "options": {}
+        },
+        "name": "Supabase: Store Analysis",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1980,
+          200
+        ],
+        "credentials": {
+          "supabaseApi": {
+            "id": "HRBgSj7d6TFZA8kL",
+            "name": "Supabase account 2"
+          }
+        },
+        "id": "supabase-store-analysis-001"
       },
       {
         "parameters": {
@@ -922,16 +1073,16 @@
             "mode": "name",
             "value": "meeting-notes"
           },
-          "filePath": "={{ $json.filePath }}",
-          "fileContent": "={{ $json.content }}",
-          "commitMessage": "={{ 'Add meeting (' + $json.workspace + '): ' + $json.displayTitle }}",
+          "filePath": "={{ $('Prepare Content').first().json.filePath }}",
+          "fileContent": "={{ $('Prepare Content').first().json.content }}",
+          "commitMessage": "={{ 'Add meeting (' + $('Prepare Content').first().json.workspace + '): ' + $('Prepare Content').first().json.displayTitle }}",
           "additionalParameters": {}
         },
         "name": "GitHub: Commit Meeting",
         "type": "n8n-nodes-base.github",
         "typeVersion": 1.1,
         "position": [
-          1980,
+          2200,
           200
         ],
         "credentials": {
@@ -945,26 +1096,26 @@
       },
       {
         "parameters": {
-          "jsCode": "// Skip person note creation - people already exist in Obsidian vaults\n// Just pass through the prep data\nconst prep = $('Prepare Content').first().json;\nreturn [{ json: { ...prep, personNotes: [] } }];"
+          "jsCode": "// Skip person note creation - people already exist in Obsidian vaults\nconst prep = $('Prepare Content').first().json;\nreturn [{ json: { ...prep, personNotes: [] } }];"
         },
         "name": "Prepare Person Notes",
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          2200,
+          2420,
           200
         ],
         "id": "f25fc827-21fc-43cd-a491-ac3e9022855a"
       },
       {
         "parameters": {
-          "jsCode": "// Create person notes one at a time via GitHub API\nconst data = $input.first().json;\nconst personNotes = data.personNotes || [];\n\nif (personNotes.length === 0) {\n  return [{ json: { ...data, peopleCreated: 0 } }];\n}\n\n// We'll use the GitHub API directly to create files\n// This node outputs the person notes for the next node to process\nconst outputs = personNotes.map(note => ({\n  json: {\n    ...data,\n    currentPerson: note\n  }\n}));\n\n// If no people to create, just pass through\nif (outputs.length === 0) {\n  return [{ json: { ...data, peopleCreated: 0 } }];\n}\n\nreturn outputs;"
+          "jsCode": "const data = $input.first().json;\nconst personNotes = data.personNotes || [];\n\nif (personNotes.length === 0) {\n  return [{ json: { ...data, peopleCreated: 0 } }];\n}\n\nconst outputs = personNotes.map(note => ({\n  json: {\n    ...data,\n    currentPerson: note\n  }\n}));\n\nif (outputs.length === 0) {\n  return [{ json: { ...data, peopleCreated: 0 } }];\n}\n\nreturn outputs;"
         },
         "name": "Split Person Notes",
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          2420,
+          2640,
           200
         ],
         "id": "04e49830-eda2-4379-9f69-45fbda126411"
@@ -992,7 +1143,7 @@
         "type": "n8n-nodes-base.github",
         "typeVersion": 1.1,
         "position": [
-          2640,
+          2860,
           200
         ],
         "credentials": {
@@ -1032,7 +1183,7 @@
         "type": "n8n-nodes-base.if",
         "typeVersion": 2.2,
         "position": [
-          2860,
+          3080,
           200
         ],
         "id": "5a0d9a2d-7ac1-4b64-92a3-c6c50ff8436f"
@@ -1052,7 +1203,7 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          3080,
+          3300,
           100
         ],
         "credentials": {
@@ -1092,7 +1243,7 @@
         "type": "n8n-nodes-base.if",
         "typeVersion": 2.2,
         "position": [
-          3300,
+          3520,
           100
         ],
         "id": "16a7a1d2-1ea2-48d7-875e-4cf57ebaa34d"
@@ -1112,7 +1263,7 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          3520,
+          3740,
           0
         ],
         "credentials": {
@@ -1130,33 +1281,17 @@
           "url": "={{ $('Prepare Content').first().json.responseUrl }}",
           "sendBody": true,
           "specifyBody": "json",
-          "jsonBody": "={{ JSON.stringify({ replace_original: true, text: '✅ *Meeting Analyzed!*\\n\\n📝 ' + $('Prepare Content').first().json.displayTitle + '\\n📂 ' + $('Prepare Content').first().json.workspace + '\\n🤖 Apps: ' + $('Prepare Content').first().json.apps.map(a => a.id).join(', ') + '\\n👥 People: ' + ($('Prepare Content').first().json.participantNames || []).map(p => p.name).join(', ') + '\\n📁 ' + $('Prepare Content').first().json.filePath + ($('Prepare Content').first().json.useHubSpot ? '\\n🔗 HubSpot: ' + ($('HubSpot: Search Contact').first()?.json?.results?.length > 0 ? 'Note added' : 'No contact match') : '') + '\\n\\n<https://github.com/hudsonlorfing/meeting-notes/blob/main/' + encodeURIComponent($('Prepare Content').first().json.filePath) + '|View on GitHub>' }) }}",
+          "jsonBody": "={{ JSON.stringify({ replace_original: true, text: '✅ *Meeting Analyzed!*\\n\\n📝 ' + $('Prepare Content').first().json.displayTitle + '\\n📂 ' + $('Prepare Content').first().json.workspace + '\\n🤖 Apps: ' + $('Prepare Content').first().json.apps.map(a => a.id).join(', ') + '\\n👥 People: ' + ($('Prepare Content').first().json.participantNames || []).map(p => p.name).join(', ') + '\\n📁 ' + $('Prepare Content').first().json.filePath + ($('Prepare Content').first().json.useHubSpot ? '\\n🔗 HubSpot: ' + ($('HubSpot: Search Contact').first()?.json?.results?.length > 0 ? 'Note added' : 'No contact match') : '') + '\\n💾 Stored in Supabase\\n\\n<https://github.com/hudsonlorfing/meeting-notes/blob/main/' + encodeURIComponent($('Prepare Content').first().json.filePath) + '|View on GitHub>' }) }}",
           "options": {}
         },
         "name": "Slack: Success",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          3740,
-          200
-        ],
-        "id": "cbd44a38-ec4d-4ae1-89b1-c819782cb9a4"
-      },
-      {
-        "parameters": {
-          "method": "DELETE",
-          "url": "=http://srv1230891.hstgr.cloud:3852/delete/{{ $('Parse Slack Payload').first().json.hash }}",
-          "options": {}
-        },
-        "name": "VPS: Cleanup",
-        "type": "n8n-nodes-base.httpRequest",
-        "typeVersion": 4.2,
-        "position": [
           3960,
           200
         ],
-        "continueOnFail": true,
-        "id": "2dc60bd3-1f0f-45d6-abf0-f6eff520d4f1"
+        "id": "cbd44a38-ec4d-4ae1-89b1-c819782cb9a4"
       },
       {
         "parameters": {
@@ -1171,7 +1306,7 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          1760,
+          1870,
           400
         ],
         "id": "fd985765-7754-419b-a83e-eccb56c53062"
@@ -1193,7 +1328,7 @@
         "type": "n8n-nodes-base.noOp",
         "typeVersion": 1,
         "position": [
-          3080,
+          3300,
           300
         ],
         "id": "f8815f76-6cba-4027-8ea2-9b1519a7a0e4"
@@ -1204,7 +1339,7 @@
         "type": "n8n-nodes-base.noOp",
         "typeVersion": 1,
         "position": [
-          3520,
+          3740,
           200
         ],
         "id": "515853a4-2997-4f3d-aafc-bd7f2995db8b"
@@ -1248,7 +1383,7 @@
         "main": [
           [
             {
-              "node": "VPS: Retrieve Meeting",
+              "node": "Supabase: Get Meeting",
               "type": "main",
               "index": 0
             }
@@ -1262,7 +1397,7 @@
           ]
         ]
       },
-      "VPS: Retrieve Meeting": {
+      "Supabase: Get Meeting": {
         "main": [
           [
             {
@@ -1281,6 +1416,17 @@
         ]
       },
       "Merge Overrides": {
+        "main": [
+          [
+            {
+              "node": "Supabase: Mark Processing",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Supabase: Mark Processing": {
         "main": [
           [
             {
@@ -1321,6 +1467,17 @@
         ]
       },
       "Prepare Content": {
+        "main": [
+          [
+            {
+              "node": "Supabase: Store Analysis",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Supabase: Store Analysis": {
         "main": [
           [
             {
@@ -1449,17 +1606,6 @@
           [
             {
               "node": "Slack: Success",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "Slack: Success": {
-        "main": [
-          [
-            {
-              "node": "VPS: Cleanup",
               "type": "main",
               "index": 0
             }
