@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-01-27T16:11:30.575Z",
+  "updatedAt": "2026-01-28T18:24:15.589Z",
   "createdAt": "2025-12-26T18:55:11.571Z",
   "id": "dWFsEXELFTJU0W01",
   "name": "4. Lead Pipeline Monitor",
@@ -619,7 +619,7 @@
           "mappingMode": "defineBelow",
           "value": {
             "Last Crawl Date": "={{ $json['Last Crawl Date'] }}",
-            "Search Link": "{{ $json.searchUrl }}"
+            "Search Link": "={{ $json.searchUrl }}"
           },
           "matchingColumns": [
             "Search Link"
@@ -1594,8 +1594,8 @@
       }
     ]
   },
-  "versionId": "7226c69e-ee4c-420c-a84f-49eb269dd7a9",
-  "activeVersionId": "7226c69e-ee4c-420c-a84f-49eb269dd7a9",
+  "versionId": "35aa4b57-c5d3-4fe3-8100-44fc1caac13f",
+  "activeVersionId": "35aa4b57-c5d3-4fe3-8100-44fc1caac13f",
   "triggerCount": 2,
   "shared": [
     {
@@ -1607,9 +1607,9 @@
     }
   ],
   "activeVersion": {
-    "updatedAt": "2026-01-27T16:11:30.578Z",
-    "createdAt": "2026-01-27T16:11:30.578Z",
-    "versionId": "7226c69e-ee4c-420c-a84f-49eb269dd7a9",
+    "updatedAt": "2026-01-28T18:24:15.592Z",
+    "createdAt": "2026-01-28T18:24:15.592Z",
+    "versionId": "35aa4b57-c5d3-4fe3-8100-44fc1caac13f",
     "workflowId": "dWFsEXELFTJU0W01",
     "nodes": [
       {
@@ -2225,7 +2225,7 @@
             "mappingMode": "defineBelow",
             "value": {
               "Last Crawl Date": "={{ $json['Last Crawl Date'] }}",
-              "Search Link": "{{ $json.searchUrl }}"
+              "Search Link": "={{ $json.searchUrl }}"
             },
             "matchingColumns": [
               "Search Link"
