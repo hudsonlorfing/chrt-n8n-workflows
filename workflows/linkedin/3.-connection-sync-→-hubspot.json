@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-01-27T17:49:24.594Z",
+  "updatedAt": "2026-01-29T05:28:48.893Z",
   "createdAt": "2025-12-19T16:28:57.739Z",
   "id": "a56vnrPo9dsg5mmf",
   "name": "3. Connection Sync → HubSpot",
@@ -594,7 +594,9 @@
           "id": "KWeabljbYSzoLpjI",
           "name": "Phantom Header Auth"
         }
-      }
+      },
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -613,7 +615,7 @@
     },
     {
       "parameters": {
-        "url": "={{ 'https://api.phantombuster.com/api/v2/agents/fetch-output?id=3627182471241497&containerId=' + $('Launch Profile Scraper with Email').item.json.containerId }}",
+        "url": "={{ 'https://api.phantombuster.com/api/v2/agents/fetch-output?id=3627182471241497&containerId=' + $('Merge PB Launch Result').item.json.containerId }}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "options": {
@@ -1594,6 +1596,92 @@
         13824,
         1616
       ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.phantombuster.com/api/v2/agents/fetch?id=3627182471241497",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "check-pb-before-launch",
+      "name": "Check PB Agent Running?",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        9120,
+        1632
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "KWeabljbYSzoLpjI",
+          "name": "Phantom Header Auth"
+        }
+      },
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "is-running",
+              "leftValue": "={{ $json.currentRunningContainerId }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-pb-already-running",
+      "name": "Agent Already Running?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        9320,
+        1632
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Agent is already running - use existing container\nconst agentStatus = $input.first().json;\nreturn [{\n  json: {\n    containerId: agentStatus.currentRunningContainerId,\n    status: 'already_running',\n    message: 'PhantomBuster agent was already running, using existing container'\n  }\n}];"
+      },
+      "id": "use-existing-pb-container",
+      "name": "Use Existing Container",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        9520,
+        1432
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch",
+        "output": "input1"
+      },
+      "id": "merge-pb-launch-result",
+      "name": "Merge PB Launch Result",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.1,
+      "position": [
+        9720,
+        1632
+      ]
     }
   ],
   "connections": {
@@ -1845,7 +1933,7 @@
       "main": [
         [
           {
-            "node": "Launch Profile Scraper with Email",
+            "node": "Check PB Agent Running?",
             "type": "main",
             "index": 0
           }
@@ -1856,9 +1944,9 @@
       "main": [
         [
           {
-            "node": "Wait 10 min for Email Scraper",
+            "node": "Merge PB Launch Result",
             "type": "main",
-            "index": 0
+            "index": 1
           }
         ]
       ]
@@ -2280,6 +2368,57 @@
           }
         ]
       ]
+    },
+    "Check PB Agent Running?": {
+      "main": [
+        [
+          {
+            "node": "Agent Already Running?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agent Already Running?": {
+      "main": [
+        [
+          {
+            "node": "Use Existing Container",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Launch Profile Scraper with Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Use Existing Container": {
+      "main": [
+        [
+          {
+            "node": "Merge PB Launch Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge PB Launch Result": {
+      "main": [
+        [
+          {
+            "node": "Wait 10 min for Email Scraper",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
@@ -2297,8 +2436,8 @@
     "templateCredsSetupCompleted": true
   },
   "pinData": {},
-  "versionId": "16a12b43-7338-402c-8d39-ab053e0df12e",
-  "activeVersionId": "16a12b43-7338-402c-8d39-ab053e0df12e",
+  "versionId": "ef2cc5fb-f675-42f5-b6ab-ff921d17e2ec",
+  "activeVersionId": "ef2cc5fb-f675-42f5-b6ab-ff921d17e2ec",
   "triggerCount": 3,
   "shared": [
     {
@@ -2310,9 +2449,9 @@
     }
   ],
   "activeVersion": {
-    "updatedAt": "2026-01-27T17:49:51.000Z",
-    "createdAt": "2026-01-27T17:49:24.596Z",
-    "versionId": "16a12b43-7338-402c-8d39-ab053e0df12e",
+    "updatedAt": "2026-01-29T05:28:48.896Z",
+    "createdAt": "2026-01-29T05:28:48.896Z",
+    "versionId": "ef2cc5fb-f675-42f5-b6ab-ff921d17e2ec",
     "workflowId": "a56vnrPo9dsg5mmf",
     "nodes": [
       {
@@ -2903,7 +3042,9 @@
             "id": "KWeabljbYSzoLpjI",
             "name": "Phantom Header Auth"
           }
-        }
+        },
+        "continueOnFail": true,
+        "onError": "continueRegularOutput"
       },
       {
         "parameters": {
@@ -2922,7 +3063,7 @@
       },
       {
         "parameters": {
-          "url": "={{ 'https://api.phantombuster.com/api/v2/agents/fetch-output?id=3627182471241497&containerId=' + $('Launch Profile Scraper with Email').item.json.containerId }}",
+          "url": "={{ 'https://api.phantombuster.com/api/v2/agents/fetch-output?id=3627182471241497&containerId=' + $('Merge PB Launch Result').item.json.containerId }}",
           "authentication": "genericCredentialType",
           "genericAuthType": "httpHeaderAuth",
           "options": {
@@ -3903,6 +4044,92 @@
           13824,
           1616
         ]
+      },
+      {
+        "parameters": {
+          "url": "https://api.phantombuster.com/api/v2/agents/fetch?id=3627182471241497",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpHeaderAuth",
+          "options": {
+            "timeout": 30000
+          }
+        },
+        "id": "check-pb-before-launch",
+        "name": "Check PB Agent Running?",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          9120,
+          1632
+        ],
+        "credentials": {
+          "httpHeaderAuth": {
+            "id": "KWeabljbYSzoLpjI",
+            "name": "Phantom Header Auth"
+          }
+        },
+        "continueOnFail": true,
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "is-running",
+                "leftValue": "={{ $json.currentRunningContainerId }}",
+                "rightValue": "",
+                "operator": {
+                  "type": "string",
+                  "operation": "notEmpty"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "if-pb-already-running",
+        "name": "Agent Already Running?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          9320,
+          1632
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "// Agent is already running - use existing container\nconst agentStatus = $input.first().json;\nreturn [{\n  json: {\n    containerId: agentStatus.currentRunningContainerId,\n    status: 'already_running',\n    message: 'PhantomBuster agent was already running, using existing container'\n  }\n}];"
+        },
+        "id": "use-existing-pb-container",
+        "name": "Use Existing Container",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          9520,
+          1432
+        ]
+      },
+      {
+        "parameters": {
+          "mode": "chooseBranch",
+          "output": "input1"
+        },
+        "id": "merge-pb-launch-result",
+        "name": "Merge PB Launch Result",
+        "type": "n8n-nodes-base.merge",
+        "typeVersion": 3.1,
+        "position": [
+          9720,
+          1632
+        ]
       }
     ],
     "connections": {
@@ -4154,7 +4381,7 @@
         "main": [
           [
             {
-              "node": "Launch Profile Scraper with Email",
+              "node": "Check PB Agent Running?",
               "type": "main",
               "index": 0
             }
@@ -4165,9 +4392,9 @@
         "main": [
           [
             {
-              "node": "Wait 10 min for Email Scraper",
+              "node": "Merge PB Launch Result",
               "type": "main",
-              "index": 0
+              "index": 1
             }
           ]
         ]
@@ -4589,11 +4816,62 @@
             }
           ]
         ]
+      },
+      "Check PB Agent Running?": {
+        "main": [
+          [
+            {
+              "node": "Agent Already Running?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Agent Already Running?": {
+        "main": [
+          [
+            {
+              "node": "Use Existing Container",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Launch Profile Scraper with Email",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Use Existing Container": {
+        "main": [
+          [
+            {
+              "node": "Merge PB Launch Result",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Merge PB Launch Result": {
+        "main": [
+          [
+            {
+              "node": "Wait 10 min for Email Scraper",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
       }
     },
     "authors": "Hudson Lorfing",
-    "name": "Version 16a12b43",
-    "description": ""
+    "name": null,
+    "description": null
   },
   "tags": [
     {
