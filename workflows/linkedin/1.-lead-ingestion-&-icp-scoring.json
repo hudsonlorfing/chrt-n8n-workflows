@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-01-27T18:26:48.013Z",
+  "updatedAt": "2026-01-28T21:23:00.983Z",
   "createdAt": "2025-12-17T17:08:43.420Z",
   "id": "aLxwvqoSTkZAQ3fq",
   "name": "1. Lead Ingestion & ICP Scoring",
@@ -151,11 +151,13 @@
           "id": "B6k4mmzjw7OzEK5c",
           "name": "Anthropic account"
         }
-      }
+      },
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
-        "jsCode": "const pb = $('Loop Over Leads1').item.json;\nlet aiResult = { score: 5, segment: 'Unknown', reason: 'Could not parse AI response', hubspotIndustry: '' };\n\ntry {\n  const content = $('AI ICP Score').item.json.content?.[0]?.text || '{}';\n  const parsed = JSON.parse(content.replace(/```json?|```/g, '').trim());\n  aiResult = {\n    score: parsed.score ?? 5,\n    segment: parsed.segment || 'Unknown',\n    reason: parsed.reason || 'No reason provided',\n    hubspotIndustry: parsed.hubspotIndustry || ''\n  };\n} catch (e) {}\n\n// Output all columns - mapped from New Leads (Sales Nav) headers to Master List\nreturn [{\n  json: {\n    profileUrl: pb.profileUrl || pb.linkedInProfileUrl || '',\n    fullName: pb.fullName || `${pb.firstName || ''} ${pb.lastName || ''}`.trim(),\n    firstName: pb.firstName || '',\n    lastName: pb.lastName || '',\n    school: '',\n    schoolDegree: '',\n    company: pb.companyName || '',\n    companyUrl: pb.companyUrl || pb.regularCompanyUrl || '',\n    companyId: pb.companyId || '',\n    jobTitle: pb.title || '',\n    jobDateRange: pb.durationInRole || '',\n    hsIndustry: aiResult.hubspotIndustry,\n    headline: pb.titleDescription || pb.title || '',\n    location: pb.location || '',\n    company2: pb.pastExperienceCompanyName || '',\n    companyUrl2: pb.pastExperienceCompanyUrl || pb.companyUrl2 || '',\n    companyId2: '',\n    jobTitle2: pb.pastExperienceCompanyTitle || '',\n    jobDateRange2: pb.pastExperienceDate || '',\n    score: aiResult.score,\n    segment: aiResult.segment,\n    reason: aiResult.reason,\n    status: aiResult.score >= 6 ? 'Ready' : 'Low Priority',\n    added: new Date().toISOString().split('T')[0],\n    kyleSentDate: '',\n    kyleConnectDate: '',\n    hudsonSentDate: '',\n    hudsonConnectDate: '',\n    hubspotSync: '',\n    hudsonNotes: '',\n    inviteResults: '',\n    connectionDegree: pb.connectionDegree || '',\n    previousRole: pb.pastExperienceCompanyTitle ? `${pb.pastExperienceCompanyTitle} @ ${pb.pastExperienceCompanyName || ''}` : '',\n    industry: pb.industry || '',\n    summary: pb.summary || '',\n    companyLocation: pb.companyLocation || '',\n    durationInCompany: pb.durationInCompany || '',\n    pastExperienceDuration: pb.pastExperienceDuration || '',\n    sharedConnectionsCount: pb.sharedConnectionsCount || '',\n    isPremium: pb.isPremium || false,\n    isOpenLink: pb.isOpenLink || false\n  }\n}];"
+        "jsCode": "const pb = $('Loop Over Leads1').item.json;\nlet aiResult = { score: 5, segment: 'Unknown', reason: 'Could not parse AI response', hubspotIndustry: '' };\n\ntry {\n  const content = $('AI ICP Score').item.json.content?.[0]?.text || '{}';\n  const parsed = JSON.parse(content.replace(/```json?|```/g, '').trim());\n  aiResult = {\n    score: parsed.score ?? 5,\n    segment: parsed.segment || 'Unknown',\n    reason: parsed.reason || 'No reason provided',\n    hubspotIndustry: parsed.hubspotIndustry || ''\n  };\n} catch (e) {}\n\n// Output all columns - mapped from New Leads (Sales Nav) headers to Master List\nreturn [{\n  json: {\n    profileUrl: pb.defaultProfileUrl || pb.linkedInProfileUrl || '',\n    fullName: pb.fullName || `${pb.firstName || ''} ${pb.lastName || ''}`.trim(),\n    firstName: pb.firstName || '',\n    lastName: pb.lastName || '',\n    school: '',\n    schoolDegree: '',\n    company: pb.companyName || '',\n    companyUrl: pb.companyUrl || pb.regularCompanyUrl || '',\n    companyId: pb.companyId || '',\n    jobTitle: pb.title || '',\n    jobDateRange: pb.durationInRole || '',\n    hsIndustry: aiResult.hubspotIndustry,\n    headline: pb.titleDescription || pb.title || '',\n    location: pb.location || '',\n    company2: pb.pastExperienceCompanyName || '',\n    companyUrl2: pb.pastExperienceCompanyUrl || pb.companyUrl2 || '',\n    companyId2: '',\n    jobTitle2: pb.pastExperienceCompanyTitle || '',\n    jobDateRange2: pb.pastExperienceDate || '',\n    score: aiResult.score,\n    segment: aiResult.segment,\n    reason: aiResult.reason,\n    status: aiResult.score >= 6 ? 'Ready' : 'Low Priority',\n    added: new Date().toISOString().split('T')[0],\n    kyleSentDate: '',\n    kyleConnectDate: '',\n    hudsonSentDate: '',\n    hudsonConnectDate: '',\n    hubspotSync: '',\n    hudsonNotes: '',\n    inviteResults: '',\n    connectionDegree: pb.connectionDegree || '',\n    previousRole: pb.pastExperienceCompanyTitle ? `${pb.pastExperienceCompanyTitle} @ ${pb.pastExperienceCompanyName || ''}` : '',\n    industry: pb.industry || '',\n    summary: pb.summary || '',\n    companyLocation: pb.companyLocation || '',\n    durationInCompany: pb.durationInCompany || '',\n    pastExperienceDuration: pb.pastExperienceDuration || '',\n    sharedConnectionsCount: pb.sharedConnectionsCount || '',\n    isPremium: pb.isPremium || false,\n    isOpenLink: pb.isOpenLink || false\n  }\n}];"
       },
       "id": "c78dafcf-3174-4792-b843-9512bfaa472e",
       "name": "Format for Master List",
@@ -571,7 +573,7 @@
         "filtersUI": {
           "values": [
             {
-              "lookupColumn": "profileUrl",
+              "lookupColumn": "defaultProfileUrl",
               "lookupValue": "={{ $json.profileUrl }}"
             }
           ]
@@ -725,7 +727,7 @@
     },
     {
       "parameters": {
-        "amount": "={{ Math.floor( Math.random() * 3 ) + 3}}"
+        "amount": "={{ Math.floor( Math.random() * 4 ) + 5}}"
       },
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
@@ -968,8 +970,8 @@
     "templateCredsSetupCompleted": true
   },
   "pinData": {},
-  "versionId": "6c8bc3fb-81cc-4195-934d-adfc23026c69",
-  "activeVersionId": "6c8bc3fb-81cc-4195-934d-adfc23026c69",
+  "versionId": "57e343d2-0b97-4a98-9479-2200180c90a3",
+  "activeVersionId": "57e343d2-0b97-4a98-9479-2200180c90a3",
   "triggerCount": 1,
   "shared": [
     {
@@ -981,9 +983,9 @@
     }
   ],
   "activeVersion": {
-    "updatedAt": "2026-01-27T18:26:50.000Z",
-    "createdAt": "2026-01-27T18:26:48.015Z",
-    "versionId": "6c8bc3fb-81cc-4195-934d-adfc23026c69",
+    "updatedAt": "2026-01-28T21:23:00.986Z",
+    "createdAt": "2026-01-28T21:23:00.986Z",
+    "versionId": "57e343d2-0b97-4a98-9479-2200180c90a3",
     "workflowId": "aLxwvqoSTkZAQ3fq",
     "nodes": [
       {
@@ -1131,11 +1133,13 @@
             "id": "B6k4mmzjw7OzEK5c",
             "name": "Anthropic account"
           }
-        }
+        },
+        "continueOnFail": true,
+        "onError": "continueRegularOutput"
       },
       {
         "parameters": {
-          "jsCode": "const pb = $('Loop Over Leads1').item.json;\nlet aiResult = { score: 5, segment: 'Unknown', reason: 'Could not parse AI response', hubspotIndustry: '' };\n\ntry {\n  const content = $('AI ICP Score').item.json.content?.[0]?.text || '{}';\n  const parsed = JSON.parse(content.replace(/```json?|```/g, '').trim());\n  aiResult = {\n    score: parsed.score ?? 5,\n    segment: parsed.segment || 'Unknown',\n    reason: parsed.reason || 'No reason provided',\n    hubspotIndustry: parsed.hubspotIndustry || ''\n  };\n} catch (e) {}\n\n// Output all columns - mapped from New Leads (Sales Nav) headers to Master List\nreturn [{\n  json: {\n    profileUrl: pb.profileUrl || pb.linkedInProfileUrl || '',\n    fullName: pb.fullName || `${pb.firstName || ''} ${pb.lastName || ''}`.trim(),\n    firstName: pb.firstName || '',\n    lastName: pb.lastName || '',\n    school: '',\n    schoolDegree: '',\n    company: pb.companyName || '',\n    companyUrl: pb.companyUrl || pb.regularCompanyUrl || '',\n    companyId: pb.companyId || '',\n    jobTitle: pb.title || '',\n    jobDateRange: pb.durationInRole || '',\n    hsIndustry: aiResult.hubspotIndustry,\n    headline: pb.titleDescription || pb.title || '',\n    location: pb.location || '',\n    company2: pb.pastExperienceCompanyName || '',\n    companyUrl2: pb.pastExperienceCompanyUrl || pb.companyUrl2 || '',\n    companyId2: '',\n    jobTitle2: pb.pastExperienceCompanyTitle || '',\n    jobDateRange2: pb.pastExperienceDate || '',\n    score: aiResult.score,\n    segment: aiResult.segment,\n    reason: aiResult.reason,\n    status: aiResult.score >= 6 ? 'Ready' : 'Low Priority',\n    added: new Date().toISOString().split('T')[0],\n    kyleSentDate: '',\n    kyleConnectDate: '',\n    hudsonSentDate: '',\n    hudsonConnectDate: '',\n    hubspotSync: '',\n    hudsonNotes: '',\n    inviteResults: '',\n    connectionDegree: pb.connectionDegree || '',\n    previousRole: pb.pastExperienceCompanyTitle ? `${pb.pastExperienceCompanyTitle} @ ${pb.pastExperienceCompanyName || ''}` : '',\n    industry: pb.industry || '',\n    summary: pb.summary || '',\n    companyLocation: pb.companyLocation || '',\n    durationInCompany: pb.durationInCompany || '',\n    pastExperienceDuration: pb.pastExperienceDuration || '',\n    sharedConnectionsCount: pb.sharedConnectionsCount || '',\n    isPremium: pb.isPremium || false,\n    isOpenLink: pb.isOpenLink || false\n  }\n}];"
+          "jsCode": "const pb = $('Loop Over Leads1').item.json;\nlet aiResult = { score: 5, segment: 'Unknown', reason: 'Could not parse AI response', hubspotIndustry: '' };\n\ntry {\n  const content = $('AI ICP Score').item.json.content?.[0]?.text || '{}';\n  const parsed = JSON.parse(content.replace(/```json?|```/g, '').trim());\n  aiResult = {\n    score: parsed.score ?? 5,\n    segment: parsed.segment || 'Unknown',\n    reason: parsed.reason || 'No reason provided',\n    hubspotIndustry: parsed.hubspotIndustry || ''\n  };\n} catch (e) {}\n\n// Output all columns - mapped from New Leads (Sales Nav) headers to Master List\nreturn [{\n  json: {\n    profileUrl: pb.defaultProfileUrl || pb.linkedInProfileUrl || '',\n    fullName: pb.fullName || `${pb.firstName || ''} ${pb.lastName || ''}`.trim(),\n    firstName: pb.firstName || '',\n    lastName: pb.lastName || '',\n    school: '',\n    schoolDegree: '',\n    company: pb.companyName || '',\n    companyUrl: pb.companyUrl || pb.regularCompanyUrl || '',\n    companyId: pb.companyId || '',\n    jobTitle: pb.title || '',\n    jobDateRange: pb.durationInRole || '',\n    hsIndustry: aiResult.hubspotIndustry,\n    headline: pb.titleDescription || pb.title || '',\n    location: pb.location || '',\n    company2: pb.pastExperienceCompanyName || '',\n    companyUrl2: pb.pastExperienceCompanyUrl || pb.companyUrl2 || '',\n    companyId2: '',\n    jobTitle2: pb.pastExperienceCompanyTitle || '',\n    jobDateRange2: pb.pastExperienceDate || '',\n    score: aiResult.score,\n    segment: aiResult.segment,\n    reason: aiResult.reason,\n    status: aiResult.score >= 6 ? 'Ready' : 'Low Priority',\n    added: new Date().toISOString().split('T')[0],\n    kyleSentDate: '',\n    kyleConnectDate: '',\n    hudsonSentDate: '',\n    hudsonConnectDate: '',\n    hubspotSync: '',\n    hudsonNotes: '',\n    inviteResults: '',\n    connectionDegree: pb.connectionDegree || '',\n    previousRole: pb.pastExperienceCompanyTitle ? `${pb.pastExperienceCompanyTitle} @ ${pb.pastExperienceCompanyName || ''}` : '',\n    industry: pb.industry || '',\n    summary: pb.summary || '',\n    companyLocation: pb.companyLocation || '',\n    durationInCompany: pb.durationInCompany || '',\n    pastExperienceDuration: pb.pastExperienceDuration || '',\n    sharedConnectionsCount: pb.sharedConnectionsCount || '',\n    isPremium: pb.isPremium || false,\n    isOpenLink: pb.isOpenLink || false\n  }\n}];"
         },
         "id": "c78dafcf-3174-4792-b843-9512bfaa472e",
         "name": "Format for Master List",
@@ -1551,7 +1555,7 @@
           "filtersUI": {
             "values": [
               {
-                "lookupColumn": "profileUrl",
+                "lookupColumn": "defaultProfileUrl",
                 "lookupValue": "={{ $json.profileUrl }}"
               }
             ]
@@ -1705,7 +1709,7 @@
       },
       {
         "parameters": {
-          "amount": "={{ Math.floor( Math.random() * 3 ) + 3}}"
+          "amount": "={{ Math.floor( Math.random() * 4 ) + 5}}"
         },
         "type": "n8n-nodes-base.wait",
         "typeVersion": 1.1,
@@ -1938,8 +1942,8 @@
       }
     },
     "authors": "Hudson Lorfing",
-    "name": "Version 6c8bc3fb",
-    "description": ""
+    "name": null,
+    "description": null
   },
   "tags": [
     {
