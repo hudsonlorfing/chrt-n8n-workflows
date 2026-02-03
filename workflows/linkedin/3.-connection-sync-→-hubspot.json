@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-01-29T17:05:53.419Z",
+  "updatedAt": "2026-02-02T20:52:58.178Z",
   "createdAt": "2025-12-19T16:28:57.739Z",
   "id": "a56vnrPo9dsg5mmf",
   "name": "3. Connection Sync → HubSpot",
@@ -761,8 +761,8 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [
-        10496,
-        2000
+        10640,
+        2016
       ],
       "webhookId": "test-from-merge"
     },
@@ -823,14 +823,14 @@
     },
     {
       "parameters": {
-        "jsCode": "// Merge connection data with Profile Scraper results (including email)\n// Handles: 1) profiles from HTTP fetch, 2) direct Phantombuster output, 3) webhook test input\n// Also handles partial testing where upstream nodes may not have run\n\n// Get original connection data from Find New Connections2 node (upstream merge)\nlet connectionData = [];\ntry {\n  connectionData = $('Find New Connections2').all().map(item => item.json);\n} catch (e) {\n  // Node not executed (partial test run) - connectionData stays empty\n  connectionData = [];\n}\n\n// Get scraper results - handle multiple input formats\nconst scraperItems = $input.all();\nlet scraperProfiles = [];\n\nscraperItems.forEach(item => {\n  const j = item.json || {};\n  \n  // Case 1: Webhook input with profiles in 'body' array\n  if (Array.isArray(j.body)) {\n    j.body.forEach(bodyItem => {\n      const profile = bodyItem.json || bodyItem;\n      if (profile.profileUrl || profile.linkedinProfileUrl) {\n        scraperProfiles.push(profile);\n      }\n    });\n  }\n  // Case 2: Direct profile with profileUrl/linkedinProfileUrl\n  else if (j.profileUrl || j.linkedinProfileUrl) {\n    scraperProfiles.push(j);\n  }\n  // Case 3: Phantombuster output with embedded profile array in 'output' field\n  else if (Array.isArray(j.output)) {\n    scraperProfiles.push(...j.output.filter(p => p.profileUrl || p.linkedinProfileUrl));\n  }\n  // Case 4: Single profile in 'output' object\n  else if (j.output && (j.output.profileUrl || j.output.linkedinProfileUrl)) {\n    scraperProfiles.push(j.output);\n  }\n});\n\n// Create a map of scraper data by normalized URL\nconst scraperMap = new Map();\nscraperProfiles.forEach(p => {\n  let url = (p.profileUrl || p.linkedinProfileUrl || '').trim().toLowerCase();\n  url = url.replace('https://www.linkedin.com', 'https://linkedin.com').replace(/\\/$/, '');\n  if (url) scraperMap.set(url, p);\n});\n\n// If no connection data from upstream (partial test), use scraper profiles as base\nif (connectionData.length === 0 && scraperProfiles.length > 0) {\n  const enrichedFromScraper = scraperProfiles.map(p => {\n    let url = (p.profileUrl || p.linkedinProfileUrl || '').trim().toLowerCase();\n    url = url.replace('https://www.linkedin.com', 'https://linkedin.com').replace(/\\/$/, '');\n    \n    return {\n      profileUrl: url,\n      linkedinProfileUrl: p.linkedinProfileUrl || p.profileUrl || '',\n      firstName: p.firstName || '',\n      lastName: p.lastName || '',\n      fullName: `${p.firstName || ''} ${p.lastName || ''}`.trim() || 'Unknown',\n      headline: p.linkedinHeadline || p.headline || '',\n      location: p.location || '',\n      email: p.professionalEmail || p.email || p.workEmail || '',\n      companyName: p.companyName || p.linkedinCompanyName || '',\n      companyWebsite: p.companyWebsite || p.linkedinCompanyWebsite || '',\n      companySize: p.linkedinCompanySize || '',\n      companyIndustry: p.companyIndustry || p.linkedinCompanyIndustry || '',\n      hsIndustry: p.hsIndustry || '',\n      companyDescription: p.linkedinCompanyDescription || '',\n      companyLinkedinUrl: p.linkedinCompanyUrl || '',\n      jobTitle: p.linkedinJobTitle || '',\n      jobDateRange: p.linkedinJobDateRange || '',\n      connectionDegree: p.connectionDegree || '',\n      _source: 'scraper_direct'\n    };\n  });\n  \n  return enrichedFromScraper.map(conn => ({ json: conn }));\n}\n\n// Normal flow: merge connection data with scraper data\nconst enrichedConnections = connectionData.map(conn => {\n  let url = (conn.profileUrl || conn.linkedinProfileUrl || conn.profileUrlNormalized || '').trim().toLowerCase();\n  url = url.replace('https://www.linkedin.com', 'https://linkedin.com').replace(/\\/$/, '');\n  \n  const scraperData = scraperMap.get(url) || {};\n  \n  return {\n    ...conn,\n    email: scraperData.professionalEmail || scraperData.email || scraperData.workEmail || '',\n    companyWebsite: scraperData.companyWebsite || scraperData.linkedinCompanyWebsite || '',\n    companySize: scraperData.linkedinCompanySize || scraperData.companySize || '',\n    companyIndustry: scraperData.companyIndustry || scraperData.linkedinCompanyIndustry || conn.industry || '',\n    hsIndustry: conn.hsIndustry || '',\n    companyDescription: scraperData.linkedinCompanyDescription || scraperData.companyDescription || '',\n    companyLinkedinUrl: scraperData.linkedinCompanyUrl || scraperData.companyLinkedinUrl || conn.companyUrl || '',\n    summary: scraperData.summary || '',\n    profileUrl: url\n  };\n});\n\nreturn enrichedConnections.map(conn => ({ json: conn }));"
+        "jsCode": "// Merge connection data with Profile Scraper results (including email)\n// Handles: 1) profiles from HTTP fetch, 2) direct Phantombuster output, 3) webhook test input\n// Also handles partial testing where upstream nodes may not have run\n\n// Get original connection data from Find New Connections2 node (upstream merge)\nlet connectionData = [];\ntry {\n  connectionData = $('Find New Connections2').all().map(item => item.json);\n} catch (e) {\n  // Node not executed (partial test run) - connectionData stays empty\n  connectionData = [];\n}\n\n// Get scraper results - handle multiple input formats\nconst scraperItems = $input.all();\nlet scraperProfiles = [];\n\nscraperItems.forEach(item => {\n  const j = item.json || {};\n  \n  // Case 1: Webhook input with profiles in 'body' array (or body.body when webhook wraps POST)\n  const bodyArray = Array.isArray(j.body) ? j.body : (j.body && Array.isArray(j.body.body) ? j.body.body : null);\n  if (bodyArray) {\n    bodyArray.forEach(bodyItem => {\n      const profile = bodyItem.json || bodyItem;\n      if (profile.profileUrl || profile.linkedinProfileUrl) {\n        scraperProfiles.push(profile);\n      }\n    });\n  }\n  // Case 2: Direct profile with profileUrl/linkedinProfileUrl\n  else if (j.profileUrl || j.linkedinProfileUrl) {\n    scraperProfiles.push(j);\n  }\n  // Case 3: Phantombuster output with embedded profile array in 'output' field\n  else if (Array.isArray(j.output)) {\n    scraperProfiles.push(...j.output.filter(p => p.profileUrl || p.linkedinProfileUrl));\n  }\n  // Case 4: Single profile in 'output' object\n  else if (j.output && (j.output.profileUrl || j.output.linkedinProfileUrl)) {\n    scraperProfiles.push(j.output);\n  }\n});\n\n// Create a map of scraper data by normalized URL\nconst scraperMap = new Map();\nscraperProfiles.forEach(p => {\n  let url = (p.profileUrl || p.linkedinProfileUrl || '').trim().toLowerCase();\n  url = url.replace('https://www.linkedin.com', 'https://linkedin.com').replace(/\\/$/, '');\n  if (url) scraperMap.set(url, p);\n});\n\n// If no connection data from upstream (partial test), use scraper profiles as base\nif (connectionData.length === 0 && scraperProfiles.length > 0) {\n  const enrichedFromScraper = scraperProfiles.map(p => {\n    let url = (p.profileUrl || p.linkedinProfileUrl || '').trim().toLowerCase();\n    url = url.replace('https://www.linkedin.com', 'https://linkedin.com').replace(/\\/$/, '');\n    \n    return {\n      profileUrl: url,\n      linkedinProfileUrl: p.linkedinProfileUrl || p.profileUrl || '',\n      firstName: p.firstName || '',\n      lastName: p.lastName || '',\n      fullName: `${p.firstName || ''} ${p.lastName || ''}`.trim() || 'Unknown',\n      headline: p.linkedinHeadline || p.headline || '',\n      location: p.location || '',\n      email: p.professionalEmail || p.email || p.workEmail || '',\n      companyName: p.companyName || p.linkedinCompanyName || '',\n      companyWebsite: p.companyWebsite || p.linkedinCompanyWebsite || '',\n      companySize: p.linkedinCompanySize || '',\n      companyIndustry: p.companyIndustry || p.linkedinCompanyIndustry || '',\n      hsIndustry: p.hsIndustry || '',\n      companyDescription: p.linkedinCompanyDescription || '',\n      companyLinkedinUrl: p.linkedinCompanyUrl || '',\n      jobTitle: p.linkedinJobTitle || '',\n      jobDateRange: p.linkedinJobDateRange || '',\n      connectionDegree: p.connectionDegree || '',\n      _source: 'scraper_direct'\n    };\n  });\n  \n  return enrichedFromScraper.map(conn => ({ json: conn }));\n}\n\n// Normal flow: merge connection data with scraper data\nconst enrichedConnections = connectionData.map(conn => {\n  let url = (conn.profileUrl || conn.linkedinProfileUrl || conn.profileUrlNormalized || '').trim().toLowerCase();\n  url = url.replace('https://www.linkedin.com', 'https://linkedin.com').replace(/\\/$/, '');\n  \n  const scraperData = scraperMap.get(url) || {};\n  \n  return {\n    ...conn,\n    email: scraperData.professionalEmail || scraperData.email || scraperData.workEmail || '',\n    companyWebsite: scraperData.companyWebsite || scraperData.linkedinCompanyWebsite || '',\n    companySize: scraperData.linkedinCompanySize || scraperData.companySize || '',\n    companyIndustry: scraperData.companyIndustry || scraperData.linkedinCompanyIndustry || conn.industry || '',\n    hsIndustry: conn.hsIndustry || '',\n    companyDescription: scraperData.linkedinCompanyDescription || scraperData.companyDescription || '',\n    companyLinkedinUrl: scraperData.linkedinCompanyUrl || scraperData.companyLinkedinUrl || conn.companyUrl || '',\n    summary: scraperData.summary || '',\n    profileUrl: url\n  };\n});\n\nreturn enrichedConnections.map(conn => ({ json: conn }));"
       },
       "id": "merge-connection-email-data",
       "name": "Merge Connection + Email Data",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        10704,
+        10800,
         1616
       ]
     },
@@ -1670,7 +1670,8 @@
     },
     {
       "parameters": {
-        "mode": "passThrough"
+        "mode": "chooseBranch",
+        "useDataOfInput": "={{ $('Launch Profile Scraper with Email').isExecuted ? 2 : 1}}"
       },
       "id": "merge-pb-launch-result",
       "name": "Merge PB Launch Result",
@@ -1696,8 +1697,8 @@
     },
     {
       "parameters": {
-        "mode": "combine",
-        "options": {}
+        "mode": "chooseBranch",
+        "useDataOfInput": 2
       },
       "id": "wait-for-sheet-ready",
       "name": "Wait for Sheet Ready",
@@ -2488,8 +2489,8 @@
     "templateCredsSetupCompleted": true
   },
   "pinData": {},
-  "versionId": "e514e430-064b-45e0-bee9-bb2cc3b491a6",
-  "activeVersionId": "e514e430-064b-45e0-bee9-bb2cc3b491a6",
+  "versionId": "e6931070-ceea-42d1-bed2-b098dea50591",
+  "activeVersionId": "e6931070-ceea-42d1-bed2-b098dea50591",
   "triggerCount": 3,
   "shared": [
     {
@@ -2501,9 +2502,9 @@
     }
   ],
   "activeVersion": {
-    "updatedAt": "2026-01-29T17:06:04.000Z",
-    "createdAt": "2026-01-29T17:05:53.422Z",
-    "versionId": "e514e430-064b-45e0-bee9-bb2cc3b491a6",
+    "updatedAt": "2026-02-02T20:53:16.000Z",
+    "createdAt": "2026-02-02T20:52:58.179Z",
+    "versionId": "e6931070-ceea-42d1-bed2-b098dea50591",
     "workflowId": "a56vnrPo9dsg5mmf",
     "nodes": [
       {
@@ -3261,8 +3262,8 @@
         "type": "n8n-nodes-base.webhook",
         "typeVersion": 2,
         "position": [
-          10496,
-          2000
+          10640,
+          2016
         ],
         "webhookId": "test-from-merge"
       },
@@ -3323,14 +3324,14 @@
       },
       {
         "parameters": {
-          "jsCode": "// Merge connection data with Profile Scraper results (including email)\n// Handles: 1) profiles from HTTP fetch, 2) direct Phantombuster output, 3) webhook test input\n// Also handles partial testing where upstream nodes may not have run\n\n// Get original connection data from Find New Connections2 node (upstream merge)\nlet connectionData = [];\ntry {\n  connectionData = $('Find New Connections2').all().map(item => item.json);\n} catch (e) {\n  // Node not executed (partial test run) - connectionData stays empty\n  connectionData = [];\n}\n\n// Get scraper results - handle multiple input formats\nconst scraperItems = $input.all();\nlet scraperProfiles = [];\n\nscraperItems.forEach(item => {\n  const j = item.json || {};\n  \n  // Case 1: Webhook input with profiles in 'body' array\n  if (Array.isArray(j.body)) {\n    j.body.forEach(bodyItem => {\n      const profile = bodyItem.json || bodyItem;\n      if (profile.profileUrl || profile.linkedinProfileUrl) {\n        scraperProfiles.push(profile);\n      }\n    });\n  }\n  // Case 2: Direct profile with profileUrl/linkedinProfileUrl\n  else if (j.profileUrl || j.linkedinProfileUrl) {\n    scraperProfiles.push(j);\n  }\n  // Case 3: Phantombuster output with embedded profile array in 'output' field\n  else if (Array.isArray(j.output)) {\n    scraperProfiles.push(...j.output.filter(p => p.profileUrl || p.linkedinProfileUrl));\n  }\n  // Case 4: Single profile in 'output' object\n  else if (j.output && (j.output.profileUrl || j.output.linkedinProfileUrl)) {\n    scraperProfiles.push(j.output);\n  }\n});\n\n// Create a map of scraper data by normalized URL\nconst scraperMap = new Map();\nscraperProfiles.forEach(p => {\n  let url = (p.profileUrl || p.linkedinProfileUrl || '').trim().toLowerCase();\n  url = url.replace('https://www.linkedin.com', 'https://linkedin.com').replace(/\\/$/, '');\n  if (url) scraperMap.set(url, p);\n});\n\n// If no connection data from upstream (partial test), use scraper profiles as base\nif (connectionData.length === 0 && scraperProfiles.length > 0) {\n  const enrichedFromScraper = scraperProfiles.map(p => {\n    let url = (p.profileUrl || p.linkedinProfileUrl || '').trim().toLowerCase();\n    url = url.replace('https://www.linkedin.com', 'https://linkedin.com').replace(/\\/$/, '');\n    \n    return {\n      profileUrl: url,\n      linkedinProfileUrl: p.linkedinProfileUrl || p.profileUrl || '',\n      firstName: p.firstName || '',\n      lastName: p.lastName || '',\n      fullName: `${p.firstName || ''} ${p.lastName || ''}`.trim() || 'Unknown',\n      headline: p.linkedinHeadline || p.headline || '',\n      location: p.location || '',\n      email: p.professionalEmail || p.email || p.workEmail || '',\n      companyName: p.companyName || p.linkedinCompanyName || '',\n      companyWebsite: p.companyWebsite || p.linkedinCompanyWebsite || '',\n      companySize: p.linkedinCompanySize || '',\n      companyIndustry: p.companyIndustry || p.linkedinCompanyIndustry || '',\n      hsIndustry: p.hsIndustry || '',\n      companyDescription: p.linkedinCompanyDescription || '',\n      companyLinkedinUrl: p.linkedinCompanyUrl || '',\n      jobTitle: p.linkedinJobTitle || '',\n      jobDateRange: p.linkedinJobDateRange || '',\n      connectionDegree: p.connectionDegree || '',\n      _source: 'scraper_direct'\n    };\n  });\n  \n  return enrichedFromScraper.map(conn => ({ json: conn }));\n}\n\n// Normal flow: merge connection data with scraper data\nconst enrichedConnections = connectionData.map(conn => {\n  let url = (conn.profileUrl || conn.linkedinProfileUrl || conn.profileUrlNormalized || '').trim().toLowerCase();\n  url = url.replace('https://www.linkedin.com', 'https://linkedin.com').replace(/\\/$/, '');\n  \n  const scraperData = scraperMap.get(url) || {};\n  \n  return {\n    ...conn,\n    email: scraperData.professionalEmail || scraperData.email || scraperData.workEmail || '',\n    companyWebsite: scraperData.companyWebsite || scraperData.linkedinCompanyWebsite || '',\n    companySize: scraperData.linkedinCompanySize || scraperData.companySize || '',\n    companyIndustry: scraperData.companyIndustry || scraperData.linkedinCompanyIndustry || conn.industry || '',\n    hsIndustry: conn.hsIndustry || '',\n    companyDescription: scraperData.linkedinCompanyDescription || scraperData.companyDescription || '',\n    companyLinkedinUrl: scraperData.linkedinCompanyUrl || scraperData.companyLinkedinUrl || conn.companyUrl || '',\n    summary: scraperData.summary || '',\n    profileUrl: url\n  };\n});\n\nreturn enrichedConnections.map(conn => ({ json: conn }));"
+          "jsCode": "// Merge connection data with Profile Scraper results (including email)\n// Handles: 1) profiles from HTTP fetch, 2) direct Phantombuster output, 3) webhook test input\n// Also handles partial testing where upstream nodes may not have run\n\n// Get original connection data from Find New Connections2 node (upstream merge)\nlet connectionData = [];\ntry {\n  connectionData = $('Find New Connections2').all().map(item => item.json);\n} catch (e) {\n  // Node not executed (partial test run) - connectionData stays empty\n  connectionData = [];\n}\n\n// Get scraper results - handle multiple input formats\nconst scraperItems = $input.all();\nlet scraperProfiles = [];\n\nscraperItems.forEach(item => {\n  const j = item.json || {};\n  \n  // Case 1: Webhook input with profiles in 'body' array (or body.body when webhook wraps POST)\n  const bodyArray = Array.isArray(j.body) ? j.body : (j.body && Array.isArray(j.body.body) ? j.body.body : null);\n  if (bodyArray) {\n    bodyArray.forEach(bodyItem => {\n      const profile = bodyItem.json || bodyItem;\n      if (profile.profileUrl || profile.linkedinProfileUrl) {\n        scraperProfiles.push(profile);\n      }\n    });\n  }\n  // Case 2: Direct profile with profileUrl/linkedinProfileUrl\n  else if (j.profileUrl || j.linkedinProfileUrl) {\n    scraperProfiles.push(j);\n  }\n  // Case 3: Phantombuster output with embedded profile array in 'output' field\n  else if (Array.isArray(j.output)) {\n    scraperProfiles.push(...j.output.filter(p => p.profileUrl || p.linkedinProfileUrl));\n  }\n  // Case 4: Single profile in 'output' object\n  else if (j.output && (j.output.profileUrl || j.output.linkedinProfileUrl)) {\n    scraperProfiles.push(j.output);\n  }\n});\n\n// Create a map of scraper data by normalized URL\nconst scraperMap = new Map();\nscraperProfiles.forEach(p => {\n  let url = (p.profileUrl || p.linkedinProfileUrl || '').trim().toLowerCase();\n  url = url.replace('https://www.linkedin.com', 'https://linkedin.com').replace(/\\/$/, '');\n  if (url) scraperMap.set(url, p);\n});\n\n// If no connection data from upstream (partial test), use scraper profiles as base\nif (connectionData.length === 0 && scraperProfiles.length > 0) {\n  const enrichedFromScraper = scraperProfiles.map(p => {\n    let url = (p.profileUrl || p.linkedinProfileUrl || '').trim().toLowerCase();\n    url = url.replace('https://www.linkedin.com', 'https://linkedin.com').replace(/\\/$/, '');\n    \n    return {\n      profileUrl: url,\n      linkedinProfileUrl: p.linkedinProfileUrl || p.profileUrl || '',\n      firstName: p.firstName || '',\n      lastName: p.lastName || '',\n      fullName: `${p.firstName || ''} ${p.lastName || ''}`.trim() || 'Unknown',\n      headline: p.linkedinHeadline || p.headline || '',\n      location: p.location || '',\n      email: p.professionalEmail || p.email || p.workEmail || '',\n      companyName: p.companyName || p.linkedinCompanyName || '',\n      companyWebsite: p.companyWebsite || p.linkedinCompanyWebsite || '',\n      companySize: p.linkedinCompanySize || '',\n      companyIndustry: p.companyIndustry || p.linkedinCompanyIndustry || '',\n      hsIndustry: p.hsIndustry || '',\n      companyDescription: p.linkedinCompanyDescription || '',\n      companyLinkedinUrl: p.linkedinCompanyUrl || '',\n      jobTitle: p.linkedinJobTitle || '',\n      jobDateRange: p.linkedinJobDateRange || '',\n      connectionDegree: p.connectionDegree || '',\n      _source: 'scraper_direct'\n    };\n  });\n  \n  return enrichedFromScraper.map(conn => ({ json: conn }));\n}\n\n// Normal flow: merge connection data with scraper data\nconst enrichedConnections = connectionData.map(conn => {\n  let url = (conn.profileUrl || conn.linkedinProfileUrl || conn.profileUrlNormalized || '').trim().toLowerCase();\n  url = url.replace('https://www.linkedin.com', 'https://linkedin.com').replace(/\\/$/, '');\n  \n  const scraperData = scraperMap.get(url) || {};\n  \n  return {\n    ...conn,\n    email: scraperData.professionalEmail || scraperData.email || scraperData.workEmail || '',\n    companyWebsite: scraperData.companyWebsite || scraperData.linkedinCompanyWebsite || '',\n    companySize: scraperData.linkedinCompanySize || scraperData.companySize || '',\n    companyIndustry: scraperData.companyIndustry || scraperData.linkedinCompanyIndustry || conn.industry || '',\n    hsIndustry: conn.hsIndustry || '',\n    companyDescription: scraperData.linkedinCompanyDescription || scraperData.companyDescription || '',\n    companyLinkedinUrl: scraperData.linkedinCompanyUrl || scraperData.companyLinkedinUrl || conn.companyUrl || '',\n    summary: scraperData.summary || '',\n    profileUrl: url\n  };\n});\n\nreturn enrichedConnections.map(conn => ({ json: conn }));"
         },
         "id": "merge-connection-email-data",
         "name": "Merge Connection + Email Data",
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          10704,
+          10800,
           1616
         ]
       },
@@ -4170,7 +4171,8 @@
       },
       {
         "parameters": {
-          "mode": "passThrough"
+          "mode": "chooseBranch",
+          "useDataOfInput": "={{ $('Launch Profile Scraper with Email').isExecuted ? 2 : 1}}"
         },
         "id": "merge-pb-launch-result",
         "name": "Merge PB Launch Result",
@@ -4196,8 +4198,8 @@
       },
       {
         "parameters": {
-          "mode": "combine",
-          "options": {}
+          "mode": "chooseBranch",
+          "useDataOfInput": 2
         },
         "id": "wait-for-sheet-ready",
         "name": "Wait for Sheet Ready",
@@ -4974,9 +4976,9 @@
       }
     },
     "authors": "Hudson Lorfing",
-    "name": "Version e514e430",
+    "name": "Version e6931070",
     "description": "",
-    "autosaved": false
+    "autosaved": true
   },
   "tags": [
     {
