@@ -1,0 +1,1708 @@
+{
+  "updatedAt": "2026-02-03T00:23:21.783Z",
+  "createdAt": "2026-02-02T21:59:34.728Z",
+  "id": "f49o0W3pVK51PX87",
+  "name": "4. Lead Pipeline Monitor",
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 6 * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Daily 6am",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -208,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Dashboard"
+        },
+        "options": {}
+      },
+      "id": "read-dashboard",
+      "name": "Read Dashboard Metrics",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        32,
+        400
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "hf9VoWnqYNXhUZsn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract Dashboard metrics\nconst data = $input.first().json;\n\n// B5 = Pre-processed count, D4 = Potential Connections\n// Google Sheets returns values by column letter\nconst preProcessed = parseInt(data['Pre-Processed'] || data[Object.keys(data)[0]] || 0);\nconst potentialConnections = parseInt(data['Potential Connections'] || data[Object.keys(data)[2]] || 0);\n\nreturn [{\n  json: {\n    preProcessed,\n    potentialConnections,\n    needsIngestion: potentialConnections < 240,\n    needsScraping: preProcessed < 1000,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "parse-metrics",
+      "name": "Parse Dashboard Metrics",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N8N_WEBHOOK_URL || 'https://chrt.app.n8n.cloud' }}/webhook/lead-ingestion",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ batchSize: 1000, source: 'pipeline-monitor' }) }}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "trigger-ingestion",
+      "name": "Trigger Lead Ingestion",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        912,
+        304
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "People to crawl"
+        },
+        "options": {}
+      },
+      "id": "read-people-to-crawl",
+      "name": "Read People to Crawl",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1152,
+        512
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "hf9VoWnqYNXhUZsn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Analyze People to Crawl data\n// Columns: A=Profile Type, B=Name, C=Search Link, D=Last Crawl Date\nconst allRows = $input.all();\n\n// Filter rows with a Search Link (Column C)\nconst rowsWithLinks = allRows.filter(item => {\n  const link = item.json['Search Link'] || item.json['C'] || '';\n  return link && link.trim().length > 0;\n});\n\n// Separate uncrawled (no date in D) from crawled\nconst uncrawled = [];\nconst crawled = [];\n\nrowsWithLinks.forEach((item, index) => {\n  const lastCrawl = item.json['Last Crawl Date'] || item.json['D'] || '';\n  const searchLink = item.json['Search Link'] || item.json['C'] || '';\n  const name = item.json['Name'] || item.json['B'] || '';\n  const rowNumber = item.json.row_number || index + 2; // +2 for header row\n  \n  const rowData = {\n    rowNumber,\n    name,\n    searchLink: searchLink.trim(),\n    lastCrawlDate: lastCrawl ? lastCrawl.trim() : null\n  };\n  \n  if (!lastCrawl || lastCrawl.trim() === '') {\n    uncrawled.push(rowData);\n  } else {\n    crawled.push(rowData);\n  }\n});\n\n// Sort crawled by date (oldest first) for fallback\ncrawled.sort((a, b) => {\n  const dateA = new Date(a.lastCrawlDate || '2099-12-31');\n  const dateB = new Date(b.lastCrawlDate || '2099-12-31');\n  return dateA - dateB;\n});\n\nconst uncrawledCount = uncrawled.length;\nlet selectedURL = null;\nlet selectedRow = null;\nlet alertLevel = 'none'; // none, warning, critical, fallback\n\nif (uncrawledCount > 2) {\n  // Normal operation - use first uncrawled\n  selectedURL = uncrawled[0].searchLink;\n  selectedRow = uncrawled[0].rowNumber;\n  alertLevel = 'none';\n} else if (uncrawledCount > 0) {\n  // 1-2 URLs left - warning\n  selectedURL = uncrawled[0].searchLink;\n  selectedRow = uncrawled[0].rowNumber;\n  alertLevel = 'warning';\n} else if (crawled.length > 0) {\n  // No uncrawled - fallback to oldest crawled\n  selectedURL = crawled[0].searchLink;\n  selectedRow = crawled[0].rowNumber;\n  alertLevel = 'fallback';\n} else {\n  // No URLs at all\n  alertLevel = 'critical';\n}\n\nreturn [{\n  json: {\n    uncrawledCount,\n    crawledCount: crawled.length,\n    totalURLs: rowsWithLinks.length,\n    selectedURL,\n    selectedRow,\n    alertLevel,\n    selectedName: selectedURL ? (uncrawledCount > 0 ? uncrawled[0].name : crawled[0]?.name) : null,\n    oldestCrawledDate: crawled[0]?.lastCrawlDate || null\n  }\n}];"
+      },
+      "id": "analyze-urls",
+      "name": "Analyze URLs & Select Next",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1376,
+        512
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "check-warning",
+              "leftValue": "={{ $json.alertLevel }}",
+              "rightValue": "warning",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-warning-alert",
+      "name": "Warning Alert?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1600,
+        400
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "send-warning-email",
+      "name": "Send Warning Email",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1808,
+        304
+      ],
+      "notesInFlow": true,
+      "notes": "TODO: Configure SMTP - Low URL Alert"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "check-fallback",
+              "leftValue": "={{ $json.alertLevel }}",
+              "rightValue": "fallback",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-fallback-alert",
+      "name": "Fallback Mode?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1600,
+        608
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "send-fallback-email",
+      "name": "Send Fallback Email",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1808,
+        512
+      ],
+      "notesInFlow": true,
+      "notes": "TODO: Configure SMTP - Fallback Mode Alert"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "check-critical",
+              "leftValue": "={{ $json.alertLevel }}",
+              "rightValue": "critical",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-critical-alert",
+      "name": "Critical - No URLs?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1600,
+        800
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "send-critical-email",
+      "name": "Send Critical Email",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1808,
+        800
+      ],
+      "notesInFlow": true,
+      "notes": "TODO: Configure SMTP - Critical Alert"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "has-url",
+              "leftValue": "={{ $json.selectedURL }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-has-url",
+      "name": "Has URL to Process?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2032,
+        512
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.phantombuster.com/api/v2/agents/launch",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  id: '4606663815675720',\n  manualLaunch: true,\n  bonusArgument: {\n    salesNavigatorSearchUrl: $json.selectedURL,\n    numberOfResultsPerSearch: 2500,\n    removeDuplicateProfiles: true\n  }\n}) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "launch-phantom",
+      "name": "Launch Search Export Phantom",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2496,
+        400
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "KWeabljbYSzoLpjI",
+          "name": "Phantom Header Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ 'https://api.phantombuster.com/api/v2/agents/fetch-output?id=4606663815675720&containerId=' + $('Launch Search Export Phantom').item.json.containerId }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "fetch-phantom-status",
+      "name": "Check Phantom Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2880,
+        288
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "KWeabljbYSzoLpjI",
+          "name": "Phantom Header Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "phantom-still-running",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "running",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-phantom-running",
+      "name": "Phantom Still Running?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3056,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "unit": "minutes"
+      },
+      "id": "wait-more-for-phantom",
+      "name": "Wait 5 More Min",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        3680,
+        272
+      ],
+      "webhookId": "phantom-retry-wait"
+    },
+    {
+      "parameters": {
+        "operation": "getOutput",
+        "agentId": "4606663815675720",
+        "additionalFields": {}
+      },
+      "id": "get-phantom-output",
+      "name": "Get Phantom Output",
+      "type": "n8n-nodes-base.phantombuster",
+      "typeVersion": 1,
+      "position": [
+        3216,
+        512
+      ],
+      "credentials": {
+        "phantombusterApi": {
+          "id": "UYQpQC8SBIqIkifM",
+          "name": "Phantombuster account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.jsonUrl }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "fetch-phantom-json",
+      "name": "Fetch Phantom JSON",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3968,
+        416
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse PhantomBuster JSON fetched from S3 URL\n// n8n HTTP Request auto-splits JSON arrays into multiple items\n// Use $input.all() to collect ALL profile items\nconst allItems = $input.all();\n\n// Debug: Check what we received\nconst debugInfo = {\n  itemCount: allItems.length,\n  firstItemKeys: allItems.length > 0 ? Object.keys(allItems[0].json || {}) : [],\n  hasLinkedinUrl: allItems.length > 0 ? !!(allItems[0].json?.linkedinProfileUrl || allItems[0].json?.profileUrl) : false\n};\n\n// Get selectedName from Analyze URLs & Select Next node\nlet selectedRow, selectedURL, selectedName;\ntry {\n  const analyzeData = $('Analyze URLs & Select Next').first().json;\n  selectedRow = analyzeData.selectedRow;\n  selectedURL = analyzeData.selectedURL;\n  selectedName = analyzeData.selectedName;\n} catch (e) {\n  // Manual trigger - these won't be available\n  selectedRow = null;\n  selectedURL = null;\n  selectedName = null;\n}\n\n// Each item is already a profile - filter and normalize\nconst profiles = allItems\n  .filter(item => {\n    const j = item.json || {};\n    return j.linkedinProfileUrl || j.profileUrl;\n  })\n  .map(item => {\n    const p = item.json;\n    // Normalize URL - remove www and trailing slash for consistency\n    let url = (p.linkedinProfileUrl || p.profileUrl || '').trim().toLowerCase();\n    url = url.replace('https://www.linkedin.com', 'https://linkedin.com').replace(/\\/$/, '');\n    \n    // Return ALL fields from PhantomBuster, plus normalized profileUrl\n    return {\n      ...p,\n      profileUrl: url\n    };\n  });\n\nreturn [{\n  json: {\n    profiles,\n    profileCount: profiles.length,\n    selectedRow,\n    selectedURL,\n    selectedName,\n    phantomStatus: 'finished',\n    _debug: debugInfo\n  }\n}];"
+      },
+      "id": "parse-phantom-output",
+      "name": "Parse Phantom Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4208,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Master List"
+        },
+        "options": {}
+      },
+      "id": "read-master-list",
+      "name": "Read Master List",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        4384,
+        272
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "hf9VoWnqYNXhUZsn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "New Leads"
+        },
+        "options": {}
+      },
+      "id": "read-new-leads",
+      "name": "Read New Leads",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        4416,
+        544
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "hf9VoWnqYNXhUZsn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Deduplicate phantom results against Master List and New Leads\n// Data comes from Merge node (append mode) which combines both sheets\nconst phantomData = $('Parse Phantom Output').first().json;\nconst mergedItems = $input.all();\n\n// Helper function to normalize LinkedIn URLs for comparison\nfunction normalizeUrl(url) {\n  if (!url) return '';\n  return url.trim().toLowerCase()\n    .replace('https://www.linkedin.com', 'https://linkedin.com')\n    .replace(/\\/$/, ''); // remove trailing slash\n}\n\n// Create a single Set for all existing URLs (from both Master and New Leads)\nconst existingUrls = new Set();\n\nmergedItems.forEach(item => {\n  const url = normalizeUrl(item.json.profileUrl);\n  if (url) existingUrls.add(url);\n});\n\n// Filter phantom profiles - keep only those not already in Master or New Leads\nconst uniqueProfiles = phantomData.profiles.filter(profile => {\n  const url = normalizeUrl(profile.profileUrl);\n  return url && !existingUrls.has(url);\n});\n\nreturn [{\n  json: {\n    uniqueProfiles,\n    uniqueCount: uniqueProfiles.length,\n    totalScraped: phantomData.profileCount,\n    duplicatesRemoved: phantomData.profileCount - uniqueProfiles.length,\n    selectedRow: phantomData.selectedRow,\n    selectedURL: phantomData.selectedURL,\n    selectedName: phantomData.selectedName\n  }\n}];"
+      },
+      "id": "dedupe-profiles",
+      "name": "Dedupe Against Master + New Leads",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4784,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "has-unique",
+              "leftValue": "={{ $input.all().length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-unique-count",
+      "name": "Has Unique Profiles?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        4976,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Convert unique profiles to array of items for Google Sheets append\n// Consolidated columns for Sales Navigator Search Export\nconst data = $input.first().json;\nconst profiles = data.uniqueProfiles;\n\nreturn profiles.map(p => ({\n  json: {\n    profileUrl: p.profileUrl || p.linkedInProfileUrl || '',\n    linkedInProfileUrl: p.linkedInProfileUrl || '',\n    fullName: p.fullName || p.name || '',\n    firstName: p.firstName || '',\n    lastName: p.lastName || '',\n    title: p.title || p.headline || p.jobTitle || '',\n    titleDescription: p.titleDescription || '',\n    summary: p.summary || '',\n    location: p.location || '',\n    companyName: p.companyName || p.company || '',\n    companyUrl: p.companyUrl || '',\n    companyId: p.companyId || '',\n    regularCompanyUrl: p.regularCompanyUrl || '',\n    companyLocation: p.companyLocation || '',\n    industry: p.industry || '',\n    durationInRole: p.durationInRole || p.jobDateRange || '',\n    durationInCompany: p.durationInCompany || '',\n    pastExperienceCompanyName: p.pastExperienceCompanyName || p.company2 || '',\n    pastExperienceCompanyUrl: p.pastExperienceCompanyUrl || p.companyUrl2 || '',\n    pastExperienceCompanyTitle: p.pastExperienceCompanyTitle || p.jobTitle2 || '',\n    pastExperienceDate: p.pastExperienceDate || p.jobDateRange2 || '',\n    pastExperienceDuration: p.pastExperienceDuration || '',\n    connectionDegree: p.connectionDegree || '',\n    sharedConnectionsCount: p.sharedConnectionsCount || '',\n    profileImageUrl: p.profileImageUrl || '',\n    vmid: p.vmid || '',\n    isPremium: p.isPremium || false,\n    isOpenLink: p.isOpenLink || false,\n    defaultProfileUrl: p.defaultProfileUrl || '',\n    timestamp: p.timestamp || new Date().toISOString(),\n    query: p.query || '',\n    searchAccountProfileId: p.searchAccountProfileId || ''\n  }\n}));"
+      },
+      "id": "prepare-for-append",
+      "name": "Prepare for Append",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5232,
+        368
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "New Leads"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {}
+        },
+        "options": {}
+      },
+      "id": "append-to-new-leads",
+      "name": "Append to New Leads",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        5488,
+        352
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "hf9VoWnqYNXhUZsn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "People to crawl"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Last Crawl Date": "={{ $json['Last Crawl Date'] }}",
+            "Search Link": "={{ $json.searchUrl }}"
+          },
+          "matchingColumns": [
+            "Search Link"
+          ],
+          "schema": [
+            {
+              "id": "Profile Type",
+              "displayName": "Profile Type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Name",
+              "displayName": "Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Search Link",
+              "displayName": "Search Link",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Last Crawl Date",
+              "displayName": "Last Crawl Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LinkedIn URL",
+              "displayName": "LinkedIn URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "update-crawl-date",
+      "name": "Update Last Crawl Date",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        5712,
+        448
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "hf9VoWnqYNXhUZsn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare row data for updating Last Crawl Date using Name as match field\n// Get selectedName from multiple sources - try each in order\nlet searchUrl = '';\n\n// Try getting from Parse Phantom Output first\ntry {\n  searchUrl = $('Has URL to Process?').first().json.selectedURL || '';\n} catch (e) {}\n\n// Only return data if we have a valid name to match on\nif (!searchUrl) {\n  return [{ json: { _skip: true, reason: 'No selectedName available - skipping crawl date update' } }];\n}\n\nreturn [{\n  json: {\n    'searchUrl': searchUrl,\n    'Last Crawl Date': new Date().toISOString().split('T')[0]\n  }\n}];"
+      },
+      "id": "prepare-crawl-update",
+      "name": "Prepare Crawl Date Update",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5264,
+        624
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Dashboard"
+        },
+        "options": {}
+      },
+      "id": "recheck-dashboard",
+      "name": "Re-check Dashboard B5",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        5920,
+        448
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "hf9VoWnqYNXhUZsn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract Dashboard metrics\nconst data = $input.first().json;\n\n// B5 = Pre-processed count, D4 = Potential Connections\n// Google Sheets returns values by column letter\nconst preProcessed = parseInt(data['Pre-Processed'] || data[Object.keys(data)[0]] || 0);\n\nreturn [{\n  json: {\n    preProcessed,\n    stillNeedsScraping: preProcessed < 1000,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "check-still-needed",
+      "name": "Still Need More?",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6208,
+        448
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "still-needed",
+              "leftValue": "={{ $json.stillNeedsScraping }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-still-needed",
+      "name": "B5 Still < 500?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        6432,
+        448
+      ]
+    },
+    {
+      "parameters": {
+        "amount": "={{ 24 * 60 + Math.floor(Math.random() * 480) }}",
+        "unit": "minutes"
+      },
+      "id": "wait-24h-plus",
+      "name": "Wait 24h + random 0-8h",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        6352,
+        48
+      ],
+      "webhookId": "retry-wait"
+    },
+    {
+      "parameters": {},
+      "id": "done",
+      "name": "Done",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        6592,
+        640
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "no-url-done",
+      "name": "No URL - Done",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2464,
+        608
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "pipeline-monitor",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Manual Trigger Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -208,
+        608
+      ],
+      "webhookId": "pipeline-monitor-webhook"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, message: 'Pipeline monitor completed', timestamp: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "webhook-response",
+      "name": "Webhook Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        6816,
+        640
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "baa72fbb-d099-4029-ba26-7b3608559d78",
+      "name": "When clicking ‘Execute workflow’",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        3008,
+        624
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 30,
+        "unit": "minutes"
+      },
+      "id": "wait-for-phantom",
+      "name": "Wait 30 min for Phantom",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2656,
+        288
+      ],
+      "webhookId": "phantom-wait"
+    },
+    {
+      "parameters": {},
+      "id": "06d13644-87b1-414b-8789-6010081f7c6b",
+      "name": "Merge",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        4608,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "check-d5",
+              "leftValue": "={{ $json.needsScraping }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-potential-connections",
+      "name": "preProcessed < 1000",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        672,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "check-d5",
+              "leftValue": "={{ $json.needsIngestion }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "ea78318e-8019-4a34-a0b9-8844f080dc65",
+      "name": "Available Leads < 240",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        528,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "92742f24-c332-4387-b639-e32ad9f6af5e",
+              "leftValue": "={{ $json.jsonUrl }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        3424,
+        512
+      ],
+      "id": "f6e12ad5-7413-455a-8909-4772c5d58d6e",
+      "name": "If URL"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "622fe891-95c2-47a2-9622-6cd60be41792",
+              "leftValue": "=  {{ $json.error }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notExists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        3632,
+        608
+      ],
+      "id": "7915f4cb-2038-451a-a88e-9ed8709dfc28",
+      "name": "If no error"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check if error message indicates invalid cookie/session (for Slack alert)\nconst item = $input.first().json;\nconst err = (item.error || item.message || '').toString();\nconst cookiePatterns = [/invalid.*cookie/i, /cookie.*invalid/i, /session.*expired/i, /disconnected.*linkedin/i, /no valid credentials/i, /invalid credentials/i];\nconst isCookieError = cookiePatterns.some(p => p.test(err));\nreturn [{ json: { ...item, isCookieError, errorMessage: err.substring(0, 500) } }];"
+      },
+      "id": "parse-error-for-cookie",
+      "name": "Parse error for cookie",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3760,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cookie-err",
+              "leftValue": "={{ $json.isCookieError }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "cookie-error-if-pipeline",
+      "name": "Cookie error?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3904,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "C0A6ES56MU2"
+        },
+        "text": "={{ '🍪 *LinkedIn Cookie/Session Error - Update in Doppler*\\n\\n*Workflow:* Lead Pipeline Monitor\\n*Error:* ' + ($json.errorMessage || '').substring(0, 300) + '\\n\\n⚠️ Update in Doppler: LINKEDIN_KYLE_SESSION_COOKIE or LINKEDIN_HUDSON_SESSION_COOKIE (Connection Sync pulls cookies from Doppler directly).' }}",
+        "otherOptions": {}
+      },
+      "id": "slack-cookie-alert-pipeline",
+      "name": "Slack: Cookie Alert",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        4120,
+        616
+      ],
+      "credentials": {
+        "slackApi": {
+          "id": "wkLpZSqhXl2iesnC",
+          "name": "Chrt Slack App"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Daily 6am": {
+      "main": [
+        [
+          {
+            "node": "Read Dashboard Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger Webhook": {
+      "main": [
+        [
+          {
+            "node": "Read Dashboard Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Dashboard Metrics": {
+      "main": [
+        [
+          {
+            "node": "Parse Dashboard Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Dashboard Metrics": {
+      "main": [
+        [
+          {
+            "node": "preProcessed < 1000",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Available Leads < 240",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trigger Lead Ingestion": {
+      "main": [
+        [
+          {
+            "node": "Read People to Crawl",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read People to Crawl": {
+      "main": [
+        [
+          {
+            "node": "Analyze URLs & Select Next",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze URLs & Select Next": {
+      "main": [
+        [
+          {
+            "node": "Warning Alert?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fallback Mode?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Critical - No URLs?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Warning Alert?": {
+      "main": [
+        [
+          {
+            "node": "Send Warning Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Has URL to Process?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Warning Email": {
+      "main": [
+        [
+          {
+            "node": "Has URL to Process?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fallback Mode?": {
+      "main": [
+        [
+          {
+            "node": "Send Fallback Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Send Fallback Email": {
+      "main": [
+        [
+          {
+            "node": "Has URL to Process?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Critical - No URLs?": {
+      "main": [
+        [
+          {
+            "node": "Send Critical Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Send Critical Email": {
+      "main": [
+        [
+          {
+            "node": "No URL - Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has URL to Process?": {
+      "main": [
+        [
+          {
+            "node": "Launch Search Export Phantom",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No URL - Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Launch Search Export Phantom": {
+      "main": [
+        [
+          {
+            "node": "Wait 30 min for Phantom",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Phantom Output": {
+      "main": [
+        [
+          {
+            "node": "Read Master List",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read New Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Master List": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read New Leads": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Dedupe Against Master + New Leads": {
+      "main": [
+        [
+          {
+            "node": "Has Unique Profiles?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Unique Profiles?": {
+      "main": [
+        [
+          {
+            "node": "Prepare for Append",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Crawl Date Update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare for Append": {
+      "main": [
+        [
+          {
+            "node": "Append to New Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append to New Leads": {
+      "main": [
+        [
+          {
+            "node": "Prepare Crawl Date Update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Crawl Date Update": {
+      "main": [
+        [
+          {
+            "node": "Update Last Crawl Date",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Last Crawl Date": {
+      "main": [
+        [
+          {
+            "node": "Re-check Dashboard B5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Re-check Dashboard B5": {
+      "main": [
+        [
+          {
+            "node": "Still Need More?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Still Need More?": {
+      "main": [
+        [
+          {
+            "node": "B5 Still < 500?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "B5 Still < 500?": {
+      "main": [
+        [
+          {
+            "node": "Wait 24h + random 0-8h",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 24h + random 0-8h": {
+      "main": [
+        [
+          {
+            "node": "Read People to Crawl",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Done": {
+      "main": [
+        []
+      ]
+    },
+    "Wait 30 min for Phantom": {
+      "main": [
+        [
+          {
+            "node": "Check Phantom Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Phantom Status": {
+      "main": [
+        [
+          {
+            "node": "Phantom Still Running?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Phantom Still Running?": {
+      "main": [
+        [
+          {
+            "node": "Wait 5 More Min",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Phantom Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 5 More Min": {
+      "main": [
+        [
+          {
+            "node": "Check Phantom Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Phantom Output": {
+      "main": [
+        [
+          {
+            "node": "If URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Phantom JSON": {
+      "main": [
+        [
+          {
+            "node": "Parse Phantom Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Dedupe Against Master + New Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking 'Execute workflow'": {
+      "main": [
+        [
+          {
+            "node": "Read Dashboard Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "preProcessed < 1000": {
+      "main": [
+        [
+          {
+            "node": "Read People to Crawl",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Available Leads < 240": {
+      "main": [
+        [],
+        [
+          {
+            "node": "preProcessed < 1000",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If URL": {
+      "main": [
+        [
+          {
+            "node": "Fetch Phantom JSON",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "If no error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If no error": {
+      "main": [
+        [
+          {
+            "node": "Parse Phantom Output",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Parse error for cookie",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse error for cookie": {
+      "main": [
+        [
+          {
+            "node": "Cookie error?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cookie error?": {
+      "main": [
+        [
+          {
+            "node": "Slack: Cookie Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Crawl Date Update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack: Cookie Alert": {
+      "main": []
+    },
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Get Phantom Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false,
+    "errorWorkflow": "YWP69Qgq0ZlCN7Gj"
+  },
+  "staticData": {
+    "node:Daily 6am": {
+      "recurrenceRules": []
+    }
+  },
+  "meta": null,
+  "pinData": null,
+  "versionId": "65f8e943-4649-4799-9869-421eebee6c80",
+  "activeVersionId": null,
+  "triggerCount": 0,
+  "shared": [
+    {
+      "updatedAt": "2026-02-02T21:59:35.162Z",
+      "createdAt": "2026-02-02T21:59:35.162Z",
+      "role": "workflow:owner",
+      "workflowId": "f49o0W3pVK51PX87",
+      "projectId": "O7lTivDfRl72aS23"
+    }
+  ],
+  "activeVersion": null,
+  "tags": [],
+  "_folderPath": "",
+  "_fileName": "4.-lead-pipeline-monitor.json"
+}
