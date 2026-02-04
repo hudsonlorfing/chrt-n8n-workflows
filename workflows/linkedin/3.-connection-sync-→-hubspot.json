@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-02-02T20:52:58.178Z",
+  "updatedAt": "2026-02-03T19:00:43.779Z",
   "createdAt": "2025-12-19T16:28:57.739Z",
   "id": "a56vnrPo9dsg5mmf",
   "name": "3. Connection Sync → HubSpot",
@@ -15,8 +15,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        10976,
-        1616
+        -7712,
+        4272
       ]
     },
     {
@@ -35,8 +35,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        11840,
-        1600
+        -6016,
+        3936
       ],
       "credentials": {
         "hubspotOAuth2Api": {
@@ -74,8 +74,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        12000,
-        1600
+        -5792,
+        3936
       ]
     },
     {
@@ -94,8 +94,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        12208,
-        1776
+        -5568,
+        4032
       ],
       "credentials": {
         "hubspotOAuth2Api": {
@@ -113,8 +113,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        12352,
-        1584
+        -5344,
+        3840
       ]
     },
     {
@@ -126,8 +126,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        12448,
-        1776
+        -5344,
+        4032
       ]
     },
     {
@@ -146,8 +146,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        12816,
-        1616
+        -4896,
+        4032
       ],
       "credentials": {
         "hubspotOAuth2Api": {
@@ -185,8 +185,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        13040,
-        1616
+        -4672,
+        4032
       ]
     },
     {
@@ -205,8 +205,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        13264,
-        1504
+        -4448,
+        3936
       ],
       "credentials": {
         "hubspotOAuth2Api": {
@@ -231,8 +231,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        13264,
-        1728
+        -4448,
+        4224
       ],
       "credentials": {
         "hubspotOAuth2Api": {
@@ -250,8 +250,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        13488,
-        1504
+        -4224,
+        3936
       ]
     },
     {
@@ -263,8 +263,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        13488,
-        1728
+        -4224,
+        4224
       ]
     },
     {
@@ -286,8 +286,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        14576,
-        1344
+        -2880,
+        3888
       ],
       "credentials": {
         "hubspotOAuth2Api": {
@@ -314,8 +314,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        13952,
-        1312
+        -3552,
+        3968
       ],
       "credentials": {
         "hubspotOAuth2Api": {
@@ -333,8 +333,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        14112,
-        1312
+        -3328,
+        3968
       ]
     },
     {
@@ -366,21 +366,21 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        14288,
-        1312
+        -3104,
+        3968
       ]
     },
     {
       "parameters": {
-        "jsCode": "// Final output formatting\nconst item = $('Merge Contact Results').item.json;\nconst today = new Date().toISOString().split('T')[0];\n\nreturn [{\n  json: {\n    profileUrl: item.profileUrl,\n    fullName: item.fullName,\n    company: item.companyName || item.company || '',\n    hubspot: {\n      companyId: item._hs.companyId || null,\n      contactId: item._hs.contactId,\n      companyCreated: item._hs.companyCreated || false,\n      companySkipped: item._hs.companySkipped || false,\n      contactCreated: item._hs.contactCreated,\n      syncDate: today\n    }\n  }\n}];"
+        "jsCode": "// Final output formatting\nconst item = $('Merge Contact Results').item.json;\nconst today = new Date().toISOString().split('T')[0];\n\nreturn [{\n  json: {\n    profileUrl: item.profileUrl,\n    fullName: item.fullName,\n    company: item.companyName || item.company || '',    \n    hubspot: {\n      companyId: item._hs.companyId || null,\n      contactId: item._hs.contactId,\n      companyCreated: item._hs.companyCreated || false,\n      companySkipped: item._hs.companySkipped || false,\n      contactCreated: item._hs.contactCreated,\n      syncDate: today\n    }\n  }\n}];"
       },
       "id": "31732689-9943-4f38-a163-2d69ee25e0d4",
       "name": "Format Output",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        14736,
-        1552
+        -2512,
+        4064
       ]
     },
     {
@@ -394,13 +394,33 @@
           ]
         }
       },
-      "id": "0025d8b5-b20a-4f5a-ae56-8e472007a15b",
-      "name": "Daily 6pm Mon-Sat2",
+      "id": "schedule-kyle-6pm",
+      "name": "Schedule Kyle",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
       "position": [
-        6752,
-        1536
+        -14512,
+        4000
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "5 19 * * 1-6"
+            }
+          ]
+        }
+      },
+      "id": "schedule-hudson-6pm",
+      "name": "Schedule Hudson",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -14512,
+        4192
       ]
     },
     {
@@ -414,10 +434,63 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [
-        6752,
-        1744
+        -14512,
+        4384
       ],
       "webhookId": "connection-sync-test-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// This run is for Kyle (profileIndex 0)\nreturn [{ json: { profileIndex: 0 } }];"
+      },
+      "id": "set-profile-kyle",
+      "name": "Set profile Kyle",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -14160,
+        4096
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// This run is for Hudson (profileIndex 1)\nreturn [{ json: { profileIndex: 1 } }];"
+      },
+      "id": "set-profile-hudson",
+      "name": "Set profile Hudson",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -14160,
+        4304
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Manual/webhook run: round-robin by day (0 = Kyle, 1 = Hudson)\nreturn [{ json: { profileIndex: 0 } }];"
+      },
+      "id": "set-profile-for-manual",
+      "name": "Set profile for manual",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -14160,
+        4496
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch",
+        "useDataOfInput": 2
+      },
+      "id": "merge-profile-doppler",
+      "name": "Profile + Doppler",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        -13712,
+        4016
+      ]
     },
     {
       "parameters": {
@@ -438,8 +511,8 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        7568,
-        1744
+        -11968,
+        4640
       ],
       "credentials": {
         "googleSheetsOAuth2Api": {
@@ -458,21 +531,84 @@
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3,
       "position": [
-        8656,
-        1648
+        -11296,
+        4112
       ]
     },
     {
       "parameters": {
-        "amount": "={{ Math.floor(Math.random()*20)+1 }}"
+        "url": "https://api.doppler.com/v3/configs/config/secrets",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "project",
+              "value": "developers"
+            },
+            {
+              "name": "config",
+              "value": "hudson"
+            }
+          ]
+        },
+        "options": {}
       },
+      "id": "fetch-doppler-cookies",
+      "name": "Fetch Doppler cookies",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -13984,
+        3920
+      ],
+      "notesInFlow": true,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "dz2vX61Mpayywfq1",
+          "name": "Doppler API"
+        }
+      },
+      "notes": "Pulls secrets from Doppler (no $env). Create Header Auth credential 'Doppler API' with Authorization: Bearer <service_token>."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse Doppler API response (from Profile + Doppler merge) and build two profile items (kyle, hudson) with sessionCookie and userAgent\nconst item = $input.first();\nconst secrets = item.json.secrets || {};\nconst kyleCookie = (secrets.LINKEDIN_KYLE_SESSION_COOKIE);\nconst hudsonCookie = (secrets.LINKEDIN_HUDSON_SESSION_COOKIE);\nconst userAgents = {\n  kyle: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36',\n  hudson: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36'\n};\nreturn [\n  { json: { profile: 'kyle', sessionCookie: kyleCookie, userAgent: userAgents.kyle } },\n  { json: { profile: 'hudson', sessionCookie: hudsonCookie, userAgent: userAgents.hudson } }\n];"
+      },
+      "id": "build-profile-items-with-cookies",
+      "name": "Build profile items with cookies",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -13536,
+        4160
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Select one profile by profileIndex from Profile + Doppler (0 = Kyle, 1 = Hudson). Default: round-robin by day.\nconst items = $input.all();\nif (!items.length) return [];\nlet requested;\ntry { requested = $(\"selectProfile\").first().json.profileIndex; } catch (e) { requested = undefined; }\nconst index = (requested !== undefined && requested !== null) ? requested : (new Date().getDate() % items.length);\nreturn [items[Math.min(index, items.length - 1)]];"
+      },
+      "id": "take-one-profile-for-phantom",
+      "name": "Take one profile",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -13312,
+        4160
+      ],
+      "notesInFlow": true,
+      "notes": "PhantomBuster (and any phantom) must receive a single item; otherwise the launch node runs N times (one per item)."
+    },
+    {
+      "parameters": {},
       "id": "21042b62-19c8-4f7c-83a7-7c17cbc45ffd",
       "name": "randomWait2",
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        7296,
-        1424
+        -13088,
+        4032
       ],
       "webhookId": "7f6264ba-768e-4271-9384-2ccce1740961"
     },
@@ -485,8 +621,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        8976,
-        1632
+        -11072,
+        4112
       ]
     },
     {
@@ -502,15 +638,16 @@
           "mode": "name",
           "value": "Sheet1"
         },
-        "clear": "allSheetContent"
+        "clear": "specificRange",
+        "range": "A2:A"
       },
       "id": "clear-scraper-sheet",
       "name": "Clear Scraper Sheet",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        9264,
-        1264
+        -10624,
+        3984
       ],
       "credentials": {
         "googleSheetsOAuth2Api": {
@@ -557,8 +694,8 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        9168,
-        1632
+        -10624,
+        4272
       ],
       "credentials": {
         "googleSheetsOAuth2Api": {
@@ -575,7 +712,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({\n  id: '3627182471241497',\n  manualLaunch: true,\n  bonusArgument: {\n    spreadsheetUrl: 'https://docs.google.com/spreadsheets/d/1xPgob7BwDoDGAOtDPBTvKzhQHl2FUZkJhJG0gEHWdgo/edit?gid=0#gid=0',\n    columnName: 'linkedInProfileUrl',\n    numberOfProfilesToScrape: $('Extract Connected URLs').all().length,\n    emailChooser: 'phantombuster',\n    emailDiscovery: true,\n    enrichWithCompanyData: true\n  }\n}) }}",
+        "jsonBody": "={{ JSON.stringify({\n  id: '3627182471241497',\n  manualLaunch: true,\n  bonusArgument: { \n    sessionCookie: $('Take one profile').first().json.sessionCookie.computed,\n    userAgent: $('Take one profile').first().json.userAgent,\n    spreadsheetUrl: 'https://docs.google.com/spreadsheets/d/1xPgob7BwDoDGAOtDPBTvKzhQHl2FUZkJhJG0gEHWdgo/edit?gid=0#gid=0',\n    columnName: 'linkedInProfileUrl',\n    emailChooser: 'phantombuster',\n    emailDiscovery: true,\n    enrichWithCompanyData: true\n  }\n}) }}",
         "options": {
           "timeout": 120000
         }
@@ -585,8 +722,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        9552,
-        1712
+        -9744,
+        4112
       ],
       "credentials": {
         "httpHeaderAuth": {
@@ -607,14 +744,14 @@
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        10032,
-        1536
+        -9376,
+        4112
       ],
       "webhookId": "connection-scraper-wait"
     },
     {
       "parameters": {
-        "url": "={{ 'https://api.phantombuster.com/api/v2/agents/fetch-output?id=3627182471241497&containerId=' + $('Merge PB Launch Result').item.json.containerId }}",
+        "url": "={{ 'https://api.phantombuster.com/api/v2/agents/fetch-output?id=3627182471241497' }}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "options": {
@@ -626,8 +763,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        10016,
-        1328
+        -9056,
+        4016
       ],
       "credentials": {
         "httpHeaderAuth": {
@@ -665,8 +802,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        10288,
-        1328
+        -8832,
+        3920
       ]
     },
     {
@@ -679,8 +816,8 @@
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        10576,
-        1312
+        -8608,
+        3984
       ],
       "webhookId": "email-scraper-retry-wait"
     },
@@ -695,8 +832,8 @@
       "type": "n8n-nodes-base.phantombuster",
       "typeVersion": 1,
       "position": [
-        10240,
-        1616
+        -8608,
+        4272
       ],
       "credentials": {
         "phantombusterApi": {
@@ -712,8 +849,8 @@
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
       "position": [
-        10048,
-        1824
+        -14512,
+        4560
       ]
     },
     {
@@ -746,8 +883,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        10384,
-        1616
+        -8384,
+        4272
       ]
     },
     {
@@ -761,8 +898,8 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [
-        10640,
-        2016
+        -8160,
+        4704
       ],
       "webhookId": "test-from-merge"
     },
@@ -796,8 +933,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        10528,
-        1824
+        -8160,
+        4368
       ]
     },
     {
@@ -817,8 +954,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        10560,
-        1600
+        -8160,
+        4176
       ]
     },
     {
@@ -830,35 +967,80 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        10800,
-        1616
+        -7936,
+        4272
       ]
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "https://api.phantombuster.com/api/v2/agents/launch",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ id: \"959265651312489\" }) }}",
-        "options": {
-          "timeout": 300000
-        }
+        "jsCode": "// Check PhantomBuster launch response for invalid cookie/session errors\nconst item = $input.first().json;\nconst combined = JSON.stringify(item);\nconst cookiePatterns = [/invalid.*cookie/i, /cookie.*invalid/i, /session.*expired/i, /disconnected.*linkedin/i, /no valid credentials/i, /invalid credentials/i];\nconst isCookieError = cookiePatterns.some(p => p.test(combined));\nreturn [{ json: { ...item, isCookieError, errorMessage: item.message || item.error || combined.substring(0, 500) } }];"
       },
-      "id": "6c2cd309-de41-45be-a3ff-932ba468bb55",
-      "name": "kyleConnectionExport2",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
+      "id": "check-launch-response",
+      "name": "Check launch response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
-        7440,
-        1424
+        -12096,
+        3952
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cookie-err",
+              "leftValue": "={{ $json.isCookieError }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "cookie-error-if",
+      "name": "Cookie error?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -11888,
+        3952
+      ]
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "C0A6ES56MU2"
+        },
+        "text": "={{ '🍪 *LinkedIn Cookie/Session Error - Update in Doppler*\\n\\n*Workflow:* Connection Sync → HubSpot\\n*Profile:* ' + ($json.profile || 'unknown') + '\\n*Error:* ' + ($json.errorMessage || '').substring(0, 300) + '\\n\\n⚠️ Update in Doppler: LINKEDIN_' + ($json.profile === 'kyle' ? 'KYLE' : 'HUDSON') + '_SESSION_COOKIE (workflow pulls cookies from Doppler directly).' }}",
+        "otherOptions": {}
+      },
+      "id": "slack-cookie-alert-conn-sync",
+      "name": "Slack: Cookie Alert",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        -11440,
+        3824
       ],
+      "webhookId": "4f18e7a2-47c3-4abc-923b-d1ccef7405c8",
       "credentials": {
-        "httpHeaderAuth": {
-          "id": "KWeabljbYSzoLpjI",
-          "name": "Phantom Header Auth"
+        "slackApi": {
+          "id": "wkLpZSqhXl2iesnC",
+          "name": "Chrt Slack App"
         }
       }
     },
@@ -871,14 +1053,14 @@
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        7584,
-        1424
+        -12592,
+        4032
       ],
       "webhookId": "6bfd0199-cc43-488f-a1a7-aaddffb3078c"
     },
     {
       "parameters": {
-        "url": "={{ 'https://api.phantombuster.com/api/v2/agents/fetch-output?id=' + \"959265651312489\" + '&containerId=' + $('kyleConnectionExport2').item.json.containerId }}",
+        "url": "={{ 'https://api.phantombuster.com/api/v2/agents/fetch-output?id=959265651312489&containerId=' + $json.containerId }}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "options": {}
@@ -888,34 +1070,13 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        7728,
-        1424
+        -12368,
+        4032
       ],
       "credentials": {
         "httpHeaderAuth": {
           "id": "KWeabljbYSzoLpjI",
           "name": "Phantom Header Auth"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "operation": "getOutput",
-        "agentId": "959265651312489",
-        "additionalFields": {}
-      },
-      "id": "98a1d5d2-14f3-449d-aaa0-7377505c81c6",
-      "name": "getRecentConnections2",
-      "type": "n8n-nodes-base.phantombuster",
-      "typeVersion": 1,
-      "position": [
-        7936,
-        1424
-      ],
-      "credentials": {
-        "phantombusterApi": {
-          "id": "UYQpQC8SBIqIkifM",
-          "name": "Phantombuster account"
         }
       }
     },
@@ -928,8 +1089,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        8144,
-        1424
+        -11520,
+        4112
       ]
     },
     {
@@ -944,7 +1105,7 @@
           "conditions": [
             {
               "id": "0c075e1f-df9b-4cf1-9ca3-ff1f1607197d",
-              "leftValue": "={{ $json.kyleSentDate }}",
+              "leftValue": "={{ $('Take one profile').item.json.profile === 'kyle' ? $json.kyleSentDate : $json.hudsonSentDate }}",
               "rightValue": "",
               "operator": {
                 "type": "string",
@@ -972,8 +1133,8 @@
       "type": "n8n-nodes-base.filter",
       "typeVersion": 2.3,
       "position": [
-        7808,
-        1744
+        -11744,
+        4640
       ]
     },
     {
@@ -985,8 +1146,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        8144,
-        1728
+        -11488,
+        4624
       ]
     },
     {
@@ -1007,7 +1168,8 @@
           "value": {
             "profileUrl": "={{ $json.profileUrl }}",
             "hubspotSync": "={{ $json.hubspot.syncDate }}",
-            "kyleConnectDate": "={{ $json.hubspot.syncDate }}"
+            "kyleConnectDate": "={{ $('Take one profile').first().json.profile === 'kyle' ? $json.hubspot.syncDate : ($('Loop Over Items').item.json.kyleConnectDate || '') }}",
+            "hudsonConnectDate": "={{ $('Take one profile').first().json.profile === 'hudson' ? $json.hubspot.syncDate : ($('Loop Over Items').item.json.hudsonConnectDate || '') }}"
           },
           "matchingColumns": [
             "profileUrl"
@@ -1363,8 +1525,8 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        14896,
-        2016
+        -2208,
+        4208
       ],
       "credentials": {
         "googleSheetsOAuth2Api": {
@@ -1382,8 +1544,8 @@
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
       "position": [
-        11184,
-        1504
+        -7488,
+        4272
       ]
     },
     {
@@ -1393,8 +1555,8 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        11504,
-        1488
+        -7264,
+        4272
       ]
     },
     {
@@ -1406,8 +1568,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        12592,
-        1616
+        -5120,
+        4032
       ]
     },
     {
@@ -1419,8 +1581,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        13696,
-        1616
+        -4000,
+        4032
       ]
     },
     {
@@ -1432,8 +1594,8 @@
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        11744,
-        1264
+        -7264,
+        4032
       ],
       "webhookId": "a4843833-8e00-4d9f-8263-f31413f38084"
     },
@@ -1467,8 +1629,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        11584,
-        1616
+        -6240,
+        4032
       ]
     },
     {
@@ -1501,8 +1663,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        11200,
-        1616
+        -7040,
+        4032
       ]
     },
     {
@@ -1526,8 +1688,8 @@
       "type": "@n8n/n8n-nodes-langchain.anthropic",
       "typeVersion": 1,
       "position": [
-        11232,
-        1952
+        -6816,
+        3968
       ],
       "credentials": {
         "anthropicApi": {
@@ -1545,8 +1707,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        11600,
-        1952
+        -6464,
+        3968
       ]
     },
     {
@@ -1558,8 +1720,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        12080,
-        1920
+        -5344,
+        4224
       ]
     },
     {
@@ -1592,8 +1754,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        13824,
-        1616
+        -3776,
+        4032
       ]
     },
     {
@@ -1610,8 +1772,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        9616,
-        1280
+        -10160,
+        4112
       ],
       "credentials": {
         "httpHeaderAuth": {
@@ -1624,66 +1786,6 @@
     },
     {
       "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 2
-          },
-          "conditions": [
-            {
-              "id": "is-running",
-              "leftValue": "={{ $json.currentRunningContainerId }}",
-              "rightValue": "",
-              "operator": {
-                "type": "string",
-                "operation": "notEmpty"
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "id": "if-pb-already-running",
-      "name": "Agent Already Running?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [
-        9792,
-        1280
-      ]
-    },
-    {
-      "parameters": {
-        "jsCode": "// Agent is already running - use existing container\nconst agentStatus = $input.first().json;\nreturn [{\n  json: {\n    containerId: agentStatus.currentRunningContainerId,\n    status: 'already_running',\n    message: 'PhantomBuster agent was already running, using existing container'\n  }\n}];"
-      },
-      "id": "use-existing-pb-container",
-      "name": "Use Existing Container",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        9552,
-        1520
-      ]
-    },
-    {
-      "parameters": {
-        "mode": "chooseBranch",
-        "useDataOfInput": "={{ $('Launch Profile Scraper with Email').isExecuted ? 2 : 1}}"
-      },
-      "id": "merge-pb-launch-result",
-      "name": "Merge PB Launch Result",
-      "type": "n8n-nodes-base.merge",
-      "typeVersion": 3.1,
-      "position": [
-        9840,
-        1536
-      ]
-    },
-    {
-      "parameters": {
         "jsCode": "// Take only the first item to trigger single Clear/Launch\n// All items still go to Append via a separate connection\nconst allItems = $input.all();\nconst urlCount = allItems.length;\n\nreturn [{\n  json: {\n    urlCount: urlCount,\n    message: `Processing ${urlCount} URLs - triggering single launch`\n  }\n}];"
       },
       "id": "take-first-item",
@@ -1691,23 +1793,87 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        9088,
-        1264
+        -10848,
+        3984
       ]
     },
     {
       "parameters": {
-        "mode": "chooseBranch",
-        "useDataOfInput": 2
+        "mode": "chooseBranch"
       },
       "id": "wait-for-sheet-ready",
       "name": "Wait for Sheet Ready",
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3.1,
       "position": [
-        9440,
-        1280
+        -10400,
+        4112
       ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Import all inputs\nconst kyleInput = $('Set profile Kyle').isExecuted ? $('Set profile Kyle').first() : null;\nconst hudsonInput = $('Set profile Hudson').isExecuted ? $('Set profile Hudson').first() : null;\nconst manualInput = $('Set profile for manual').isExecuted ? $('Set profile for manual').first() : null;\n\n// Determine which input was executed\nlet selectedInput;\nif (kyleInput) {\n  selectedInput = kyleInput;\n} else if (hudsonInput) {\n  selectedInput = hudsonInput;\n} else if (manualInput) {\n  selectedInput = manualInput;\n} else {\n  throw new Error('No input was executed.');\n}\n\n// Return the selected input\nreturn [{ json: { profileIndex: selectedInput.json.profileIndex}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -13904,
+        4304
+      ],
+      "id": "6d7faeb6-d889-47d7-9141-15e1d9b80b8f",
+      "name": "selectProfile"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.phantombuster.com/api/v2/agents/launch",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ id: '959265651312489', manualLaunch: true, bonusArgument: { sessionCookie: $json.sessionCookie.computed, userAgent: $json.userAgent, sortBy: 'Recently added', numberOfProfiles: 25 } }) }}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "6c2cd309-de41-45be-a3ff-932ba468bb55",
+      "name": "exportConnections",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -12864,
+        4032
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "KWeabljbYSzoLpjI",
+          "name": "Phantom Header Auth"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "getOutput",
+        "agentId": "959265651312489",
+        "additionalFields": {
+          "prevContainerId": "={{ $('exportConnections').item.json.containerId }}"
+        }
+      },
+      "id": "98a1d5d2-14f3-449d-aaa0-7377505c81c6",
+      "name": "getRecentConnections",
+      "type": "n8n-nodes-base.phantombuster",
+      "typeVersion": 1,
+      "position": [
+        -11680,
+        4112
+      ],
+      "credentials": {
+        "phantombusterApi": {
+          "id": "UYQpQC8SBIqIkifM",
+          "name": "Phantombuster account"
+        }
+      }
     }
   ],
   "connections": {
@@ -1868,27 +2034,32 @@
         ]
       ]
     },
-    "Format Output": {
+    "Schedule Kyle": {
       "main": [
         [
           {
-            "node": "Update HubSpot Status1",
+            "node": "Fetch Doppler cookies",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Set profile Kyle",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Daily 6pm Mon-Sat2": {
+    "Schedule Hudson": {
       "main": [
         [
           {
-            "node": "Get Pending Leads2",
+            "node": "Fetch Doppler cookies",
             "type": "main",
             "index": 0
           },
           {
-            "node": "randomWait2",
+            "node": "Set profile Hudson",
             "type": "main",
             "index": 0
           }
@@ -1896,6 +2067,88 @@
       ]
     },
     "Manual Test Webhook": {
+      "main": [
+        [
+          {
+            "node": "Fetch Doppler cookies",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Set profile for manual",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set profile Kyle": {
+      "main": [
+        [
+          {
+            "node": "selectProfile",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set profile Hudson": {
+      "main": [
+        [
+          {
+            "node": "selectProfile",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set profile for manual": {
+      "main": [
+        [
+          {
+            "node": "selectProfile",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Doppler cookies": {
+      "main": [
+        [
+          {
+            "node": "Profile + Doppler",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Profile + Doppler": {
+      "main": [
+        [
+          {
+            "node": "Build profile items with cookies",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build profile items with cookies": {
+      "main": [
+        [
+          {
+            "node": "Take one profile",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Take one profile": {
       "main": [
         [
           {
@@ -1975,9 +2228,9 @@
       "main": [
         [
           {
-            "node": "Merge PB Launch Result",
+            "node": "Wait 10 min for Email Scraper",
             "type": "main",
-            "index": 1
+            "index": 0
           }
         ]
       ]
@@ -2048,7 +2301,12 @@
       "main": [
         [
           {
-            "node": "Get Email Scraper Output",
+            "node": "Fetch Doppler cookies",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Set profile for manual",
             "type": "main",
             "index": 0
           }
@@ -2092,8 +2350,7 @@
             "type": "main",
             "index": 0
           }
-        ],
-        []
+        ]
       ]
     },
     "Fetch Email Scraper JSON": {
@@ -2122,18 +2379,36 @@
       "main": [
         [
           {
-            "node": "kyleConnectionExport2",
+            "node": "exportConnections",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "kyleConnectionExport2": {
+    "Check launch response": {
       "main": [
         [
           {
-            "node": "2minWait2",
+            "node": "Cookie error?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cookie error?": {
+      "main": [
+        [
+          {
+            "node": "Slack: Cookie Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "getRecentConnections",
             "type": "main",
             "index": 0
           }
@@ -2155,18 +2430,7 @@
       "main": [
         [
           {
-            "node": "getRecentConnections2",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "getRecentConnections2": {
-      "main": [
-        [
-          {
-            "node": "normalizeUrl4",
+            "node": "Check launch response",
             "type": "main",
             "index": 0
           }
@@ -2222,11 +2486,6 @@
             "index": 0
           }
         ]
-      ]
-    },
-    "Replace Me": {
-      "main": [
-        []
       ]
     },
     "Update HubSpot Status1": {
@@ -2404,47 +2663,7 @@
       "main": [
         [
           {
-            "node": "Agent Already Running?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Agent Already Running?": {
-      "main": [
-        [
-          {
-            "node": "Use Existing Container",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
             "node": "Launch Profile Scraper with Email",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Use Existing Container": {
-      "main": [
-        [
-          {
-            "node": "Merge PB Launch Result",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Merge PB Launch Result": {
-      "main": [
-        [
-          {
-            "node": "Wait 10 min for Email Scraper",
             "type": "main",
             "index": 0
           }
@@ -2472,6 +2691,50 @@
           }
         ]
       ]
+    },
+    "Format Output": {
+      "main": [
+        [
+          {
+            "node": "Update HubSpot Status1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "selectProfile": {
+      "main": [
+        [
+          {
+            "node": "Profile + Doppler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "exportConnections": {
+      "main": [
+        [
+          {
+            "node": "2minWait2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "getRecentConnections": {
+      "main": [
+        [
+          {
+            "node": "normalizeUrl4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
@@ -2481,7 +2744,10 @@
     "availableInMCP": false
   },
   "staticData": {
-    "node:Daily 6pm Mon-Sat2": {
+    "node:Schedule Kyle": {
+      "recurrenceRules": []
+    },
+    "node:Schedule Hudson": {
       "recurrenceRules": []
     }
   },
@@ -2489,9 +2755,9 @@
     "templateCredsSetupCompleted": true
   },
   "pinData": {},
-  "versionId": "e6931070-ceea-42d1-bed2-b098dea50591",
-  "activeVersionId": "e6931070-ceea-42d1-bed2-b098dea50591",
-  "triggerCount": 3,
+  "versionId": "b92942e3-50d4-49db-845e-912c88106cb6",
+  "activeVersionId": "b92942e3-50d4-49db-845e-912c88106cb6",
+  "triggerCount": 4,
   "shared": [
     {
       "updatedAt": "2025-12-24T03:18:02.180Z",
@@ -2502,9 +2768,9 @@
     }
   ],
   "activeVersion": {
-    "updatedAt": "2026-02-02T20:53:16.000Z",
-    "createdAt": "2026-02-02T20:52:58.179Z",
-    "versionId": "e6931070-ceea-42d1-bed2-b098dea50591",
+    "updatedAt": "2026-02-03T19:00:43.781Z",
+    "createdAt": "2026-02-03T19:00:43.781Z",
+    "versionId": "b92942e3-50d4-49db-845e-912c88106cb6",
     "workflowId": "a56vnrPo9dsg5mmf",
     "nodes": [
       {
@@ -2516,8 +2782,8 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          10976,
-          1616
+          -7712,
+          4272
         ]
       },
       {
@@ -2536,8 +2802,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          11840,
-          1600
+          -6016,
+          3936
         ],
         "credentials": {
           "hubspotOAuth2Api": {
@@ -2575,8 +2841,8 @@
         "type": "n8n-nodes-base.if",
         "typeVersion": 2.2,
         "position": [
-          12000,
-          1600
+          -5792,
+          3936
         ]
       },
       {
@@ -2595,8 +2861,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          12208,
-          1776
+          -5568,
+          4032
         ],
         "credentials": {
           "hubspotOAuth2Api": {
@@ -2614,8 +2880,8 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          12352,
-          1584
+          -5344,
+          3840
         ]
       },
       {
@@ -2627,8 +2893,8 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          12448,
-          1776
+          -5344,
+          4032
         ]
       },
       {
@@ -2647,8 +2913,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          12816,
-          1616
+          -4896,
+          4032
         ],
         "credentials": {
           "hubspotOAuth2Api": {
@@ -2686,8 +2952,8 @@
         "type": "n8n-nodes-base.if",
         "typeVersion": 2.2,
         "position": [
-          13040,
-          1616
+          -4672,
+          4032
         ]
       },
       {
@@ -2706,8 +2972,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          13264,
-          1504
+          -4448,
+          3936
         ],
         "credentials": {
           "hubspotOAuth2Api": {
@@ -2732,8 +2998,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          13264,
-          1728
+          -4448,
+          4224
         ],
         "credentials": {
           "hubspotOAuth2Api": {
@@ -2751,8 +3017,8 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          13488,
-          1504
+          -4224,
+          3936
         ]
       },
       {
@@ -2764,8 +3030,8 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          13488,
-          1728
+          -4224,
+          4224
         ]
       },
       {
@@ -2787,8 +3053,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          14576,
-          1344
+          -2880,
+          3888
         ],
         "credentials": {
           "hubspotOAuth2Api": {
@@ -2815,8 +3081,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          13952,
-          1312
+          -3552,
+          3968
         ],
         "credentials": {
           "hubspotOAuth2Api": {
@@ -2834,8 +3100,8 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          14112,
-          1312
+          -3328,
+          3968
         ]
       },
       {
@@ -2867,21 +3133,21 @@
         "type": "n8n-nodes-base.if",
         "typeVersion": 2.2,
         "position": [
-          14288,
-          1312
+          -3104,
+          3968
         ]
       },
       {
         "parameters": {
-          "jsCode": "// Final output formatting\nconst item = $('Merge Contact Results').item.json;\nconst today = new Date().toISOString().split('T')[0];\n\nreturn [{\n  json: {\n    profileUrl: item.profileUrl,\n    fullName: item.fullName,\n    company: item.companyName || item.company || '',\n    hubspot: {\n      companyId: item._hs.companyId || null,\n      contactId: item._hs.contactId,\n      companyCreated: item._hs.companyCreated || false,\n      companySkipped: item._hs.companySkipped || false,\n      contactCreated: item._hs.contactCreated,\n      syncDate: today\n    }\n  }\n}];"
+          "jsCode": "// Final output formatting\nconst item = $('Merge Contact Results').item.json;\nconst today = new Date().toISOString().split('T')[0];\n\nreturn [{\n  json: {\n    profileUrl: item.profileUrl,\n    fullName: item.fullName,\n    company: item.companyName || item.company || '',    \n    hubspot: {\n      companyId: item._hs.companyId || null,\n      contactId: item._hs.contactId,\n      companyCreated: item._hs.companyCreated || false,\n      companySkipped: item._hs.companySkipped || false,\n      contactCreated: item._hs.contactCreated,\n      syncDate: today\n    }\n  }\n}];"
         },
         "id": "31732689-9943-4f38-a163-2d69ee25e0d4",
         "name": "Format Output",
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          14736,
-          1552
+          -2512,
+          4064
         ]
       },
       {
@@ -2895,13 +3161,33 @@
             ]
           }
         },
-        "id": "0025d8b5-b20a-4f5a-ae56-8e472007a15b",
-        "name": "Daily 6pm Mon-Sat2",
+        "id": "schedule-kyle-6pm",
+        "name": "Schedule Kyle",
         "type": "n8n-nodes-base.scheduleTrigger",
         "typeVersion": 1.2,
         "position": [
-          6752,
-          1536
+          -14512,
+          4000
+        ]
+      },
+      {
+        "parameters": {
+          "rule": {
+            "interval": [
+              {
+                "field": "cronExpression",
+                "expression": "5 19 * * 1-6"
+              }
+            ]
+          }
+        },
+        "id": "schedule-hudson-6pm",
+        "name": "Schedule Hudson",
+        "type": "n8n-nodes-base.scheduleTrigger",
+        "typeVersion": 1.2,
+        "position": [
+          -14512,
+          4192
         ]
       },
       {
@@ -2915,10 +3201,63 @@
         "type": "n8n-nodes-base.webhook",
         "typeVersion": 2,
         "position": [
-          6752,
-          1744
+          -14512,
+          4384
         ],
         "webhookId": "connection-sync-test-webhook"
+      },
+      {
+        "parameters": {
+          "jsCode": "// This run is for Kyle (profileIndex 0)\nreturn [{ json: { profileIndex: 0 } }];"
+        },
+        "id": "set-profile-kyle",
+        "name": "Set profile Kyle",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -14160,
+          4096
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "// This run is for Hudson (profileIndex 1)\nreturn [{ json: { profileIndex: 1 } }];"
+        },
+        "id": "set-profile-hudson",
+        "name": "Set profile Hudson",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -14160,
+          4304
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "// Manual/webhook run: round-robin by day (0 = Kyle, 1 = Hudson)\nreturn [{ json: { profileIndex: 0 } }];"
+        },
+        "id": "set-profile-for-manual",
+        "name": "Set profile for manual",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -14160,
+          4496
+        ]
+      },
+      {
+        "parameters": {
+          "mode": "chooseBranch",
+          "useDataOfInput": 2
+        },
+        "id": "merge-profile-doppler",
+        "name": "Profile + Doppler",
+        "type": "n8n-nodes-base.merge",
+        "typeVersion": 3,
+        "position": [
+          -13712,
+          4016
+        ]
       },
       {
         "parameters": {
@@ -2939,8 +3278,8 @@
         "type": "n8n-nodes-base.googleSheets",
         "typeVersion": 4.5,
         "position": [
-          7568,
-          1744
+          -11968,
+          4640
         ],
         "credentials": {
           "googleSheetsOAuth2Api": {
@@ -2959,21 +3298,84 @@
         "type": "n8n-nodes-base.merge",
         "typeVersion": 3,
         "position": [
-          8656,
-          1648
+          -11296,
+          4112
         ]
       },
       {
         "parameters": {
-          "amount": "={{ Math.floor(Math.random()*20)+1 }}"
+          "url": "https://api.doppler.com/v3/configs/config/secrets",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpHeaderAuth",
+          "sendQuery": true,
+          "queryParameters": {
+            "parameters": [
+              {
+                "name": "project",
+                "value": "developers"
+              },
+              {
+                "name": "config",
+                "value": "hudson"
+              }
+            ]
+          },
+          "options": {}
         },
+        "id": "fetch-doppler-cookies",
+        "name": "Fetch Doppler cookies",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          -13984,
+          3920
+        ],
+        "notesInFlow": true,
+        "credentials": {
+          "httpHeaderAuth": {
+            "id": "dz2vX61Mpayywfq1",
+            "name": "Doppler API"
+          }
+        },
+        "notes": "Pulls secrets from Doppler (no $env). Create Header Auth credential 'Doppler API' with Authorization: Bearer <service_token>."
+      },
+      {
+        "parameters": {
+          "jsCode": "// Parse Doppler API response (from Profile + Doppler merge) and build two profile items (kyle, hudson) with sessionCookie and userAgent\nconst item = $input.first();\nconst secrets = item.json.secrets || {};\nconst kyleCookie = (secrets.LINKEDIN_KYLE_SESSION_COOKIE);\nconst hudsonCookie = (secrets.LINKEDIN_HUDSON_SESSION_COOKIE);\nconst userAgents = {\n  kyle: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36',\n  hudson: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36'\n};\nreturn [\n  { json: { profile: 'kyle', sessionCookie: kyleCookie, userAgent: userAgents.kyle } },\n  { json: { profile: 'hudson', sessionCookie: hudsonCookie, userAgent: userAgents.hudson } }\n];"
+        },
+        "id": "build-profile-items-with-cookies",
+        "name": "Build profile items with cookies",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -13536,
+          4160
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "// Select one profile by profileIndex from Profile + Doppler (0 = Kyle, 1 = Hudson). Default: round-robin by day.\nconst items = $input.all();\nif (!items.length) return [];\nlet requested;\ntry { requested = $(\"selectProfile\").first().json.profileIndex; } catch (e) { requested = undefined; }\nconst index = (requested !== undefined && requested !== null) ? requested : (new Date().getDate() % items.length);\nreturn [items[Math.min(index, items.length - 1)]];"
+        },
+        "id": "take-one-profile-for-phantom",
+        "name": "Take one profile",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -13312,
+          4160
+        ],
+        "notesInFlow": true,
+        "notes": "PhantomBuster (and any phantom) must receive a single item; otherwise the launch node runs N times (one per item)."
+      },
+      {
+        "parameters": {},
         "id": "21042b62-19c8-4f7c-83a7-7c17cbc45ffd",
         "name": "randomWait2",
         "type": "n8n-nodes-base.wait",
         "typeVersion": 1.1,
         "position": [
-          7296,
-          1424
+          -13088,
+          4032
         ],
         "webhookId": "7f6264ba-768e-4271-9384-2ccce1740961"
       },
@@ -2986,8 +3388,8 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          8976,
-          1632
+          -11072,
+          4112
         ]
       },
       {
@@ -3003,15 +3405,16 @@
             "mode": "name",
             "value": "Sheet1"
           },
-          "clear": "allSheetContent"
+          "clear": "specificRange",
+          "range": "A2:A"
         },
         "id": "clear-scraper-sheet",
         "name": "Clear Scraper Sheet",
         "type": "n8n-nodes-base.googleSheets",
         "typeVersion": 4.5,
         "position": [
-          9264,
-          1264
+          -10624,
+          3984
         ],
         "credentials": {
           "googleSheetsOAuth2Api": {
@@ -3058,8 +3461,8 @@
         "type": "n8n-nodes-base.googleSheets",
         "typeVersion": 4.5,
         "position": [
-          9168,
-          1632
+          -10624,
+          4272
         ],
         "credentials": {
           "googleSheetsOAuth2Api": {
@@ -3076,7 +3479,7 @@
           "genericAuthType": "httpHeaderAuth",
           "sendBody": true,
           "specifyBody": "json",
-          "jsonBody": "={{ JSON.stringify({\n  id: '3627182471241497',\n  manualLaunch: true,\n  bonusArgument: {\n    spreadsheetUrl: 'https://docs.google.com/spreadsheets/d/1xPgob7BwDoDGAOtDPBTvKzhQHl2FUZkJhJG0gEHWdgo/edit?gid=0#gid=0',\n    columnName: 'linkedInProfileUrl',\n    numberOfProfilesToScrape: $('Extract Connected URLs').all().length,\n    emailChooser: 'phantombuster',\n    emailDiscovery: true,\n    enrichWithCompanyData: true\n  }\n}) }}",
+          "jsonBody": "={{ JSON.stringify({\n  id: '3627182471241497',\n  manualLaunch: true,\n  bonusArgument: { \n    sessionCookie: $('Take one profile').first().json.sessionCookie.computed,\n    userAgent: $('Take one profile').first().json.userAgent,\n    spreadsheetUrl: 'https://docs.google.com/spreadsheets/d/1xPgob7BwDoDGAOtDPBTvKzhQHl2FUZkJhJG0gEHWdgo/edit?gid=0#gid=0',\n    columnName: 'linkedInProfileUrl',\n    emailChooser: 'phantombuster',\n    emailDiscovery: true,\n    enrichWithCompanyData: true\n  }\n}) }}",
           "options": {
             "timeout": 120000
           }
@@ -3086,8 +3489,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          9552,
-          1712
+          -9744,
+          4112
         ],
         "credentials": {
           "httpHeaderAuth": {
@@ -3108,14 +3511,14 @@
         "type": "n8n-nodes-base.wait",
         "typeVersion": 1.1,
         "position": [
-          10032,
-          1536
+          -9376,
+          4112
         ],
         "webhookId": "connection-scraper-wait"
       },
       {
         "parameters": {
-          "url": "={{ 'https://api.phantombuster.com/api/v2/agents/fetch-output?id=3627182471241497&containerId=' + $('Merge PB Launch Result').item.json.containerId }}",
+          "url": "={{ 'https://api.phantombuster.com/api/v2/agents/fetch-output?id=3627182471241497' }}",
           "authentication": "genericCredentialType",
           "genericAuthType": "httpHeaderAuth",
           "options": {
@@ -3127,8 +3530,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          10016,
-          1328
+          -9056,
+          4016
         ],
         "credentials": {
           "httpHeaderAuth": {
@@ -3166,8 +3569,8 @@
         "type": "n8n-nodes-base.if",
         "typeVersion": 2.2,
         "position": [
-          10288,
-          1328
+          -8832,
+          3920
         ]
       },
       {
@@ -3180,8 +3583,8 @@
         "type": "n8n-nodes-base.wait",
         "typeVersion": 1.1,
         "position": [
-          10576,
-          1312
+          -8608,
+          3984
         ],
         "webhookId": "email-scraper-retry-wait"
       },
@@ -3196,8 +3599,8 @@
         "type": "n8n-nodes-base.phantombuster",
         "typeVersion": 1,
         "position": [
-          10240,
-          1616
+          -8608,
+          4272
         ],
         "credentials": {
           "phantombusterApi": {
@@ -3213,8 +3616,8 @@
         "type": "n8n-nodes-base.manualTrigger",
         "typeVersion": 1,
         "position": [
-          10048,
-          1824
+          -14512,
+          4560
         ]
       },
       {
@@ -3247,8 +3650,8 @@
         "type": "n8n-nodes-base.if",
         "typeVersion": 2.3,
         "position": [
-          10384,
-          1616
+          -8384,
+          4272
         ]
       },
       {
@@ -3262,8 +3665,8 @@
         "type": "n8n-nodes-base.webhook",
         "typeVersion": 2,
         "position": [
-          10640,
-          2016
+          -8160,
+          4704
         ],
         "webhookId": "test-from-merge"
       },
@@ -3297,8 +3700,8 @@
         "type": "n8n-nodes-base.if",
         "typeVersion": 2.3,
         "position": [
-          10528,
-          1824
+          -8160,
+          4368
         ]
       },
       {
@@ -3318,8 +3721,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          10560,
-          1600
+          -8160,
+          4176
         ]
       },
       {
@@ -3331,35 +3734,80 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          10800,
-          1616
+          -7936,
+          4272
         ]
       },
       {
         "parameters": {
-          "method": "POST",
-          "url": "https://api.phantombuster.com/api/v2/agents/launch",
-          "authentication": "genericCredentialType",
-          "genericAuthType": "httpHeaderAuth",
-          "sendBody": true,
-          "specifyBody": "json",
-          "jsonBody": "={{ JSON.stringify({ id: \"959265651312489\" }) }}",
-          "options": {
-            "timeout": 300000
-          }
+          "jsCode": "// Check PhantomBuster launch response for invalid cookie/session errors\nconst item = $input.first().json;\nconst combined = JSON.stringify(item);\nconst cookiePatterns = [/invalid.*cookie/i, /cookie.*invalid/i, /session.*expired/i, /disconnected.*linkedin/i, /no valid credentials/i, /invalid credentials/i];\nconst isCookieError = cookiePatterns.some(p => p.test(combined));\nreturn [{ json: { ...item, isCookieError, errorMessage: item.message || item.error || combined.substring(0, 500) } }];"
         },
-        "id": "6c2cd309-de41-45be-a3ff-932ba468bb55",
-        "name": "kyleConnectionExport2",
-        "type": "n8n-nodes-base.httpRequest",
-        "typeVersion": 4.2,
+        "id": "check-launch-response",
+        "name": "Check launch response",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
         "position": [
-          7440,
-          1424
+          -12096,
+          3952
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "cookie-err",
+                "leftValue": "={{ $json.isCookieError }}",
+                "rightValue": true,
+                "operator": {
+                  "type": "boolean",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "cookie-error-if",
+        "name": "Cookie error?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          -11888,
+          3952
+        ]
+      },
+      {
+        "parameters": {
+          "select": "channel",
+          "channelId": {
+            "__rl": true,
+            "mode": "id",
+            "value": "C0A6ES56MU2"
+          },
+          "text": "={{ '🍪 *LinkedIn Cookie/Session Error - Update in Doppler*\\n\\n*Workflow:* Connection Sync → HubSpot\\n*Profile:* ' + ($json.profile || 'unknown') + '\\n*Error:* ' + ($json.errorMessage || '').substring(0, 300) + '\\n\\n⚠️ Update in Doppler: LINKEDIN_' + ($json.profile === 'kyle' ? 'KYLE' : 'HUDSON') + '_SESSION_COOKIE (workflow pulls cookies from Doppler directly).' }}",
+          "otherOptions": {}
+        },
+        "id": "slack-cookie-alert-conn-sync",
+        "name": "Slack: Cookie Alert",
+        "type": "n8n-nodes-base.slack",
+        "typeVersion": 2.2,
+        "position": [
+          -11440,
+          3824
         ],
+        "webhookId": "4f18e7a2-47c3-4abc-923b-d1ccef7405c8",
         "credentials": {
-          "httpHeaderAuth": {
-            "id": "KWeabljbYSzoLpjI",
-            "name": "Phantom Header Auth"
+          "slackApi": {
+            "id": "wkLpZSqhXl2iesnC",
+            "name": "Chrt Slack App"
           }
         }
       },
@@ -3372,14 +3820,14 @@
         "type": "n8n-nodes-base.wait",
         "typeVersion": 1.1,
         "position": [
-          7584,
-          1424
+          -12592,
+          4032
         ],
         "webhookId": "6bfd0199-cc43-488f-a1a7-aaddffb3078c"
       },
       {
         "parameters": {
-          "url": "={{ 'https://api.phantombuster.com/api/v2/agents/fetch-output?id=' + \"959265651312489\" + '&containerId=' + $('kyleConnectionExport2').item.json.containerId }}",
+          "url": "={{ 'https://api.phantombuster.com/api/v2/agents/fetch-output?id=959265651312489&containerId=' + $json.containerId }}",
           "authentication": "genericCredentialType",
           "genericAuthType": "httpHeaderAuth",
           "options": {}
@@ -3389,34 +3837,13 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          7728,
-          1424
+          -12368,
+          4032
         ],
         "credentials": {
           "httpHeaderAuth": {
             "id": "KWeabljbYSzoLpjI",
             "name": "Phantom Header Auth"
-          }
-        }
-      },
-      {
-        "parameters": {
-          "operation": "getOutput",
-          "agentId": "959265651312489",
-          "additionalFields": {}
-        },
-        "id": "98a1d5d2-14f3-449d-aaa0-7377505c81c6",
-        "name": "getRecentConnections2",
-        "type": "n8n-nodes-base.phantombuster",
-        "typeVersion": 1,
-        "position": [
-          7936,
-          1424
-        ],
-        "credentials": {
-          "phantombusterApi": {
-            "id": "UYQpQC8SBIqIkifM",
-            "name": "Phantombuster account"
           }
         }
       },
@@ -3429,8 +3856,8 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          8144,
-          1424
+          -11520,
+          4112
         ]
       },
       {
@@ -3445,7 +3872,7 @@
             "conditions": [
               {
                 "id": "0c075e1f-df9b-4cf1-9ca3-ff1f1607197d",
-                "leftValue": "={{ $json.kyleSentDate }}",
+                "leftValue": "={{ $('Take one profile').item.json.profile === 'kyle' ? $json.kyleSentDate : $json.hudsonSentDate }}",
                 "rightValue": "",
                 "operator": {
                   "type": "string",
@@ -3473,8 +3900,8 @@
         "type": "n8n-nodes-base.filter",
         "typeVersion": 2.3,
         "position": [
-          7808,
-          1744
+          -11744,
+          4640
         ]
       },
       {
@@ -3486,8 +3913,8 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          8144,
-          1728
+          -11488,
+          4624
         ]
       },
       {
@@ -3508,7 +3935,8 @@
             "value": {
               "profileUrl": "={{ $json.profileUrl }}",
               "hubspotSync": "={{ $json.hubspot.syncDate }}",
-              "kyleConnectDate": "={{ $json.hubspot.syncDate }}"
+              "kyleConnectDate": "={{ $('Take one profile').first().json.profile === 'kyle' ? $json.hubspot.syncDate : ($('Loop Over Items').item.json.kyleConnectDate || '') }}",
+              "hudsonConnectDate": "={{ $('Take one profile').first().json.profile === 'hudson' ? $json.hubspot.syncDate : ($('Loop Over Items').item.json.hudsonConnectDate || '') }}"
             },
             "matchingColumns": [
               "profileUrl"
@@ -3864,8 +4292,8 @@
         "type": "n8n-nodes-base.googleSheets",
         "typeVersion": 4.5,
         "position": [
-          14896,
-          2016
+          -2208,
+          4208
         ],
         "credentials": {
           "googleSheetsOAuth2Api": {
@@ -3883,8 +4311,8 @@
         "type": "n8n-nodes-base.splitInBatches",
         "typeVersion": 3,
         "position": [
-          11184,
-          1504
+          -7488,
+          4272
         ]
       },
       {
@@ -3894,8 +4322,8 @@
         "type": "n8n-nodes-base.noOp",
         "typeVersion": 1,
         "position": [
-          11504,
-          1488
+          -7264,
+          4272
         ]
       },
       {
@@ -3907,8 +4335,8 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          12592,
-          1616
+          -5120,
+          4032
         ]
       },
       {
@@ -3920,8 +4348,8 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          13696,
-          1616
+          -4000,
+          4032
         ]
       },
       {
@@ -3933,8 +4361,8 @@
         "type": "n8n-nodes-base.wait",
         "typeVersion": 1.1,
         "position": [
-          11744,
-          1264
+          -7264,
+          4032
         ],
         "webhookId": "a4843833-8e00-4d9f-8263-f31413f38084"
       },
@@ -3968,8 +4396,8 @@
         "type": "n8n-nodes-base.if",
         "typeVersion": 2.2,
         "position": [
-          11584,
-          1616
+          -6240,
+          4032
         ]
       },
       {
@@ -4002,8 +4430,8 @@
         "type": "n8n-nodes-base.if",
         "typeVersion": 2.2,
         "position": [
-          11200,
-          1616
+          -7040,
+          4032
         ]
       },
       {
@@ -4027,8 +4455,8 @@
         "type": "@n8n/n8n-nodes-langchain.anthropic",
         "typeVersion": 1,
         "position": [
-          11232,
-          1952
+          -6816,
+          3968
         ],
         "credentials": {
           "anthropicApi": {
@@ -4046,8 +4474,8 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          11600,
-          1952
+          -6464,
+          3968
         ]
       },
       {
@@ -4059,8 +4487,8 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          12080,
-          1920
+          -5344,
+          4224
         ]
       },
       {
@@ -4093,8 +4521,8 @@
         "type": "n8n-nodes-base.if",
         "typeVersion": 2.2,
         "position": [
-          13824,
-          1616
+          -3776,
+          4032
         ]
       },
       {
@@ -4111,8 +4539,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          9616,
-          1280
+          -10160,
+          4112
         ],
         "credentials": {
           "httpHeaderAuth": {
@@ -4125,66 +4553,6 @@
       },
       {
         "parameters": {
-          "conditions": {
-            "options": {
-              "caseSensitive": true,
-              "leftValue": "",
-              "typeValidation": "strict",
-              "version": 2
-            },
-            "conditions": [
-              {
-                "id": "is-running",
-                "leftValue": "={{ $json.currentRunningContainerId }}",
-                "rightValue": "",
-                "operator": {
-                  "type": "string",
-                  "operation": "notEmpty"
-                }
-              }
-            ],
-            "combinator": "and"
-          },
-          "options": {}
-        },
-        "id": "if-pb-already-running",
-        "name": "Agent Already Running?",
-        "type": "n8n-nodes-base.if",
-        "typeVersion": 2.2,
-        "position": [
-          9792,
-          1280
-        ]
-      },
-      {
-        "parameters": {
-          "jsCode": "// Agent is already running - use existing container\nconst agentStatus = $input.first().json;\nreturn [{\n  json: {\n    containerId: agentStatus.currentRunningContainerId,\n    status: 'already_running',\n    message: 'PhantomBuster agent was already running, using existing container'\n  }\n}];"
-        },
-        "id": "use-existing-pb-container",
-        "name": "Use Existing Container",
-        "type": "n8n-nodes-base.code",
-        "typeVersion": 2,
-        "position": [
-          9552,
-          1520
-        ]
-      },
-      {
-        "parameters": {
-          "mode": "chooseBranch",
-          "useDataOfInput": "={{ $('Launch Profile Scraper with Email').isExecuted ? 2 : 1}}"
-        },
-        "id": "merge-pb-launch-result",
-        "name": "Merge PB Launch Result",
-        "type": "n8n-nodes-base.merge",
-        "typeVersion": 3.1,
-        "position": [
-          9840,
-          1536
-        ]
-      },
-      {
-        "parameters": {
           "jsCode": "// Take only the first item to trigger single Clear/Launch\n// All items still go to Append via a separate connection\nconst allItems = $input.all();\nconst urlCount = allItems.length;\n\nreturn [{\n  json: {\n    urlCount: urlCount,\n    message: `Processing ${urlCount} URLs - triggering single launch`\n  }\n}];"
         },
         "id": "take-first-item",
@@ -4192,23 +4560,87 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          9088,
-          1264
+          -10848,
+          3984
         ]
       },
       {
         "parameters": {
-          "mode": "chooseBranch",
-          "useDataOfInput": 2
+          "mode": "chooseBranch"
         },
         "id": "wait-for-sheet-ready",
         "name": "Wait for Sheet Ready",
         "type": "n8n-nodes-base.merge",
         "typeVersion": 3.1,
         "position": [
-          9440,
-          1280
+          -10400,
+          4112
         ]
+      },
+      {
+        "parameters": {
+          "jsCode": "// Import all inputs\nconst kyleInput = $('Set profile Kyle').isExecuted ? $('Set profile Kyle').first() : null;\nconst hudsonInput = $('Set profile Hudson').isExecuted ? $('Set profile Hudson').first() : null;\nconst manualInput = $('Set profile for manual').isExecuted ? $('Set profile for manual').first() : null;\n\n// Determine which input was executed\nlet selectedInput;\nif (kyleInput) {\n  selectedInput = kyleInput;\n} else if (hudsonInput) {\n  selectedInput = hudsonInput;\n} else if (manualInput) {\n  selectedInput = manualInput;\n} else {\n  throw new Error('No input was executed.');\n}\n\n// Return the selected input\nreturn [{ json: { profileIndex: selectedInput.json.profileIndex}}];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -13904,
+          4304
+        ],
+        "id": "6d7faeb6-d889-47d7-9141-15e1d9b80b8f",
+        "name": "selectProfile"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.phantombuster.com/api/v2/agents/launch",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpHeaderAuth",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ id: '959265651312489', manualLaunch: true, bonusArgument: { sessionCookie: $json.sessionCookie.computed, userAgent: $json.userAgent, sortBy: 'Recently added', numberOfProfiles: 25 } }) }}",
+          "options": {
+            "timeout": 300000
+          }
+        },
+        "id": "6c2cd309-de41-45be-a3ff-932ba468bb55",
+        "name": "exportConnections",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          -12864,
+          4032
+        ],
+        "credentials": {
+          "httpHeaderAuth": {
+            "id": "KWeabljbYSzoLpjI",
+            "name": "Phantom Header Auth"
+          }
+        },
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "operation": "getOutput",
+          "agentId": "959265651312489",
+          "additionalFields": {
+            "prevContainerId": "={{ $('exportConnections').item.json.containerId }}"
+          }
+        },
+        "id": "98a1d5d2-14f3-449d-aaa0-7377505c81c6",
+        "name": "getRecentConnections",
+        "type": "n8n-nodes-base.phantombuster",
+        "typeVersion": 1,
+        "position": [
+          -11680,
+          4112
+        ],
+        "credentials": {
+          "phantombusterApi": {
+            "id": "UYQpQC8SBIqIkifM",
+            "name": "Phantombuster account"
+          }
+        }
       }
     ],
     "connections": {
@@ -4369,27 +4801,32 @@
           ]
         ]
       },
-      "Format Output": {
+      "Schedule Kyle": {
         "main": [
           [
             {
-              "node": "Update HubSpot Status1",
+              "node": "Fetch Doppler cookies",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Set profile Kyle",
               "type": "main",
               "index": 0
             }
           ]
         ]
       },
-      "Daily 6pm Mon-Sat2": {
+      "Schedule Hudson": {
         "main": [
           [
             {
-              "node": "Get Pending Leads2",
+              "node": "Fetch Doppler cookies",
               "type": "main",
               "index": 0
             },
             {
-              "node": "randomWait2",
+              "node": "Set profile Hudson",
               "type": "main",
               "index": 0
             }
@@ -4397,6 +4834,88 @@
         ]
       },
       "Manual Test Webhook": {
+        "main": [
+          [
+            {
+              "node": "Fetch Doppler cookies",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Set profile for manual",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Set profile Kyle": {
+        "main": [
+          [
+            {
+              "node": "selectProfile",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Set profile Hudson": {
+        "main": [
+          [
+            {
+              "node": "selectProfile",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Set profile for manual": {
+        "main": [
+          [
+            {
+              "node": "selectProfile",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Fetch Doppler cookies": {
+        "main": [
+          [
+            {
+              "node": "Profile + Doppler",
+              "type": "main",
+              "index": 1
+            }
+          ]
+        ]
+      },
+      "Profile + Doppler": {
+        "main": [
+          [
+            {
+              "node": "Build profile items with cookies",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Build profile items with cookies": {
+        "main": [
+          [
+            {
+              "node": "Take one profile",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Take one profile": {
         "main": [
           [
             {
@@ -4476,9 +4995,9 @@
         "main": [
           [
             {
-              "node": "Merge PB Launch Result",
+              "node": "Wait 10 min for Email Scraper",
               "type": "main",
-              "index": 1
+              "index": 0
             }
           ]
         ]
@@ -4549,7 +5068,12 @@
         "main": [
           [
             {
-              "node": "Get Email Scraper Output",
+              "node": "Fetch Doppler cookies",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Set profile for manual",
               "type": "main",
               "index": 0
             }
@@ -4593,8 +5117,7 @@
               "type": "main",
               "index": 0
             }
-          ],
-          []
+          ]
         ]
       },
       "Fetch Email Scraper JSON": {
@@ -4623,18 +5146,36 @@
         "main": [
           [
             {
-              "node": "kyleConnectionExport2",
+              "node": "exportConnections",
               "type": "main",
               "index": 0
             }
           ]
         ]
       },
-      "kyleConnectionExport2": {
+      "Check launch response": {
         "main": [
           [
             {
-              "node": "2minWait2",
+              "node": "Cookie error?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Cookie error?": {
+        "main": [
+          [
+            {
+              "node": "Slack: Cookie Alert",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "getRecentConnections",
               "type": "main",
               "index": 0
             }
@@ -4656,18 +5197,7 @@
         "main": [
           [
             {
-              "node": "getRecentConnections2",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "getRecentConnections2": {
-        "main": [
-          [
-            {
-              "node": "normalizeUrl4",
+              "node": "Check launch response",
               "type": "main",
               "index": 0
             }
@@ -4723,11 +5253,6 @@
               "index": 0
             }
           ]
-        ]
-      },
-      "Replace Me": {
-        "main": [
-          []
         ]
       },
       "Update HubSpot Status1": {
@@ -4905,47 +5430,7 @@
         "main": [
           [
             {
-              "node": "Agent Already Running?",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "Agent Already Running?": {
-        "main": [
-          [
-            {
-              "node": "Use Existing Container",
-              "type": "main",
-              "index": 0
-            }
-          ],
-          [
-            {
               "node": "Launch Profile Scraper with Email",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "Use Existing Container": {
-        "main": [
-          [
-            {
-              "node": "Merge PB Launch Result",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "Merge PB Launch Result": {
-        "main": [
-          [
-            {
-              "node": "Wait 10 min for Email Scraper",
               "type": "main",
               "index": 0
             }
@@ -4973,12 +5458,56 @@
             }
           ]
         ]
+      },
+      "Format Output": {
+        "main": [
+          [
+            {
+              "node": "Update HubSpot Status1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "selectProfile": {
+        "main": [
+          [
+            {
+              "node": "Profile + Doppler",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "exportConnections": {
+        "main": [
+          [
+            {
+              "node": "2minWait2",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "getRecentConnections": {
+        "main": [
+          [
+            {
+              "node": "normalizeUrl4",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
       }
     },
     "authors": "Hudson Lorfing",
-    "name": "Version e6931070",
-    "description": "",
-    "autosaved": true
+    "name": null,
+    "description": null,
+    "autosaved": false
   },
   "tags": [
     {
