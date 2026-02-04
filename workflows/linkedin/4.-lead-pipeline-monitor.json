@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-01-28T18:24:15.589Z",
+  "updatedAt": "2026-02-03T21:56:40.351Z",
   "createdAt": "2025-12-26T18:55:11.571Z",
   "id": "dWFsEXELFTJU0W01",
   "name": "4. Lead Pipeline Monitor",
@@ -846,7 +846,8 @@
         -208,
         608
       ],
-      "webhookId": "pipeline-monitor-webhook"
+      "webhookId": "pipeline-monitor-webhook",
+      "disabled": true
     },
     {
       "parameters": {
@@ -1033,6 +1034,79 @@
       ],
       "id": "7915f4cb-2038-451a-a88e-9ed8709dfc28",
       "name": "If no error"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check if error message indicates invalid cookie/session (for Slack alert)\nconst item = $input.first().json;\nconst err = (item.error || item.message || '').toString();\nconst cookiePatterns = [/invalid.*cookie/i, /cookie.*invalid/i, /session.*expired/i, /disconnected.*linkedin/i, /no valid credentials/i, /invalid credentials/i];\nconst isCookieError = cookiePatterns.some(p => p.test(err));\nreturn [{ json: { ...item, isCookieError, errorMessage: err.substring(0, 500) } }];"
+      },
+      "id": "parse-error-for-cookie",
+      "name": "Parse error for cookie",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3760,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cookie-err",
+              "leftValue": "={{ $json.isCookieError }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "cookie-error-if-pipeline",
+      "name": "Cookie error?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3904,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "C0A6ES56MU2"
+        },
+        "text": "={{ '🍪 *LinkedIn Cookie/Session Error - Update in Doppler*\\n\\n*Workflow:* Lead Pipeline Monitor\\n*Error:* ' + ($json.errorMessage || '').substring(0, 300) + '\\n\\n⚠️ Update in Doppler: LINKEDIN_KYLE_SESSION_COOKIE or LINKEDIN_HUDSON_SESSION_COOKIE (Connection Sync pulls cookies from Doppler directly).' }}",
+        "otherOptions": {}
+      },
+      "id": "slack-cookie-alert-pipeline",
+      "name": "Slack: Cookie Alert",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        4128,
+        624
+      ],
+      "webhookId": "5e6e3614-92e2-44b7-a930-7bb4b4c63ebf",
+      "credentials": {
+        "slackApi": {
+          "id": "wkLpZSqhXl2iesnC",
+          "name": "Chrt Slack App"
+        }
+      }
     }
   ],
   "connections": {
@@ -1553,12 +1627,44 @@
         ],
         [
           {
+            "node": "Parse error for cookie",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse error for cookie": {
+      "main": [
+        [
+          {
+            "node": "Cookie error?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cookie error?": {
+      "main": [
+        [
+          {
+            "node": "Slack: Cookie Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
             "node": "Prepare Crawl Date Update",
             "type": "main",
             "index": 0
           }
         ]
       ]
+    },
+    "Slack: Cookie Alert": {
+      "main": []
     },
     "When clicking ‘Execute workflow’": {
       "main": [
@@ -1584,19 +1690,10 @@
     }
   },
   "meta": null,
-  "pinData": {
-    "When clicking ‘Execute workflow’": [
-      {
-        "json": {},
-        "pairedItem": {
-          "item": 0
-        }
-      }
-    ]
-  },
-  "versionId": "35aa4b57-c5d3-4fe3-8100-44fc1caac13f",
-  "activeVersionId": "35aa4b57-c5d3-4fe3-8100-44fc1caac13f",
-  "triggerCount": 2,
+  "pinData": {},
+  "versionId": "b69b802b-3972-4788-9e5a-ead5efd84ffe",
+  "activeVersionId": "b69b802b-3972-4788-9e5a-ead5efd84ffe",
+  "triggerCount": 1,
   "shared": [
     {
       "updatedAt": "2025-12-26T19:26:32.444Z",
@@ -1607,9 +1704,9 @@
     }
   ],
   "activeVersion": {
-    "updatedAt": "2026-01-28T18:24:15.592Z",
-    "createdAt": "2026-01-28T18:24:15.592Z",
-    "versionId": "35aa4b57-c5d3-4fe3-8100-44fc1caac13f",
+    "updatedAt": "2026-02-03T21:56:44.000Z",
+    "createdAt": "2026-02-03T21:56:40.353Z",
+    "versionId": "b69b802b-3972-4788-9e5a-ead5efd84ffe",
     "workflowId": "dWFsEXELFTJU0W01",
     "nodes": [
       {
@@ -2452,7 +2549,8 @@
           -208,
           608
         ],
-        "webhookId": "pipeline-monitor-webhook"
+        "webhookId": "pipeline-monitor-webhook",
+        "disabled": true
       },
       {
         "parameters": {
@@ -2639,6 +2737,79 @@
         ],
         "id": "7915f4cb-2038-451a-a88e-9ed8709dfc28",
         "name": "If no error"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Check if error message indicates invalid cookie/session (for Slack alert)\nconst item = $input.first().json;\nconst err = (item.error || item.message || '').toString();\nconst cookiePatterns = [/invalid.*cookie/i, /cookie.*invalid/i, /session.*expired/i, /disconnected.*linkedin/i, /no valid credentials/i, /invalid credentials/i];\nconst isCookieError = cookiePatterns.some(p => p.test(err));\nreturn [{ json: { ...item, isCookieError, errorMessage: err.substring(0, 500) } }];"
+        },
+        "id": "parse-error-for-cookie",
+        "name": "Parse error for cookie",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          3760,
+          720
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "cookie-err",
+                "leftValue": "={{ $json.isCookieError }}",
+                "rightValue": true,
+                "operator": {
+                  "type": "boolean",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "cookie-error-if-pipeline",
+        "name": "Cookie error?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          3904,
+          720
+        ]
+      },
+      {
+        "parameters": {
+          "select": "channel",
+          "channelId": {
+            "__rl": true,
+            "mode": "id",
+            "value": "C0A6ES56MU2"
+          },
+          "text": "={{ '🍪 *LinkedIn Cookie/Session Error - Update in Doppler*\\n\\n*Workflow:* Lead Pipeline Monitor\\n*Error:* ' + ($json.errorMessage || '').substring(0, 300) + '\\n\\n⚠️ Update in Doppler: LINKEDIN_KYLE_SESSION_COOKIE or LINKEDIN_HUDSON_SESSION_COOKIE (Connection Sync pulls cookies from Doppler directly).' }}",
+          "otherOptions": {}
+        },
+        "id": "slack-cookie-alert-pipeline",
+        "name": "Slack: Cookie Alert",
+        "type": "n8n-nodes-base.slack",
+        "typeVersion": 2.2,
+        "position": [
+          4128,
+          624
+        ],
+        "webhookId": "5e6e3614-92e2-44b7-a930-7bb4b4c63ebf",
+        "credentials": {
+          "slackApi": {
+            "id": "wkLpZSqhXl2iesnC",
+            "name": "Chrt Slack App"
+          }
+        }
       }
     ],
     "connections": {
@@ -3159,12 +3330,44 @@
           ],
           [
             {
+              "node": "Parse error for cookie",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Parse error for cookie": {
+        "main": [
+          [
+            {
+              "node": "Cookie error?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Cookie error?": {
+        "main": [
+          [
+            {
+              "node": "Slack: Cookie Alert",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
               "node": "Prepare Crawl Date Update",
               "type": "main",
               "index": 0
             }
           ]
         ]
+      },
+      "Slack: Cookie Alert": {
+        "main": []
       },
       "When clicking ‘Execute workflow’": {
         "main": [
@@ -3179,9 +3382,9 @@
       }
     },
     "authors": "Hudson Lorfing",
-    "name": null,
-    "description": null,
-    "autosaved": false
+    "name": "Version b69b802b",
+    "description": "",
+    "autosaved": true
   },
   "tags": [
     {
