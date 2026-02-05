@@ -1,0 +1,1274 @@
+{
+  "updatedAt": "2026-02-04T21:52:18.324Z",
+  "createdAt": "2026-02-04T18:10:34.134Z",
+  "id": "MQantT1gLLP8NEn4",
+  "name": "1. Lead Ingestion & ICP Scoring (TEST)",
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Dashboard"
+        },
+        "options": {}
+      },
+      "id": "read-dashboard-ingestion",
+      "name": "Read Dashboard",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -29680,
+        3024
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "hf9VoWnqYNXhUZsn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst kylePreProcessed = parseInt(data['kylePreProcessed'] || 0, 10);\nconst hudsonPreProcessed = parseInt(data['hudsonPreProcessed'] || 0, 10);\nconst kyleTargets = parseInt(data['kyleTargets'] || 0, 10);\nconst hudsonTargets = parseInt(data['hudsonTargets'] || 0, 10);\nconst priorityProfile = kyleTargets <= hudsonTargets ? 'kyle' : 'hudson';\nif (kylePreProcessed < 100 && hudsonPreProcessed < 100) {\n  return [{ json: { skip: true, reason: 'both over 100' } }];\n}\nreturn [{ json: { batchSize: 25, source: 'schedule', skip: false, priorityProfile, kylePreProcessed, hudsonPreProcessed, kyleTargets, hudsonTargets } }];"
+      },
+      "id": "check-preprocessed-priority",
+      "name": "Check pre-processed counts and priority",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -29488,
+        3024
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "need-run",
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-need-to-run",
+      "name": "Need to run?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -29024,
+        3040
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "trigger-crawl",
+              "leftValue": "={{ ($json.priorityProfile === 'kyle' && $json.kyleTargets < 240 && $json.kylePreProcessed < 100) || ($json.priorityProfile === 'hudson' && $json.hudsonTargets < 240 && $json.hudsonPreProcessed < 100) }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-should-trigger-crawl",
+      "name": "Should trigger crawl?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -29216,
+        2880
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://chrt.app.n8n.cloud/webhook/pipeline-monitor-crawl",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ profile: $json.priorityProfile }) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "http-trigger-crawl",
+      "name": "Trigger workflow 4 crawl",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -28880,
+        2880
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Restore batch payload after HTTP (HTTP replaces item with response)\nreturn [{ json: { batchSize: 25, source: 'schedule' } }];"
+      },
+      "id": "ensure-batch-payload",
+      "name": "Ensure batch payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -28688,
+        2880
+      ]
+    },
+    {
+      "parameters": {
+        "notice": "Click 'Test workflow' to run manually after pasting PhantomBuster export into New Leads sheet"
+      },
+      "id": "948717d3-54d7-4dc2-beaa-ceb078510e74",
+      "name": "Run Manually",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -29904,
+        3200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Determine batch size based on trigger source\n// Default: 10 for manual, 240 for webhook (pipeline monitor)\nlet batchSize = 10;\n\ntry {\n  // Check if triggered via webhook with batchSize parameter\n  const inputData = $input.first()?.json || {};\n  if (inputData.batchSize) {\n    batchSize = parseInt(inputData.batchSize) || 240;\n  }\n  // Also check body property (n8n webhook wraps data sometimes)\n  if (inputData.body && inputData.body.batchSize) {\n    batchSize = parseInt(inputData.body.batchSize) || 240;\n  }\n} catch (e) {\n  // Manual trigger - use default\n  batchSize = 25;\n}\n\nreturn [{ json: { batchSize, source: batchSize > 10 ? 'pipeline-monitor' : 'manual' } }];"
+      },
+      "id": "determine-batch-size",
+      "name": "Determine Batch Size",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -28544,
+        3040
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "New Leads"
+        },
+        "options": {}
+      },
+      "id": "30a11b75-df9c-4f57-8241-0343d63b25b2",
+      "name": "Read New Leads",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -28320,
+        2928
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "hf9VoWnqYNXhUZsn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Master List"
+        },
+        "options": {}
+      },
+      "id": "984f4604-dd13-497a-9070-98c8d4e0c465",
+      "name": "Read Master List",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -28304,
+        3184
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "hf9VoWnqYNXhUZsn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {
+          "reset": false
+        }
+      },
+      "id": "7f59b5ed-00a5-4e40-802b-a8718277b0dd",
+      "name": "Loop Over Leads1",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -26752,
+        2944
+      ]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "claude-sonnet-4-5-20250929"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "={{ `Score this LinkedIn profile 0-10 for Chrt, a B2B SaaS for time-critical logistics. Return JSON only:\n{\"score\": <0-10>, \"segment\": \"<Shipper-Healthcare|Shipper-Aerospace|Courier|Forwarder|Skip>\", \"reason\": \"<one sentence>\", \"hubspotIndustry\": \"<HUBSPOT_INDUSTRY_ENUM>\"}\n\nFor hubspotIndustry, map the LinkedIn industry to the closest HubSpot enum from the list at the bottom. Example: \"Hospital & Health Care\" -> \"HOSPITAL_HEALTH_CARE\", \"Aviation & Aerospace\" -> \"AVIATION_AEROSPACE\". Use exact enum values only.\n\n## ICP CRITERIA\n\n### SHIPPER-HEALTHCARE (7-10)\nTitles: CSCO, Director, VP Supply Chain, VP Lab Ops, Director Logistics/Transportation/Courier Ops, Supply Chain Manager, Director Field Ops, Case Logistics Manager\nCompanies: Regional health systems, genetics/specialty labs, pharma/biotech, OPOs, tissue/blood banks, med device (surgical kits)\nSignals: \"logistics\" \"supply chain\" \"courier\" \"specimen\" in headline | 200-10K employees | Regional focus\n\n### SHIPPER-AEROSPACE (7-10)\nTitles: VP/SVP Supply Chain, Director, Director AOG Ops, VP Aftermarket/Customer Support, Materials Manager, CPO\nCompanies: MRO facilities, aircraft component mfg, engine MROs (StandardAero, MTU), airline maintenance\nSignals: \"AOG\" \"MRO\" \"aviation\" \"aerospace\" | Aftermarket focus | Emergency parts\n*Avoid: if currrent role is Airspace, previous roles at Airspace is not an issue\n\n### COURIER (6-10)\nTitles: Owner/CEO/Founder, Director, Operations Manager, Dispatch Manager, Fleet Manager, GM\nCompanies: Medical couriers, same-day/time-critical, cold chain specialists, regional networks\nSignals: \"medical courier\" \"same-day\" \"cold chain\" | 10-500 employees | Owner/operator\nAvoid: FedEx/UPS employees, DoorDash/Uber Eats, Amazon DSPs\n*Avoid: if currrent role is Airspace, previous roles at Airspace is not an issue\n\n### FORWARDER/AGENT (5-8)\nTitles: Operations Manager, Station Manager, Logistics Manager, Director, Network Manager\nCompanies: Freight forwarders, 3PLs with last-mile, same-day logistics specialists\n*Avoid: if currrent role is Airspace, previous roles at Airspace is not an issue\n\n## SCORING: 10=Perfect fit, 8-9=Excellent, 6-7=Good, 4-5=Marginal, 1-3=Poor, 0=Skip\n\n## LEAD DATA\nName: ${$json.fullName || 'Unknown'}\nTitle: ${$json.title || 'Unknown'}\nTitle Description: ${$json.titleDescription || 'N/A'}\nCompany: ${$json.companyName || 'Unknown'}\nIndustry: ${$json.industry || 'Unknown'}\nCompany Location: ${$json.companyLocation || 'N/A'}\nLocation: ${$json.location || 'N/A'}\nSummary: ${$json.summary || 'N/A'}\nDuration in Role: ${$json.durationInRole || 'N/A'}\nDuration in Company: ${$json.durationInCompany || 'N/A'}\nPrevious Role: ${$json.pastExperienceCompanyTitle || 'N/A'} @ ${$json.pastExperienceCompanyName || 'N/A'}\nPrevious Role Duration: ${$json.pastExperienceDuration || 'N/A'}` }}\n\n## INDUSTRY OPTIONS TO USE EXPLICITLY FROM HUBSPOT\nACCOUNTING, AIRLINES_AVIATION, ALTERNATIVE_DISPUTE_RESOLUTION, ALTERNATIVE_MEDICINE, ANIMATION, APPAREL_FASHION, ARCHITECTURE_PLANNING, ARTS_AND_CRAFTS, AUTOMOTIVE, AVIATION_AEROSPACE, BANKING, BIOTECHNOLOGY, BROADCAST_MEDIA, BUILDING_MATERIALS, BUSINESS_SUPPLIES_AND_EQUIPMENT, CAPITAL_MARKETS, CHEMICALS, CIVIC_SOCIAL_ORGANIZATION, CIVIL_ENGINEERING, COMMERCIAL_REAL_ESTATE, COMPUTER_NETWORK_SECURITY, COMPUTER_GAMES, COMPUTER_HARDWARE, COMPUTER_NETWORKING, COMPUTER_SOFTWARE, INTERNET, CONSTRUCTION, CONSUMER_ELECTRONICS, CONSUMER_GOODS, CONSUMER_SERVICES, COSMETICS, DAIRY, DEFENSE_SPACE, DESIGN, EDUCATION_MANAGEMENT, E_LEARNING, ELECTRICAL_ELECTRONIC_MANUFACTURING, ENTERTAINMENT, ENVIRONMENTAL_SERVICES, EVENTS_SERVICES, EXECUTIVE_OFFICE, FACILITIES_SERVICES, FARMING, FINANCIAL_SERVICES, FINE_ART, FISHERY, FOOD_BEVERAGES, FOOD_PRODUCTION, FUND_RAISING, FURNITURE, GAMBLING_CASINOS, GLASS_CERAMICS_CONCRETE, GOVERNMENT_ADMINISTRATION, GOVERNMENT_RELATIONS, GRAPHIC_DESIGN, HEALTH_WELLNESS_AND_FITNESS, HIGHER_EDUCATION, HOSPITAL_HEALTH_CARE, HOSPITALITY, HUMAN_RESOURCES, IMPORT_AND_EXPORT, INDIVIDUAL_FAMILY_SERVICES, INDUSTRIAL_AUTOMATION, INFORMATION_SERVICES, INFORMATION_TECHNOLOGY_AND_SERVICES, INSURANCE, INTERNATIONAL_AFFAIRS, INTERNATIONAL_TRADE_AND_DEVELOPMENT, INVESTMENT_BANKING, INVESTMENT_MANAGEMENT, JUDICIARY, LAW_ENFORCEMENT, LAW_PRACTICE, LEGAL_SERVICES, LEGISLATIVE_OFFICE, LEISURE_TRAVEL_TOURISM, LIBRARIES, LOGISTICS_AND_SUPPLY_CHAIN, LUXURY_GOODS_JEWELRY, MACHINERY, MANAGEMENT_CONSULTING, MARITIME, MARKET_RESEARCH, MARKETING_AND_ADVERTISING, MECHANICAL_OR_INDUSTRIAL_ENGINEERING, MEDIA_PRODUCTION, MEDICAL_DEVICES, MEDICAL_PRACTICE, MENTAL_HEALTH_CARE, MILITARY, MINING_METALS, MOTION_PICTURES_AND_FILM, MUSEUMS_AND_INSTITUTIONS, MUSIC, NANOTECHNOLOGY, NEWSPAPERS, NON_PROFIT_ORGANIZATION_MANAGEMENT, OIL_ENERGY, ONLINE_MEDIA, OUTSOURCING_OFFSHORING, PACKAGE_FREIGHT_DELIVERY, PACKAGING_AND_CONTAINERS, PAPER_FOREST_PRODUCTS, PERFORMING_ARTS, PHARMACEUTICALS, PHILANTHROPY, PHOTOGRAPHY, PLASTICS, POLITICAL_ORGANIZATION, PRIMARY_SECONDARY_EDUCATION, PRINTING, PROFESSIONAL_TRAINING_COACHING, PROGRAM_DEVELOPMENT, PUBLIC_POLICY, PUBLIC_RELATIONS_AND_COMMUNICATIONS, PUBLIC_SAFETY, PUBLISHING, RAILROAD_MANUFACTURE, RANCHING, REAL_ESTATE, RECREATIONAL_FACILITIES_AND_SERVICES, RELIGIOUS_INSTITUTIONS, RENEWABLES_ENVIRONMENT, RESEARCH, RESTAURANTS, RETAIL, SECURITY_AND_INVESTIGATIONS, SEMICONDUCTORS, SHIPBUILDING, SPORTING_GOODS, SPORTS, STAFFING_AND_RECRUITING, SUPERMARKETS, TELECOMMUNICATIONS, TEXTILES, THINK_TANKS, TOBACCO, TRANSLATION_AND_LOCALIZATION, TRANSPORTATION_TRUCKING_RAILROAD, UTILITIES, VENTURE_CAPITAL_PRIVATE_EQUITY, VETERINARY, WAREHOUSING, WHOLESALE, WINE_AND_SPIRITS, WIRELESS, WRITING_AND_EDITING, MOBILE_GAMES]\",\"error\":\"INVALID_OPTION\",\"name\":\"industry\",\"localizedErrorMessage\":\"Hospital & Health Care was not one of the allowed options: [ACCOUNTING, AIRLINES_AVIATION, ALTERNATIVE_DISPUTE_RESOLUTION, ALTERNATIVE_MEDICINE, ANIMATION, APPAREL_FASHION, ARCHITECTURE_PLANNING, ARTS_AND_CRAFTS, AUTOMOTIVE, AVIATION_AEROSPACE, BANKING, BIOTECHNOLOGY, BROADCAST_MEDIA, BUILDING_MATERIALS, BUSINESS_SUPPLIES_AND_EQUIPMENT, CAPITAL_MARKETS, CHEMICALS, CIVIC_SOCIAL_ORGANIZATION, CIVIL_ENGINEERING, COMMERCIAL_REAL_ESTATE, COMPUTER_NETWORK_SECURITY, COMPUTER_GAMES, COMPUTER_HARDWARE, COMPUTER_NETWORKING, COMPUTER_SOFTWARE, INTERNET, CONSTRUCTION, CONSUMER_ELECTRONICS, CONSUMER_GOODS, CONSUMER_SERVICES, COSMETICS, DAIRY, DEFENSE_SPACE, DESIGN, EDUCATION_MANAGEMENT, E_LEARNING, ELECTRICAL_ELECTRONIC_MANUFACTURING, ENTERTAINMENT, ENVIRONMENTAL_SERVICES, EVENTS_SERVICES, EXECUTIVE_OFFICE, FACILITIES_SERVICES, FARMING, FINANCIAL_SERVICES, FINE_ART, FISHERY, FOOD_BEVERAGES, FOOD_PRODUCTION, FUND_RAISING, FURNITURE, GAMBLING_CASINOS, GLASS_CERAMICS_CONCRETE, GOVERNMENT_ADMINISTRATION, GOVERNMENT_RELATIONS, GRAPHIC_DESIGN, HEALTH_WELLNESS_AND_FITNESS, HIGHER_EDUCATION, HOSPITAL_HEALTH_CARE, HOSPITALITY, HUMAN_RESOURCES, IMPORT_AND_EXPORT, INDIVIDUAL_FAMILY_SERVICES, INDUSTRIAL_AUTOMATION, INFORMATION_SERVICES, INFORMATION_TECHNOLOGY_AND_SERVICES, INSURANCE, INTERNATIONAL_AFFAIRS, INTERNATIONAL_TRADE_AND_DEVELOPMENT, INVESTMENT_BANKING, INVESTMENT_MANAGEMENT, JUDICIARY, LAW_ENFORCEMENT, LAW_PRACTICE, LEGAL_SERVICES, LEGISLATIVE_OFFICE, LEISURE_TRAVEL_TOURISM, LIBRARIES, LOGISTICS_AND_SUPPLY_CHAIN, LUXURY_GOODS_JEWELRY, MACHINERY, MANAGEMENT_CONSULTING, MARITIME, MARKET_RESEARCH, MARKETING_AND_ADVERTISING, MECHANICAL_OR_INDUSTRIAL_ENGINEERING, MEDIA_PRODUCTION, MEDICAL_DEVICES, MEDICAL_PRACTICE, MENTAL_HEALTH_CARE, MILITARY, MINING_METALS, MOTION_PICTURES_AND_FILM, MUSEUMS_AND_INSTITUTIONS, MUSIC, NANOTECHNOLOGY, NEWSPAPERS, NON_PROFIT_ORGANIZATION_MANAGEMENT, OIL_ENERGY, ONLINE_MEDIA, OUTSOURCING_OFFSHORING, PACKAGE_FREIGHT_DELIVERY, PACKAGING_AND_CONTAINERS, PAPER_FOREST_PRODUCTS, PERFORMING_ARTS, PHARMACEUTICALS, PHILANTHROPY, PHOTOGRAPHY, PLASTICS, POLITICAL_ORGANIZATION, PRIMARY_SECONDARY_EDUCATION, PRINTING, PROFESSIONAL_TRAINING_COACHING, PROGRAM_DEVELOPMENT, PUBLIC_POLICY, PUBLIC_RELATIONS_AND_COMMUNICATIONS, PUBLIC_SAFETY, PUBLISHING, RAILROAD_MANUFACTURE, RANCHING, REAL_ESTATE, RECREATIONAL_FACILITIES_AND_SERVICES, RELIGIOUS_INSTITUTIONS, RENEWABLES_ENVIRONMENT, RESEARCH, RESTAURANTS, RETAIL, SECURITY_AND_INVESTIGATIONS, SEMICONDUCTORS, SHIPBUILDING, SPORTING_GOODS, SPORTS, STAFFING_AND_RECRUITING, SUPERMARKETS, TELECOMMUNICATIONS, TEXTILES, THINK_TANKS, TOBACCO, TRANSLATION_AND_LOCALIZATION, TRANSPORTATION_TRUCKING_RAILROAD, UTILITIES, VENTURE_CAPITAL_PRIVATE_EQUITY, VETERINARY, WAREHOUSING, WHOLESALE, WINE_AND_SPIRITS, WIRELESS, WRITING_AND_EDITING, MOBILE_GAMES"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "e38f26b7-c0b8-4c59-8432-04b73ee571fb",
+      "name": "AI ICP Score",
+      "type": "@n8n/n8n-nodes-langchain.anthropic",
+      "typeVersion": 1,
+      "position": [
+        -26496,
+        3120
+      ],
+      "credentials": {
+        "anthropicApi": {
+          "id": "B6k4mmzjw7OzEK5c",
+          "name": "Anthropic account"
+        }
+      },
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const pb = $('Loop Over Leads1').item.json;\nlet aiResult = { score: 5, segment: 'Unknown', reason: 'Could not parse AI response', hubspotIndustry: '' };\n\ntry {\n  const content = $('AI ICP Score').item.json.content?.[0]?.text || '{}';\n  const parsed = JSON.parse(content.replace(/```json?|```/g, '').trim());\n  aiResult = {\n    score: parsed.score ?? 5,\n    segment: parsed.segment || 'Unknown',\n    reason: parsed.reason || 'No reason provided',\n    hubspotIndustry: parsed.hubspotIndustry || ''\n  };\n} catch (e) {}\n\n// Output all columns - mapped from New Leads (Sales Nav) headers to Master List\nreturn [{\n  json: {\n    profileUrl: pb.defaultProfileUrl || pb.linkedInProfileUrl || '',\n    fullName: pb.fullName || `${pb.firstName || ''} ${pb.lastName || ''}`.trim(),\n    firstName: pb.firstName || '',\n    lastName: pb.lastName || '',\n    school: '',\n    schoolDegree: '',\n    company: pb.companyName || '',\n    companyUrl: pb.companyUrl || pb.regularCompanyUrl || '',\n    companyId: pb.companyId || '',\n    jobTitle: pb.title || '',\n    jobDateRange: pb.durationInRole || '',\n    hsIndustry: aiResult.hubspotIndustry,\n    headline: pb.titleDescription || pb.title || '',\n    location: pb.location || '',\n    company2: pb.pastExperienceCompanyName || '',\n    companyUrl2: pb.pastExperienceCompanyUrl || pb.companyUrl2 || '',\n    companyId2: '',\n    jobTitle2: pb.pastExperienceCompanyTitle || '',\n    jobDateRange2: pb.pastExperienceDate || '',\n    score: aiResult.score,\n    segment: aiResult.segment,\n    reason: aiResult.reason,\n    status: aiResult.score >= 6 ? 'Ready' : 'Low Priority',\n    added: new Date().toISOString().split('T')[0],\n    kyleSentDate: '',\n    kyleConnectDate: '',\n    hudsonSentDate: '',\n    hudsonConnectDate: '',\n    hubspotSync: '',\n    hudsonNotes: '',\n    inviteResults: '',\n    connectionDegree: pb.connectionDegree || '',\n    previousRole: pb.pastExperienceCompanyTitle ? `${pb.pastExperienceCompanyTitle} @ ${pb.pastExperienceCompanyName || ''}` : '',\n    industry: pb.industry || '',\n    summary: pb.summary || '',\n    companyLocation: pb.companyLocation || '',\n    durationInCompany: pb.durationInCompany || '',\n    pastExperienceDuration: pb.pastExperienceDuration || '',\n    sharedConnectionsCount: pb.sharedConnectionsCount || '',\n    isPremium: pb.isPremium || false,\n    isOpenLink: pb.isOpenLink || false\n  }\n}];"
+      },
+      "id": "c78dafcf-3174-4792-b843-9512bfaa472e",
+      "name": "Format for Master List",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -26144,
+        3120
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Master List"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "profileUrl",
+              "displayName": "profileUrl",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "fullName",
+              "displayName": "fullName",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "firstName",
+              "displayName": "firstName",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "lastName",
+              "displayName": "lastName",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "school",
+              "displayName": "school",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "schoolDegree",
+              "displayName": "schoolDegree",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "company",
+              "displayName": "company",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "companyUrl",
+              "displayName": "companyUrl",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "companyId",
+              "displayName": "companyId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "jobTitle",
+              "displayName": "jobTitle",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "jobDateRange",
+              "displayName": "jobDateRange",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "adj industry",
+              "displayName": "adj industry",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "headline",
+              "displayName": "headline",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "location",
+              "displayName": "location",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "company2",
+              "displayName": "company2",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "companyUrl2",
+              "displayName": "companyUrl2",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "companyId2",
+              "displayName": "companyId2",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "jobTitle2",
+              "displayName": "jobTitle2",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "jobDateRange2",
+              "displayName": "jobDateRange2",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "score",
+              "displayName": "score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "segment",
+              "displayName": "segment",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "reason",
+              "displayName": "reason",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "added",
+              "displayName": "added",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "kyleSentDate",
+              "displayName": "kyleSentDate",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "kyleConnectDate",
+              "displayName": "kyleConnectDate",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "hudsonSentDate",
+              "displayName": "hudsonSentDate",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "hudsonConnectDate",
+              "displayName": "hudsonConnectDate",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "hubspotSync",
+              "displayName": "hubspotSync",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "hudsonNotes",
+              "displayName": "hudsonNotes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "inviteResults",
+              "displayName": "inviteResults",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "connectionDegree",
+              "displayName": "connectionDegree",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "previousRole",
+              "displayName": "previousRole",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "industry",
+              "displayName": "industry",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "f364d7c8-1b34-4828-a0a4-a4a93c519f55",
+      "name": "Add to Master List",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -25712,
+        3120
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "hf9VoWnqYNXhUZsn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "8eac512e-b181-4806-b005-a9983c523bc4",
+      "name": "Done",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -26432,
+        2928
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "New Leads"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "defaultProfileUrl",
+              "lookupValue": "={{ $json.profileUrl }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "111f8bac-2145-45da-8da1-68b33230edb9",
+      "name": "Find lead",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -25488,
+        3120
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "hf9VoWnqYNXhUZsn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "documentId": {
+          "__rl": true,
+          "value": "1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8",
+          "mode": "list",
+          "cachedResultName": "LinkedIn Leads",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1474822897,
+          "mode": "list",
+          "cachedResultName": "New Leads",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8/edit#gid=1474822897"
+        },
+        "startIndex": "={{ $json.row_number }}"
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -25232,
+        3120
+      ],
+      "id": "d65f2a38-d4c8-4439-bc8d-60aed73a64f5",
+      "name": "Delete new lead",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "hf9VoWnqYNXhUZsn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        -28064,
+        3056
+      ],
+      "id": "merge-wait-for-both",
+      "name": "Wait for Both Sheets"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Data comes from Merge node (append mode)\n// Input 0: New Leads, Input 1: Master List\n// The merge appends both, so we need to identify them by structure\n\n// All items from the merge\nconst allItems = $input.all();\n\n// New Leads have 'linkedInProfileUrl' or 'profileUrl', Master List has 'profileUrl'\n// Master List items have 'score' field (from previous processing)\nconst newLeads = [];\nconst masterUrls = new Set();\n\nallItems.forEach(item => {\n  const data = item.json;\n  // Master List items have 'score' or 'segment' fields\n  if (data.score !== undefined || data.segment !== undefined) {\n    const url = (data.profileUrl || '').trim().toLowerCase();\n    if (url) masterUrls.add(url);\n  } else {\n    // This is a new lead\n    newLeads.push(item);\n  }\n});\n\n// Filter new leads to only those not in master list\nconst uniqueLeads = newLeads.filter(lead => {\n  const url = (lead.json.linkedInProfileUrl || lead.json.profileUrl || '').trim().toLowerCase();\n  return url && !masterUrls.has(url);\n});\n\nreturn uniqueLeads;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -27856,
+        3056
+      ],
+      "id": "1b0c3579-90f5-45b6-8881-d1143bf6959f",
+      "name": "Dedupe New Leads"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "has-items",
+              "leftValue": "={{ $input.all().length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -27680,
+        3056
+      ],
+      "id": "check-has-leads",
+      "name": "Has Leads to Process?"
+    },
+    {
+      "parameters": {
+        "maxItems": "={{ $('Determine Batch Size').first().json.batchSize || 25 }}"
+      },
+      "type": "n8n-nodes-base.limit",
+      "typeVersion": 1,
+      "position": [
+        -27120,
+        2960
+      ],
+      "id": "6cc0c946-726b-454e-955f-db87dd179c71",
+      "name": "Limit"
+    },
+    {
+      "parameters": {
+        "jsCode": "// No leads to process\nreturn [{ json: { success: true, processed: 0, message: 'No new leads to process', timestamp: new Date().toISOString() } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -27264,
+        3152
+      ],
+      "id": "no-leads-found",
+      "name": "No Leads Found"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Return final status\nreturn [{ json: { success: true, source: 'lead-ingestion', timestamp: new Date().toISOString() } }];"
+      },
+      "id": "final-status",
+      "name": "Final Status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -26208,
+        2928
+      ]
+    },
+    {
+      "parameters": {
+        "amount": "={{ Math.floor( Math.random() * 2 ) + 1}}"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -25936,
+        3120
+      ],
+      "id": "965a4032-535d-4b34-8300-5177cde93702",
+      "name": "Wait",
+      "webhookId": "1a57f751-0ed4-4075-9bc5-bb83d9377ad4"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "08e57f22-19a5-4e3e-aef8-c408258bb05e",
+              "leftValue": "={{  $json.connectionFrom }}",
+              "rightValue": "={{ $('Check pre-processed counts and priority').item.json.priorityProfile}}",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            },
+            {
+              "id": "cfb44ddd-c25a-4125-920b-a2edb08f6539",
+              "leftValue": "={{ $json.connectionFrom }}",
+              "rightValue": "both",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.3,
+      "position": [
+        -27360,
+        2960
+      ],
+      "id": "62c7d8c8-9295-4224-b6b6-b4b573e533ee",
+      "name": "Filter"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0,15 * * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule-every-30min",
+      "name": "Schedule every 15 min",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -29888,
+        3024
+      ]
+    }
+  ],
+  "connections": {
+    "Read Dashboard": {
+      "main": [
+        [
+          {
+            "node": "Check pre-processed counts and priority",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check pre-processed counts and priority": {
+      "main": [
+        [
+          {
+            "node": "Should trigger crawl?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Need to run?": {
+      "main": [
+        [
+          {
+            "node": "Determine Batch Size",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Leads Found",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Should trigger crawl?": {
+      "main": [
+        [
+          {
+            "node": "Trigger workflow 4 crawl",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Need to run?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trigger workflow 4 crawl": {
+      "main": [
+        [
+          {
+            "node": "Ensure batch payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ensure batch payload": {
+      "main": [
+        [
+          {
+            "node": "Determine Batch Size",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run Manually": {
+      "main": [
+        [
+          {
+            "node": "Read Dashboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Determine Batch Size": {
+      "main": [
+        [
+          {
+            "node": "Read Master List",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read New Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read New Leads": {
+      "main": [
+        [
+          {
+            "node": "Wait for Both Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Master List": {
+      "main": [
+        [
+          {
+            "node": "Wait for Both Sheets",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Wait for Both Sheets": {
+      "main": [
+        [
+          {
+            "node": "Dedupe New Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Leads1": {
+      "main": [
+        [
+          {
+            "node": "Done",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI ICP Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Done": {
+      "main": [
+        [
+          {
+            "node": "Final Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI ICP Score": {
+      "main": [
+        [
+          {
+            "node": "Format for Master List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format for Master List": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add to Master List": {
+      "main": [
+        [
+          {
+            "node": "Find lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find lead": {
+      "main": [
+        [
+          {
+            "node": "Delete new lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete new lead": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Leads1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dedupe New Leads": {
+      "main": [
+        [
+          {
+            "node": "Has Leads to Process?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Leads to Process?": {
+      "main": [
+        [
+          {
+            "node": "Filter",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Leads Found",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limit": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Leads1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "No Leads Found": {
+      "main": [
+        [
+          {
+            "node": "Final Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Add to Master List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter": {
+      "main": [
+        [
+          {
+            "node": "Limit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule every 15 min": {
+      "main": [
+        [
+          {
+            "node": "Read Dashboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false,
+    "errorWorkflow": "YWP69Qgq0ZlCN7Gj"
+  },
+  "staticData": {
+    "node:Schedule every 30 min": {
+      "recurrenceRules": []
+    },
+    "node:Schedule every 15 min": {
+      "recurrenceRules": []
+    }
+  },
+  "meta": null,
+  "pinData": {},
+  "versionId": "0d3f6ad4-7f79-487d-84d9-355d825d1152",
+  "activeVersionId": null,
+  "triggerCount": 1,
+  "shared": [
+    {
+      "updatedAt": "2026-02-04T18:10:34.892Z",
+      "createdAt": "2026-02-04T18:10:34.892Z",
+      "role": "workflow:owner",
+      "workflowId": "MQantT1gLLP8NEn4",
+      "projectId": "O7lTivDfRl72aS23"
+    }
+  ],
+  "activeVersion": null,
+  "tags": [],
+  "_folderPath": "",
+  "_fileName": "1.-lead-ingestion-&-icp-scoring-(test).json"
+}
