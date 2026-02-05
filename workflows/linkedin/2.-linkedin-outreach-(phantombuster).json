@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-01-28T17:20:07.167Z",
+  "updatedAt": "2026-02-05T04:53:21.732Z",
   "createdAt": "2025-12-17T17:34:32.062Z",
   "id": "kjjYKQEXv67Vl5MS",
   "name": "2. LinkedIn Outreach (PhantomBuster)",
@@ -11,7 +11,7 @@
         "rule": {
           "interval": [
             {
-              "field": "=cronExpression",
+              "field": "cronExpression",
               "expression": "30 8 * * 1-6"
             },
             {
@@ -21,13 +21,151 @@
           ]
         }
       },
-      "id": "c3c77cfc-1fdc-4c58-86dd-855f56444122",
-      "name": "Twice Daily (9am, 2pm)",
+      "id": "wf2-test-schedule-kyle",
+      "name": "Schedule Kyle",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
       "position": [
-        3200,
-        720
+        2208,
+        656
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "40 8 * * 1-6"
+            },
+            {
+              "field": "cronExpression",
+              "expression": "20 16 * * 1-6"
+            }
+          ]
+        }
+      },
+      "id": "wf2-test-schedule-hudson",
+      "name": "Schedule Hudson",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        2208,
+        848
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { profileIndex: 0 } }];"
+      },
+      "id": "wf2-test-set-kyle",
+      "name": "Set profile Kyle",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2368,
+        656
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { profileIndex: 1 } }];"
+      },
+      "id": "wf2-test-set-hudson",
+      "name": "Set profile Hudson",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2368,
+        848
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const kyle = $('Set profile Kyle').isExecuted ? $('Set profile Kyle').first() : null;\nconst hudson = $('Set profile Hudson').isExecuted ? $('Set profile Hudson').first() : null;\nconst selected = kyle || hudson;\nif (!selected) throw new Error('No profile set');\nreturn [{ json: { profileIndex: selected.json.profileIndex } }];"
+      },
+      "id": "wf2-test-select-profile",
+      "name": "selectProfile",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2528,
+        752
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.doppler.com/v3/configs/config/secrets",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "project",
+              "value": "developers"
+            },
+            {
+              "name": "config",
+              "value": "hudson"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "wf2-test-fetch-doppler",
+      "name": "Fetch Doppler cookies",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2368,
+        448
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "dz2vX61Mpayywfq1",
+          "name": "Doppler API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch",
+        "useDataOfInput": 2
+      },
+      "id": "wf2-test-merge-doppler",
+      "name": "Profile + Doppler",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        2688,
+        752
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first();\nconst secrets = item.json.secrets || item.json || {};\nconst kyleCookie = secrets.LINKEDIN_KYLE_SESSION_COOKIE;\nconst hudsonCookie = secrets.LINKEDIN_HUDSON_SESSION_COOKIE;\nconst userAgents = { kyle: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36', hudson: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36' };\nreturn [{ json: { profile: 'kyle', sessionCookie: kyleCookie, userAgent: userAgents.kyle } }, { json: { profile: 'hudson', sessionCookie: hudsonCookie, userAgent: userAgents.hudson } }];"
+      },
+      "id": "wf2-test-build-profile",
+      "name": "Build profile items with cookies",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2848,
+        752
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nif (!items.length) return [];\nlet idx;\ntry { idx = $('selectProfile').first().json.profileIndex; } catch (e) { idx = 0; }\nif (idx === undefined || idx === null) idx = new Date().getDate() % 2;\nreturn [items[Math.min(idx, items.length - 1)]];"
+      },
+      "id": "wf2-test-take-one",
+      "name": "Take one profile",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3008,
+        752
       ]
     },
     {
@@ -49,8 +187,8 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        3632,
-        720
+        3264,
+        752
       ],
       "credentials": {
         "googleSheetsOAuth2Api": {
@@ -76,13 +214,13 @@
       "type": "n8n-nodes-base.sort",
       "typeVersion": 1,
       "position": [
-        4080,
-        720
+        3952,
+        752
       ]
     },
     {
       "parameters": {
-        "maxItems": "={{ Math.floor(Math.random()*2)+8 }}"
+        "maxItems": "={{ $('Prepare limit').first().json.maxItems ?? (8 + Math.floor(Math.random()*2)) }}"
       },
       "id": "f25d40b4-754d-42da-b306-ede874c46532",
       "name": "Limit to 10/run (20/day)",
@@ -128,7 +266,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({\n  id: \"3044757503240384\",\n  bonusArgument: {\n    profileUrl: $json['profileUrl']\n  }\n}) }}",
+        "jsonBody": "={{ JSON.stringify({\n  id: \"3044757503240384\",\n  bonusArgument: {\n    profileUrl: $json['defaultProfileUrl'] ?? $json['profileUrl'],\n    sessionCookie: $('Take one profile').first().json.sessionCookie?.computed ?? $('Take one profile').first().json.sessionCookie,\n    userAgent: $('Take one profile').first().json.userAgent\n  }\n}) }}",
         "options": {
           "timeout": 120000
         }
@@ -165,7 +303,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        5424,
+        5344,
         720
       ],
       "credentials": {
@@ -178,14 +316,14 @@
     },
     {
       "parameters": {
-        "jsCode": "// Parse PhantomBuster result and determine connection status\nconst originalData = $('Process One at a Time').item.json;\nconst result = $('Fetch Result').item.json;\n\n// Check if this is a retry attempt\nconst isRetryAttempt = originalData._retryAttempt === true;\n\nlet connectionStatus = 'Unknown';\nlet resultMessage = '';\nlet isCriticalError = false;\nlet criticalErrorType = null;\nlet shouldRetry = false;\n\n// First check: Did the phantom finish successfully?\nconst phantomFinished = result.status === 'finished';\nconst output = result.output || '';\nconst outputLower = output.toLowerCase();\n\n// Check for exit code in output\nconst exitCodeMatch = output.match(/exit code: (\\d+)/);\nconst exitCode = exitCodeMatch ? parseInt(exitCodeMatch[1]) : null;\n\n// Extract the processed profile URL from output to confirm it's the right one\nconst profileMatch = output.match(/Processing (https:\\/\\/(?:www\\.)?linkedin\\.com\\/in\\/[^\\s.]+)/i);\nconst processedProfile = profileMatch ? profileMatch[1] : null;\n\n// SALES NAV URL DETECTION - Should never be processing these\nconst inputProfileUrl = originalData['profileUrl'] || '';\nif (inputProfileUrl.includes('/sales/lead/') || inputProfileUrl.includes('/sales/people/')) {\n  isCriticalError = true;\n  criticalErrorType = 'INVALID_URL_FORMAT';\n  connectionStatus = 'Critical Error';\n  resultMessage = 'Sales Navigator URL detected - Master List has wrong profileUrl format';\n}\n\n// CRITICAL ERROR DETECTION - These should ALWAYS stop the workflow (no retry)\nif (outputLower.includes('disconnected by linkedin')) {\n  isCriticalError = true;\n  criticalErrorType = 'DISCONNECTED';\n  connectionStatus = 'Critical Error';\n  resultMessage = 'Disconnected by LinkedIn - session may be flagged';\n} else if (outputLower.includes('no valid credentials') || outputLower.includes('invalid credentials') || exitCode === 87) {\n  isCriticalError = true;\n  criticalErrorType = 'INVALID_CREDENTIALS';\n  connectionStatus = 'Critical Error';\n  resultMessage = 'Invalid LinkedIn credentials - cookie needs refresh';\n} else if (outputLower.includes('session expired') || outputLower.includes('not logged in') || outputLower.includes('login required')) {\n  isCriticalError = true;\n  criticalErrorType = 'SESSION_EXPIRED';\n  connectionStatus = 'Critical Error';\n  resultMessage = 'LinkedIn session expired - need to re-authenticate';\n} else if (outputLower.includes('account restricted') || outputLower.includes('account suspended')) {\n  isCriticalError = true;\n  criticalErrorType = 'ACCOUNT_RESTRICTED';\n  connectionStatus = 'Critical Error';\n  resultMessage = 'LinkedIn account may be restricted';\n} else if (outputLower.includes('rate limit') || outputLower.includes('too many requests')) {\n  isCriticalError = true;\n  criticalErrorType = 'RATE_LIMITED';\n  connectionStatus = 'Critical Error';\n  resultMessage = 'LinkedIn rate limit reached';\n} \n// RETRYABLE ERRORS - can't connect profile (retry once)\nelse if (outputLower.includes(\"can't connect profile\") || outputLower.includes('cannot connect profile')) {\n  if (isRetryAttempt) {\n    // Second attempt also failed - now it's critical\n    isCriticalError = true;\n    criticalErrorType = 'CONNECTION_FAILED_AFTER_RETRY';\n    connectionStatus = 'Critical Error';\n    resultMessage = 'Cannot connect to LinkedIn profile - failed after retry';\n  } else {\n    // First attempt - retry it\n    shouldRetry = true;\n    connectionStatus = 'Retry Needed';\n    resultMessage = 'Cannot connect to LinkedIn profile - will retry';\n  }\n} else if (!phantomFinished) {\n  connectionStatus = result.status === 'running' ? 'Still Running' : 'Error';\n  resultMessage = `Phantom status: ${result.status}`;\n} else if (exitCode !== 0 && exitCode !== null) {\n  connectionStatus = 'Error';\n  resultMessage = `Exit code: ${exitCode}`;\n  if (exitCode === 87 || (exitCode === 1 && !output.includes('profiles have been processed'))) {\n    isCriticalError = true;\n    criticalErrorType = 'EXIT_CODE_ERROR';\n    resultMessage = `PhantomBuster error (exit code ${exitCode}) - possible credential issue`;\n  }\n} else {\n  // Phantom finished with exit code 0 - parse the output for result\n  if (outputLower.includes('invitation sent') || outputLower.includes('invite sent')) {\n    connectionStatus = 'Request Sent';\n    resultMessage = 'Invitation sent successfully';\n  } else if (outputLower.includes('already connected')) {\n    connectionStatus = 'Already Connected';\n    resultMessage = 'Already a 1st degree connection';\n  } else if (outputLower.includes('already invited') || outputLower.includes('pending invitation')) {\n    connectionStatus = 'Already Invited';\n    resultMessage = 'Invitation already pending';\n  } else if (outputLower.includes(\"couldn't find connect button\") || outputLower.includes(\"could not find connect\")) {\n    connectionStatus = 'Cannot Connect';\n    resultMessage = 'Connect button not available';\n  } else if (outputLower.includes('profile is not available') || outputLower.includes('page not found')) {\n    connectionStatus = 'Profile Not Found';\n    resultMessage = 'LinkedIn profile not accessible';\n  } else if (output.includes('profiles have been processed') && exitCode === 0) {\n    connectionStatus = 'Request Sent';\n    resultMessage = 'Processed successfully';\n  } else {\n    connectionStatus = 'Completed';\n    resultMessage = 'Phantom completed - check manually';\n  }\n}\n\n// Also check resultObject if available\nif (result.resultObject) {\n  const ro = Array.isArray(result.resultObject) ? result.resultObject[0] : result.resultObject;\n  if (ro && ro.status) {\n    resultMessage = ro.status;\n  }\n}\n\nreturn [{\n  json: {\n    profileUrl: originalData['profileUrl'],\n    status: connectionStatus,\n    resultMessage: resultMessage,\n    sentDate: new Date().toISOString().split('T')[0],\n    isCriticalError: isCriticalError,\n    criticalErrorType: criticalErrorType,\n    shouldRetry: shouldRetry,\n    isRetryAttempt: isRetryAttempt,\n    _debug: {\n      phantomStatus: result.status,\n      exitCode: exitCode,\n      processedProfile: processedProfile,\n      outputSnippet: output.substring(output.length - 500)\n    }\n  }\n}];"
+        "jsCode": "// Parse PhantomBuster result and determine connection status\nconst originalData = $('Process One at a Time').item.json;\nconst result = $('Fetch Result').item.json;\n\n// Check if this is a retry attempt\nconst isRetryAttempt = originalData._retryAttempt === true;\n\nlet connectionStatus = 'Unknown';\nlet resultMessage = '';\nlet isCriticalError = false;\nlet criticalErrorType = null;\nlet shouldRetry = false;\n\n// First check: Did the phantom finish successfully?\nconst phantomFinished = result.status === 'finished';\nconst output = result.output || '';\nconst outputLower = output.toLowerCase();\n\n// Check for exit code in output\nconst exitCodeMatch = output.match(/exit code: (\\d+)/);\nconst exitCode = exitCodeMatch ? parseInt(exitCodeMatch[1]) : null;\n\n// Extract the processed profile URL from output to confirm it's the right one\nconst profileMatch = output.match(/Processing (https:\\/\\/(?:www\\.)?linkedin\\.com\\/in\\/[^\\s.]+)/i);\nconst processedProfile = profileMatch ? profileMatch[1] : null;\n\n// SALES NAV URL DETECTION - Should never be processing these\nconst inputProfileUrl = originalData['defaultProfileUrl'] || originalData['profileUrl'] || '';\nif (inputProfileUrl.includes('/sales/lead/') || inputProfileUrl.includes('/sales/people/')) {\n  isCriticalError = true;\n  criticalErrorType = 'INVALID_URL_FORMAT';\n  connectionStatus = 'Critical Error';\n  resultMessage = 'Sales Navigator URL detected - Master List has wrong profileUrl format';\n}\n\n// CRITICAL ERROR DETECTION - These should ALWAYS stop the workflow (no retry)\nif (outputLower.includes('disconnected by linkedin')) {\n  isCriticalError = true;\n  criticalErrorType = 'DISCONNECTED';\n  connectionStatus = 'Critical Error';\n  resultMessage = 'Disconnected by LinkedIn - session may be flagged';\n} else if (outputLower.includes('no valid credentials') || outputLower.includes('invalid credentials') || exitCode === 87) {\n  isCriticalError = true;\n  criticalErrorType = 'INVALID_CREDENTIALS';\n  connectionStatus = 'Critical Error';\n  resultMessage = 'Invalid LinkedIn credentials - cookie needs refresh';\n} else if (outputLower.includes('session expired') || outputLower.includes('not logged in') || outputLower.includes('login required')) {\n  isCriticalError = true;\n  criticalErrorType = 'SESSION_EXPIRED';\n  connectionStatus = 'Critical Error';\n  resultMessage = 'LinkedIn session expired - need to re-authenticate';\n} else if (outputLower.includes('account restricted') || outputLower.includes('account suspended')) {\n  isCriticalError = true;\n  criticalErrorType = 'ACCOUNT_RESTRICTED';\n  connectionStatus = 'Critical Error';\n  resultMessage = 'LinkedIn account may be restricted';\n} else if (outputLower.includes('rate limit') || outputLower.includes('too many requests')) {\n  isCriticalError = true;\n  criticalErrorType = 'RATE_LIMITED';\n  connectionStatus = 'Critical Error';\n  resultMessage = 'LinkedIn rate limit reached';\n} \n// RETRYABLE ERRORS - can't connect profile (retry once)\nelse if (outputLower.includes(\"can't connect profile\") || outputLower.includes('cannot connect profile')) {\n  if (isRetryAttempt) {\n    // Second attempt also failed - now it's critical\n    isCriticalError = true;\n    criticalErrorType = 'CONNECTION_FAILED_AFTER_RETRY';\n    connectionStatus = 'Critical Error';\n    resultMessage = 'Cannot connect to LinkedIn profile - failed after retry';\n  } else {\n    // First attempt - retry it\n    shouldRetry = true;\n    connectionStatus = 'Retry Needed';\n    resultMessage = 'Cannot connect to LinkedIn profile - will retry';\n  }\n} else if (!phantomFinished) {\n  connectionStatus = result.status === 'running' ? 'Still Running' : 'Error';\n  resultMessage = `Phantom status: ${result.status}`;\n} else if (exitCode !== 0 && exitCode !== null) {\n  connectionStatus = 'Error';\n  resultMessage = `Exit code: ${exitCode}`;\n  if (exitCode === 87 || (exitCode === 1 && !output.includes('profiles have been processed'))) {\n    isCriticalError = true;\n    criticalErrorType = 'EXIT_CODE_ERROR';\n    resultMessage = `PhantomBuster error (exit code ${exitCode}) - possible credential issue`;\n  }\n} else {\n  // Phantom finished with exit code 0 - parse the output for result\n  if (outputLower.includes('invitation sent') || outputLower.includes('invite sent')) {\n    connectionStatus = 'Request Sent';\n    resultMessage = 'Invitation sent successfully';\n  } else if (outputLower.includes('already connected')) {\n    connectionStatus = 'Already Connected';\n    resultMessage = 'Already a 1st degree connection';\n  } else if (outputLower.includes('already invited') || outputLower.includes('pending invitation')) {\n    connectionStatus = 'Already Invited';\n    resultMessage = 'Invitation already pending';\n  } else if (outputLower.includes(\"couldn't find connect button\") || outputLower.includes(\"could not find connect\")) {\n    connectionStatus = 'Cannot Connect';\n    resultMessage = 'Connect button not available';\n  } else if (outputLower.includes('profile is not available') || outputLower.includes('page not found')) {\n    connectionStatus = 'Profile Not Found';\n    resultMessage = 'LinkedIn profile not accessible';\n  } else if (output.includes('profiles have been processed') && exitCode === 0) {\n    connectionStatus = 'Request Sent';\n    resultMessage = 'Processed successfully';\n  } else {\n    connectionStatus = 'Completed';\n    resultMessage = 'Phantom completed - check manually';\n  }\n}\n\n// Also check resultObject if available\nif (result.resultObject) {\n  const ro = Array.isArray(result.resultObject) ? result.resultObject[0] : result.resultObject;\n  if (ro && ro.status) {\n    resultMessage = ro.status;\n  }\n}\n\nreturn [{\n  json: {\n    profileUrl: originalData['defaultProfileUrl'] || originalData['profileUrl'],\n    status: connectionStatus,\n    resultMessage: resultMessage,\n    sentDate: new Date().toISOString().split('T')[0],\n    isCriticalError: isCriticalError,\n    criticalErrorType: criticalErrorType,\n    shouldRetry: shouldRetry,\n    isRetryAttempt: isRetryAttempt,\n    _debug: {\n      phantomStatus: result.status,\n      exitCode: exitCode,\n      processedProfile: processedProfile,\n      outputSnippet: output.substring(output.length - 500)\n    }\n  }\n}];"
       },
       "id": "c595128b-c344-4bdd-a993-caeba0fa3639",
       "name": "Parse Result",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        5648,
+        5520,
         720
       ]
     },
@@ -205,17 +343,18 @@
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
-            "kyleSentDate": "={{ $('Parse Result').item.json.sentDate }}",
-            "profileUrl": "={{ $('Process One at a Time').item.json.profileUrl }}",
+            "kyleSentDate": "={{ $('Take one profile').first().json.profile === 'kyle' ? $('Parse Result').item.json.sentDate : $('Process One at a Time').item.json.kyleSentDate }}",
+            "hudsonSentDate": "={{ $('Take one profile').first().json.profile === 'hudson' ? $('Parse Result').item.json.sentDate : $('Process One at a Time').item.json.hudsonSentDate }}",
+            "defaultProfileUrl": "={{ $('Process One at a Time').item.json.defaultProfileUrl ?? $('Process One at a Time').item.json.profileUrl }}",
             "inviteResults": "={{ $('Parse Result').item.json.status }}"
           },
           "matchingColumns": [
-            "profileUrl"
+            "defaultProfileUrl"
           ],
           "schema": [
             {
-              "id": "profileUrl",
-              "displayName": "profileUrl",
+              "id": "defaultProfileUrl",
+              "displayName": "defaultProfileUrl",
               "required": false,
               "defaultMatch": false,
               "display": true,
@@ -567,8 +706,8 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        6096,
-        800
+        6208,
+        832
       ],
       "credentials": {
         "googleSheetsOAuth2Api": {
@@ -607,8 +746,8 @@
         "filtersUI": {
           "values": [
             {
-              "lookupColumn": "profileUrl",
-              "lookupValue": "={{ $('Process One at a Time').item.json['profileUrl'] }}"
+              "lookupColumn": "defaultProfileUrl",
+              "lookupValue": "={{ $('Process One at a Time').item.json['defaultProfileUrl'] ?? $('Process One at a Time').item.json['profileUrl'] }}"
             }
           ]
         },
@@ -617,8 +756,8 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.7,
       "position": [
-        5872,
-        720
+        6032,
+        832
       ],
       "id": "97e7f55c-30ea-420d-9ea9-f9e8f32b552c",
       "name": "Get row(s) in sheet",
@@ -641,7 +780,7 @@
           "conditions": [
             {
               "id": "id-1",
-              "leftValue": "={{ $json['profileUrl'] }}",
+              "leftValue": "={{ $json['defaultProfileUrl'] ?? $json['profileUrl'] }}",
               "operator": {
                 "type": "string",
                 "operation": "notEmpty"
@@ -658,12 +797,11 @@
             },
             {
               "id": "74d0d1bc-23d7-4f86-9973-468943edd504",
-              "leftValue": "={{ $json.kyleSentDate }}",
-              "rightValue": "",
+              "leftValue": "={{ ($('Take one profile').item.json.profile === 'kyle' && !$json.kyleSentDate) || ($('Take one profile').item.json.profile === 'hudson' && !$json.hudsonSentDate) }}",
+              "rightValue": true,
               "operator": {
-                "type": "string",
-                "operation": "empty",
-                "singleValue": true
+                "type": "boolean",
+                "operation": "equals"
               }
             }
           ],
@@ -677,8 +815,21 @@
       "type": "n8n-nodes-base.filter",
       "typeVersion": 2.3,
       "position": [
-        3856,
-        720
+        3664,
+        752
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nif (!items.length) return [];\nconst profile = items[0].json.profile;\nlet maxItems;\nif (profile === 'kyle') {\n  maxItems = 8 + Math.floor(Math.random() * 4);\n} else {\n  const rampStart = new Date('2026-02-10');\n  const days = Math.min(30, Math.max(0, Math.floor((Date.now() - rampStart) / 86400000)));\n  const minPerRun = 4 + (days / 30) * 4;\n  const maxPerRun = 6 + (days / 30) * 5;\n  const range = maxPerRun - minPerRun + 1;\n  maxItems = minPerRun + Math.floor(Math.random() * range);\n}\nconst out = items.map((item, i) => ({ json: { ...item.json, maxItems: i === 0 ? maxItems : undefined } }));\nif (out[0]) out[0].json.maxItems = maxItems;\nreturn out;"
+      },
+      "id": "wf2-test-prepare-limit",
+      "name": "Prepare limit",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4144,
+        752
       ]
     },
     {
@@ -689,8 +840,8 @@
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        3408,
-        720
+        3072,
+        608
       ],
       "id": "7067c636-295b-49d8-b137-66768e27d862",
       "name": "Wait",
@@ -705,7 +856,7 @@
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        5200,
+        5168,
         720
       ],
       "webhookId": "e66b1416-4fd0-4893-a988-28cfcd7403f9"
@@ -740,7 +891,7 @@
       "typeVersion": 2.2,
       "position": [
         5872,
-        580
+        736
       ]
     },
     {
@@ -751,7 +902,7 @@
           "mode": "id",
           "value": "C0A6ES56MU2"
         },
-        "text": "={{ '🚨 *LinkedIn Outreach STOPPED - Critical Error*\\n\\n*Error Type:* ' + $json.criticalErrorType + '\\n*Message:* ' + $json.resultMessage + '\\n*Profile:* ' + $json.profileUrl + '\\n\\n*Action Required:* Check PhantomBuster credentials and LinkedIn session cookie.\\n\\n_Workflow has been stopped to prevent further issues. Please fix credentials and manually restart._' }}",
+        "text": "={{ '🚨 *LinkedIn Outreach STOPPED - Critical Error*\\n\\n*Error Type:* ' + $json.criticalErrorType + '\\n*Message:* ' + $json.resultMessage + '\\n*Profile:* ' + ($json.profileUrl || $json.defaultProfileUrl || '') + '\\n\\n*Action Required:* Check PhantomBuster credentials and LinkedIn session cookie.\\n\\n_Workflow has been stopped to prevent further issues. Please fix credentials and manually restart._' }}",
         "otherOptions": {}
       },
       "id": "slack-critical-error",
@@ -760,8 +911,9 @@
       "typeVersion": 2.2,
       "position": [
         6096,
-        440
+        448
       ],
+      "webhookId": "6038d27e-b8eb-4160-8d74-046aad2978de",
       "credentials": {
         "slackApi": {
           "id": "wkLpZSqhXl2iesnC",
@@ -779,7 +931,7 @@
       "typeVersion": 1,
       "position": [
         6320,
-        440
+        448
       ]
     },
     {
@@ -811,7 +963,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        5760,
+        5664,
         720
       ]
     },
@@ -824,8 +976,8 @@
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        5870,
-        900
+        6256,
+        704
       ],
       "webhookId": "retry-wait-webhook"
     },
@@ -838,17 +990,170 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        5980,
-        900
+        6432,
+        1024
       ]
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        2192,
+        1040
+      ],
+      "id": "e96e8079-64bb-4dd7-b4c7-e2feb21c10f7",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "8511f2cd-4b2a-47b9-b337-6e3ecf0dbc48",
+              "leftValue": "={{ $json.connectionFrom }}",
+              "rightValue": "={{  $('Take one profile').item.json.profile }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            },
+            {
+              "id": "942f8937-37d0-406c-a2ad-b15791fcc9c3",
+              "leftValue": "={{ $json.connectionFrom }}",
+              "rightValue": "both",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.3,
+      "position": [
+        3456,
+        752
+      ],
+      "id": "5cc268de-4f0a-4c4d-8197-9b32e486dcfa",
+      "name": "Filter"
     }
   ],
   "connections": {
-    "Twice Daily (9am, 2pm)": {
+    "Schedule Kyle": {
       "main": [
         [
           {
-            "node": "Wait",
+            "node": "Fetch Doppler cookies",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Set profile Kyle",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Hudson": {
+      "main": [
+        [
+          {
+            "node": "Fetch Doppler cookies",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Set profile Hudson",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set profile Kyle": {
+      "main": [
+        [
+          {
+            "node": "selectProfile",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set profile Hudson": {
+      "main": [
+        [
+          {
+            "node": "selectProfile",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "selectProfile": {
+      "main": [
+        [
+          {
+            "node": "Profile + Doppler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Doppler cookies": {
+      "main": [
+        [
+          {
+            "node": "Profile + Doppler",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Profile + Doppler": {
+      "main": [
+        [
+          {
+            "node": "Build profile items with cookies",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build profile items with cookies": {
+      "main": [
+        [
+          {
+            "node": "Take one profile",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Take one profile": {
+      "main": [
+        [
+          {
+            "node": "Get Ready Leads",
             "type": "main",
             "index": 0
           }
@@ -856,6 +1161,17 @@
       ]
     },
     "Sort by Score (Highest First)": {
+      "main": [
+        [
+          {
+            "node": "Prepare limit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare limit": {
       "main": [
         [
           {
@@ -994,7 +1310,7 @@
       "main": [
         [
           {
-            "node": "Filter Ready Leads",
+            "node": "Filter",
             "type": "main",
             "index": 0
           }
@@ -1073,6 +1389,33 @@
           }
         ]
       ]
+    },
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Fetch Doppler cookies",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Set profile Kyle",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter": {
+      "main": [
+        [
+          {
+            "node": "Filter Ready Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
@@ -1083,20 +1426,20 @@
     "errorWorkflow": "YWP69Qgq0ZlCN7Gj"
   },
   "staticData": {
-    "node:Twice Daily (9am, 2pm)": {
-      "recurrenceRules": [
-        8,
-        0
-      ]
+    "node:Schedule Kyle": {
+      "recurrenceRules": []
+    },
+    "node:Schedule Hudson": {
+      "recurrenceRules": []
     }
   },
   "meta": {
     "templateCredsSetupCompleted": true
   },
   "pinData": {},
-  "versionId": "ddbb7836-6d59-4fe8-ae4a-c10797d8e7e8",
-  "activeVersionId": "ddbb7836-6d59-4fe8-ae4a-c10797d8e7e8",
-  "triggerCount": 1,
+  "versionId": "757063b9-8360-44ff-a13d-a71e8f9232ab",
+  "activeVersionId": "ba5e1614-d7d6-4c5b-9e27-3ae59ebe94cb",
+  "triggerCount": 2,
   "shared": [
     {
       "updatedAt": "2025-12-24T03:18:14.338Z",
@@ -1107,9 +1450,9 @@
     }
   ],
   "activeVersion": {
-    "updatedAt": "2026-01-28T17:20:07.171Z",
-    "createdAt": "2026-01-28T17:20:07.171Z",
-    "versionId": "ddbb7836-6d59-4fe8-ae4a-c10797d8e7e8",
+    "updatedAt": "2026-02-04T17:45:37.000Z",
+    "createdAt": "2026-02-04T17:45:12.598Z",
+    "versionId": "ba5e1614-d7d6-4c5b-9e27-3ae59ebe94cb",
     "workflowId": "kjjYKQEXv67Vl5MS",
     "nodes": [
       {
@@ -1117,7 +1460,7 @@
           "rule": {
             "interval": [
               {
-                "field": "=cronExpression",
+                "field": "cronExpression",
                 "expression": "30 8 * * 1-6"
               },
               {
@@ -1127,13 +1470,151 @@
             ]
           }
         },
-        "id": "c3c77cfc-1fdc-4c58-86dd-855f56444122",
-        "name": "Twice Daily (9am, 2pm)",
+        "id": "wf2-test-schedule-kyle",
+        "name": "Schedule Kyle",
         "type": "n8n-nodes-base.scheduleTrigger",
         "typeVersion": 1.2,
         "position": [
-          3200,
-          720
+          2208,
+          656
+        ]
+      },
+      {
+        "parameters": {
+          "rule": {
+            "interval": [
+              {
+                "field": "cronExpression",
+                "expression": "40 8 * * 1-6"
+              },
+              {
+                "field": "cronExpression",
+                "expression": "20 16 * * 1-6"
+              }
+            ]
+          }
+        },
+        "id": "wf2-test-schedule-hudson",
+        "name": "Schedule Hudson",
+        "type": "n8n-nodes-base.scheduleTrigger",
+        "typeVersion": 1.2,
+        "position": [
+          2208,
+          848
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "return [{ json: { profileIndex: 0 } }];"
+        },
+        "id": "wf2-test-set-kyle",
+        "name": "Set profile Kyle",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2368,
+          656
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "return [{ json: { profileIndex: 1 } }];"
+        },
+        "id": "wf2-test-set-hudson",
+        "name": "Set profile Hudson",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2368,
+          848
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "const kyle = $('Set profile Kyle').isExecuted ? $('Set profile Kyle').first() : null;\nconst hudson = $('Set profile Hudson').isExecuted ? $('Set profile Hudson').first() : null;\nconst selected = kyle || hudson;\nif (!selected) throw new Error('No profile set');\nreturn [{ json: { profileIndex: selected.json.profileIndex } }];"
+        },
+        "id": "wf2-test-select-profile",
+        "name": "selectProfile",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2528,
+          752
+        ]
+      },
+      {
+        "parameters": {
+          "url": "https://api.doppler.com/v3/configs/config/secrets",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpHeaderAuth",
+          "sendQuery": true,
+          "queryParameters": {
+            "parameters": [
+              {
+                "name": "project",
+                "value": "developers"
+              },
+              {
+                "name": "config",
+                "value": "hudson"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "wf2-test-fetch-doppler",
+        "name": "Fetch Doppler cookies",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          2368,
+          448
+        ],
+        "credentials": {
+          "httpHeaderAuth": {
+            "id": "dz2vX61Mpayywfq1",
+            "name": "Doppler API"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "mode": "chooseBranch",
+          "useDataOfInput": 2
+        },
+        "id": "wf2-test-merge-doppler",
+        "name": "Profile + Doppler",
+        "type": "n8n-nodes-base.merge",
+        "typeVersion": 3,
+        "position": [
+          2688,
+          752
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "const item = $input.first();\nconst secrets = item.json.secrets || item.json || {};\nconst kyleCookie = secrets.LINKEDIN_KYLE_SESSION_COOKIE;\nconst hudsonCookie = secrets.LINKEDIN_HUDSON_SESSION_COOKIE;\nconst userAgents = { kyle: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36', hudson: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36' };\nreturn [{ json: { profile: 'kyle', sessionCookie: kyleCookie, userAgent: userAgents.kyle } }, { json: { profile: 'hudson', sessionCookie: hudsonCookie, userAgent: userAgents.hudson } }];"
+        },
+        "id": "wf2-test-build-profile",
+        "name": "Build profile items with cookies",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2848,
+          752
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\nif (!items.length) return [];\nlet idx;\ntry { idx = $('selectProfile').first().json.profileIndex; } catch (e) { idx = 0; }\nif (idx === undefined || idx === null) idx = new Date().getDate() % 2;\nreturn [items[Math.min(idx, items.length - 1)]];"
+        },
+        "id": "wf2-test-take-one",
+        "name": "Take one profile",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          3008,
+          752
         ]
       },
       {
@@ -1155,8 +1636,8 @@
         "type": "n8n-nodes-base.googleSheets",
         "typeVersion": 4.5,
         "position": [
-          3632,
-          720
+          3264,
+          752
         ],
         "credentials": {
           "googleSheetsOAuth2Api": {
@@ -1182,13 +1663,13 @@
         "type": "n8n-nodes-base.sort",
         "typeVersion": 1,
         "position": [
-          4080,
-          720
+          3952,
+          752
         ]
       },
       {
         "parameters": {
-          "maxItems": "={{ Math.floor(Math.random()*2)+8 }}"
+          "maxItems": "={{ $('Prepare limit').first().json.maxItems ?? (8 + Math.floor(Math.random()*2)) }}"
         },
         "id": "f25d40b4-754d-42da-b306-ede874c46532",
         "name": "Limit to 10/run (20/day)",
@@ -1234,7 +1715,7 @@
           "genericAuthType": "httpHeaderAuth",
           "sendBody": true,
           "specifyBody": "json",
-          "jsonBody": "={{ JSON.stringify({\n  id: \"3044757503240384\",\n  bonusArgument: {\n    profileUrl: $json['profileUrl']\n  }\n}) }}",
+          "jsonBody": "={{ JSON.stringify({\n  id: \"3044757503240384\",\n  bonusArgument: {\n    profileUrl: $json['defaultProfileUrl'] ?? $json['profileUrl'],\n    sessionCookie: $('Take one profile').first().json.sessionCookie?.computed ?? $('Take one profile').first().json.sessionCookie,\n    userAgent: $('Take one profile').first().json.userAgent\n  }\n}) }}",
           "options": {
             "timeout": 120000
           }
@@ -1271,7 +1752,7 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          5424,
+          5344,
           720
         ],
         "credentials": {
@@ -1284,14 +1765,14 @@
       },
       {
         "parameters": {
-          "jsCode": "// Parse PhantomBuster result and determine connection status\nconst originalData = $('Process One at a Time').item.json;\nconst result = $('Fetch Result').item.json;\n\n// Check if this is a retry attempt\nconst isRetryAttempt = originalData._retryAttempt === true;\n\nlet connectionStatus = 'Unknown';\nlet resultMessage = '';\nlet isCriticalError = false;\nlet criticalErrorType = null;\nlet shouldRetry = false;\n\n// First check: Did the phantom finish successfully?\nconst phantomFinished = result.status === 'finished';\nconst output = result.output || '';\nconst outputLower = output.toLowerCase();\n\n// Check for exit code in output\nconst exitCodeMatch = output.match(/exit code: (\\d+)/);\nconst exitCode = exitCodeMatch ? parseInt(exitCodeMatch[1]) : null;\n\n// Extract the processed profile URL from output to confirm it's the right one\nconst profileMatch = output.match(/Processing (https:\\/\\/(?:www\\.)?linkedin\\.com\\/in\\/[^\\s.]+)/i);\nconst processedProfile = profileMatch ? profileMatch[1] : null;\n\n// SALES NAV URL DETECTION - Should never be processing these\nconst inputProfileUrl = originalData['profileUrl'] || '';\nif (inputProfileUrl.includes('/sales/lead/') || inputProfileUrl.includes('/sales/people/')) {\n  isCriticalError = true;\n  criticalErrorType = 'INVALID_URL_FORMAT';\n  connectionStatus = 'Critical Error';\n  resultMessage = 'Sales Navigator URL detected - Master List has wrong profileUrl format';\n}\n\n// CRITICAL ERROR DETECTION - These should ALWAYS stop the workflow (no retry)\nif (outputLower.includes('disconnected by linkedin')) {\n  isCriticalError = true;\n  criticalErrorType = 'DISCONNECTED';\n  connectionStatus = 'Critical Error';\n  resultMessage = 'Disconnected by LinkedIn - session may be flagged';\n} else if (outputLower.includes('no valid credentials') || outputLower.includes('invalid credentials') || exitCode === 87) {\n  isCriticalError = true;\n  criticalErrorType = 'INVALID_CREDENTIALS';\n  connectionStatus = 'Critical Error';\n  resultMessage = 'Invalid LinkedIn credentials - cookie needs refresh';\n} else if (outputLower.includes('session expired') || outputLower.includes('not logged in') || outputLower.includes('login required')) {\n  isCriticalError = true;\n  criticalErrorType = 'SESSION_EXPIRED';\n  connectionStatus = 'Critical Error';\n  resultMessage = 'LinkedIn session expired - need to re-authenticate';\n} else if (outputLower.includes('account restricted') || outputLower.includes('account suspended')) {\n  isCriticalError = true;\n  criticalErrorType = 'ACCOUNT_RESTRICTED';\n  connectionStatus = 'Critical Error';\n  resultMessage = 'LinkedIn account may be restricted';\n} else if (outputLower.includes('rate limit') || outputLower.includes('too many requests')) {\n  isCriticalError = true;\n  criticalErrorType = 'RATE_LIMITED';\n  connectionStatus = 'Critical Error';\n  resultMessage = 'LinkedIn rate limit reached';\n} \n// RETRYABLE ERRORS - can't connect profile (retry once)\nelse if (outputLower.includes(\"can't connect profile\") || outputLower.includes('cannot connect profile')) {\n  if (isRetryAttempt) {\n    // Second attempt also failed - now it's critical\n    isCriticalError = true;\n    criticalErrorType = 'CONNECTION_FAILED_AFTER_RETRY';\n    connectionStatus = 'Critical Error';\n    resultMessage = 'Cannot connect to LinkedIn profile - failed after retry';\n  } else {\n    // First attempt - retry it\n    shouldRetry = true;\n    connectionStatus = 'Retry Needed';\n    resultMessage = 'Cannot connect to LinkedIn profile - will retry';\n  }\n} else if (!phantomFinished) {\n  connectionStatus = result.status === 'running' ? 'Still Running' : 'Error';\n  resultMessage = `Phantom status: ${result.status}`;\n} else if (exitCode !== 0 && exitCode !== null) {\n  connectionStatus = 'Error';\n  resultMessage = `Exit code: ${exitCode}`;\n  if (exitCode === 87 || (exitCode === 1 && !output.includes('profiles have been processed'))) {\n    isCriticalError = true;\n    criticalErrorType = 'EXIT_CODE_ERROR';\n    resultMessage = `PhantomBuster error (exit code ${exitCode}) - possible credential issue`;\n  }\n} else {\n  // Phantom finished with exit code 0 - parse the output for result\n  if (outputLower.includes('invitation sent') || outputLower.includes('invite sent')) {\n    connectionStatus = 'Request Sent';\n    resultMessage = 'Invitation sent successfully';\n  } else if (outputLower.includes('already connected')) {\n    connectionStatus = 'Already Connected';\n    resultMessage = 'Already a 1st degree connection';\n  } else if (outputLower.includes('already invited') || outputLower.includes('pending invitation')) {\n    connectionStatus = 'Already Invited';\n    resultMessage = 'Invitation already pending';\n  } else if (outputLower.includes(\"couldn't find connect button\") || outputLower.includes(\"could not find connect\")) {\n    connectionStatus = 'Cannot Connect';\n    resultMessage = 'Connect button not available';\n  } else if (outputLower.includes('profile is not available') || outputLower.includes('page not found')) {\n    connectionStatus = 'Profile Not Found';\n    resultMessage = 'LinkedIn profile not accessible';\n  } else if (output.includes('profiles have been processed') && exitCode === 0) {\n    connectionStatus = 'Request Sent';\n    resultMessage = 'Processed successfully';\n  } else {\n    connectionStatus = 'Completed';\n    resultMessage = 'Phantom completed - check manually';\n  }\n}\n\n// Also check resultObject if available\nif (result.resultObject) {\n  const ro = Array.isArray(result.resultObject) ? result.resultObject[0] : result.resultObject;\n  if (ro && ro.status) {\n    resultMessage = ro.status;\n  }\n}\n\nreturn [{\n  json: {\n    profileUrl: originalData['profileUrl'],\n    status: connectionStatus,\n    resultMessage: resultMessage,\n    sentDate: new Date().toISOString().split('T')[0],\n    isCriticalError: isCriticalError,\n    criticalErrorType: criticalErrorType,\n    shouldRetry: shouldRetry,\n    isRetryAttempt: isRetryAttempt,\n    _debug: {\n      phantomStatus: result.status,\n      exitCode: exitCode,\n      processedProfile: processedProfile,\n      outputSnippet: output.substring(output.length - 500)\n    }\n  }\n}];"
+          "jsCode": "// Parse PhantomBuster result and determine connection status\nconst originalData = $('Process One at a Time').item.json;\nconst result = $('Fetch Result').item.json;\n\n// Check if this is a retry attempt\nconst isRetryAttempt = originalData._retryAttempt === true;\n\nlet connectionStatus = 'Unknown';\nlet resultMessage = '';\nlet isCriticalError = false;\nlet criticalErrorType = null;\nlet shouldRetry = false;\n\n// First check: Did the phantom finish successfully?\nconst phantomFinished = result.status === 'finished';\nconst output = result.output || '';\nconst outputLower = output.toLowerCase();\n\n// Check for exit code in output\nconst exitCodeMatch = output.match(/exit code: (\\d+)/);\nconst exitCode = exitCodeMatch ? parseInt(exitCodeMatch[1]) : null;\n\n// Extract the processed profile URL from output to confirm it's the right one\nconst profileMatch = output.match(/Processing (https:\\/\\/(?:www\\.)?linkedin\\.com\\/in\\/[^\\s.]+)/i);\nconst processedProfile = profileMatch ? profileMatch[1] : null;\n\n// SALES NAV URL DETECTION - Should never be processing these\nconst inputProfileUrl = originalData['defaultProfileUrl'] || originalData['profileUrl'] || '';\nif (inputProfileUrl.includes('/sales/lead/') || inputProfileUrl.includes('/sales/people/')) {\n  isCriticalError = true;\n  criticalErrorType = 'INVALID_URL_FORMAT';\n  connectionStatus = 'Critical Error';\n  resultMessage = 'Sales Navigator URL detected - Master List has wrong profileUrl format';\n}\n\n// CRITICAL ERROR DETECTION - These should ALWAYS stop the workflow (no retry)\nif (outputLower.includes('disconnected by linkedin')) {\n  isCriticalError = true;\n  criticalErrorType = 'DISCONNECTED';\n  connectionStatus = 'Critical Error';\n  resultMessage = 'Disconnected by LinkedIn - session may be flagged';\n} else if (outputLower.includes('no valid credentials') || outputLower.includes('invalid credentials') || exitCode === 87) {\n  isCriticalError = true;\n  criticalErrorType = 'INVALID_CREDENTIALS';\n  connectionStatus = 'Critical Error';\n  resultMessage = 'Invalid LinkedIn credentials - cookie needs refresh';\n} else if (outputLower.includes('session expired') || outputLower.includes('not logged in') || outputLower.includes('login required')) {\n  isCriticalError = true;\n  criticalErrorType = 'SESSION_EXPIRED';\n  connectionStatus = 'Critical Error';\n  resultMessage = 'LinkedIn session expired - need to re-authenticate';\n} else if (outputLower.includes('account restricted') || outputLower.includes('account suspended')) {\n  isCriticalError = true;\n  criticalErrorType = 'ACCOUNT_RESTRICTED';\n  connectionStatus = 'Critical Error';\n  resultMessage = 'LinkedIn account may be restricted';\n} else if (outputLower.includes('rate limit') || outputLower.includes('too many requests')) {\n  isCriticalError = true;\n  criticalErrorType = 'RATE_LIMITED';\n  connectionStatus = 'Critical Error';\n  resultMessage = 'LinkedIn rate limit reached';\n} \n// RETRYABLE ERRORS - can't connect profile (retry once)\nelse if (outputLower.includes(\"can't connect profile\") || outputLower.includes('cannot connect profile')) {\n  if (isRetryAttempt) {\n    // Second attempt also failed - now it's critical\n    isCriticalError = true;\n    criticalErrorType = 'CONNECTION_FAILED_AFTER_RETRY';\n    connectionStatus = 'Critical Error';\n    resultMessage = 'Cannot connect to LinkedIn profile - failed after retry';\n  } else {\n    // First attempt - retry it\n    shouldRetry = true;\n    connectionStatus = 'Retry Needed';\n    resultMessage = 'Cannot connect to LinkedIn profile - will retry';\n  }\n} else if (!phantomFinished) {\n  connectionStatus = result.status === 'running' ? 'Still Running' : 'Error';\n  resultMessage = `Phantom status: ${result.status}`;\n} else if (exitCode !== 0 && exitCode !== null) {\n  connectionStatus = 'Error';\n  resultMessage = `Exit code: ${exitCode}`;\n  if (exitCode === 87 || (exitCode === 1 && !output.includes('profiles have been processed'))) {\n    isCriticalError = true;\n    criticalErrorType = 'EXIT_CODE_ERROR';\n    resultMessage = `PhantomBuster error (exit code ${exitCode}) - possible credential issue`;\n  }\n} else {\n  // Phantom finished with exit code 0 - parse the output for result\n  if (outputLower.includes('invitation sent') || outputLower.includes('invite sent')) {\n    connectionStatus = 'Request Sent';\n    resultMessage = 'Invitation sent successfully';\n  } else if (outputLower.includes('already connected')) {\n    connectionStatus = 'Already Connected';\n    resultMessage = 'Already a 1st degree connection';\n  } else if (outputLower.includes('already invited') || outputLower.includes('pending invitation')) {\n    connectionStatus = 'Already Invited';\n    resultMessage = 'Invitation already pending';\n  } else if (outputLower.includes(\"couldn't find connect button\") || outputLower.includes(\"could not find connect\")) {\n    connectionStatus = 'Cannot Connect';\n    resultMessage = 'Connect button not available';\n  } else if (outputLower.includes('profile is not available') || outputLower.includes('page not found')) {\n    connectionStatus = 'Profile Not Found';\n    resultMessage = 'LinkedIn profile not accessible';\n  } else if (output.includes('profiles have been processed') && exitCode === 0) {\n    connectionStatus = 'Request Sent';\n    resultMessage = 'Processed successfully';\n  } else {\n    connectionStatus = 'Completed';\n    resultMessage = 'Phantom completed - check manually';\n  }\n}\n\n// Also check resultObject if available\nif (result.resultObject) {\n  const ro = Array.isArray(result.resultObject) ? result.resultObject[0] : result.resultObject;\n  if (ro && ro.status) {\n    resultMessage = ro.status;\n  }\n}\n\nreturn [{\n  json: {\n    profileUrl: originalData['defaultProfileUrl'] || originalData['profileUrl'],\n    status: connectionStatus,\n    resultMessage: resultMessage,\n    sentDate: new Date().toISOString().split('T')[0],\n    isCriticalError: isCriticalError,\n    criticalErrorType: criticalErrorType,\n    shouldRetry: shouldRetry,\n    isRetryAttempt: isRetryAttempt,\n    _debug: {\n      phantomStatus: result.status,\n      exitCode: exitCode,\n      processedProfile: processedProfile,\n      outputSnippet: output.substring(output.length - 500)\n    }\n  }\n}];"
         },
         "id": "c595128b-c344-4bdd-a993-caeba0fa3639",
         "name": "Parse Result",
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          5648,
+          5520,
           720
         ]
       },
@@ -1311,17 +1792,18 @@
           "columns": {
             "mappingMode": "defineBelow",
             "value": {
-              "kyleSentDate": "={{ $('Parse Result').item.json.sentDate }}",
-              "profileUrl": "={{ $('Process One at a Time').item.json.profileUrl }}",
+              "kyleSentDate": "={{ $('Take one profile').first().json.profile === 'kyle' ? $('Parse Result').item.json.sentDate : $('Process One at a Time').item.json.kyleSentDate }}",
+              "hudsonSentDate": "={{ $('Take one profile').first().json.profile === 'hudson' ? $('Parse Result').item.json.sentDate : $('Process One at a Time').item.json.hudsonSentDate }}",
+              "defaultProfileUrl": "={{ $('Process One at a Time').item.json.defaultProfileUrl ?? $('Process One at a Time').item.json.profileUrl }}",
               "inviteResults": "={{ $('Parse Result').item.json.status }}"
             },
             "matchingColumns": [
-              "profileUrl"
+              "defaultProfileUrl"
             ],
             "schema": [
               {
-                "id": "profileUrl",
-                "displayName": "profileUrl",
+                "id": "defaultProfileUrl",
+                "displayName": "defaultProfileUrl",
                 "required": false,
                 "defaultMatch": false,
                 "display": true,
@@ -1673,8 +2155,8 @@
         "type": "n8n-nodes-base.googleSheets",
         "typeVersion": 4.5,
         "position": [
-          6096,
-          800
+          6208,
+          832
         ],
         "credentials": {
           "googleSheetsOAuth2Api": {
@@ -1713,8 +2195,8 @@
           "filtersUI": {
             "values": [
               {
-                "lookupColumn": "profileUrl",
-                "lookupValue": "={{ $('Process One at a Time').item.json['profileUrl'] }}"
+                "lookupColumn": "defaultProfileUrl",
+                "lookupValue": "={{ $('Process One at a Time').item.json['defaultProfileUrl'] ?? $('Process One at a Time').item.json['profileUrl'] }}"
               }
             ]
           },
@@ -1723,8 +2205,8 @@
         "type": "n8n-nodes-base.googleSheets",
         "typeVersion": 4.7,
         "position": [
-          5872,
-          720
+          6032,
+          832
         ],
         "id": "97e7f55c-30ea-420d-9ea9-f9e8f32b552c",
         "name": "Get row(s) in sheet",
@@ -1747,7 +2229,7 @@
             "conditions": [
               {
                 "id": "id-1",
-                "leftValue": "={{ $json['profileUrl'] }}",
+                "leftValue": "={{ $json['defaultProfileUrl'] ?? $json['profileUrl'] }}",
                 "operator": {
                   "type": "string",
                   "operation": "notEmpty"
@@ -1764,12 +2246,11 @@
               },
               {
                 "id": "74d0d1bc-23d7-4f86-9973-468943edd504",
-                "leftValue": "={{ $json.kyleSentDate }}",
-                "rightValue": "",
+                "leftValue": "={{ ($('Take one profile').item.json.profile === 'kyle' && !$json.kyleSentDate) || ($('Take one profile').item.json.profile === 'hudson' && !$json.hudsonSentDate) }}",
+                "rightValue": true,
                 "operator": {
-                  "type": "string",
-                  "operation": "empty",
-                  "singleValue": true
+                  "type": "boolean",
+                  "operation": "equals"
                 }
               }
             ],
@@ -1783,8 +2264,21 @@
         "type": "n8n-nodes-base.filter",
         "typeVersion": 2.3,
         "position": [
-          3856,
-          720
+          3664,
+          752
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\nif (!items.length) return [];\nconst profile = items[0].json.profile;\nlet maxItems;\nif (profile === 'kyle') {\n  maxItems = 8 + Math.floor(Math.random() * 4);\n} else {\n  const rampStart = new Date('2026-02-10');\n  const days = Math.min(30, Math.max(0, Math.floor((Date.now() - rampStart) / 86400000)));\n  const minPerRun = 4 + (days / 30) * 4;\n  const maxPerRun = 6 + (days / 30) * 5;\n  const range = maxPerRun - minPerRun + 1;\n  maxItems = minPerRun + Math.floor(Math.random() * range);\n}\nconst out = items.map((item, i) => ({ json: { ...item.json, maxItems: i === 0 ? maxItems : undefined } }));\nif (out[0]) out[0].json.maxItems = maxItems;\nreturn out;"
+        },
+        "id": "wf2-test-prepare-limit",
+        "name": "Prepare limit",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          4144,
+          752
         ]
       },
       {
@@ -1795,8 +2289,8 @@
         "type": "n8n-nodes-base.wait",
         "typeVersion": 1.1,
         "position": [
-          3408,
-          720
+          3072,
+          608
         ],
         "id": "7067c636-295b-49d8-b137-66768e27d862",
         "name": "Wait",
@@ -1811,7 +2305,7 @@
         "type": "n8n-nodes-base.wait",
         "typeVersion": 1.1,
         "position": [
-          5200,
+          5168,
           720
         ],
         "webhookId": "e66b1416-4fd0-4893-a988-28cfcd7403f9"
@@ -1846,7 +2340,7 @@
         "typeVersion": 2.2,
         "position": [
           5872,
-          580
+          736
         ]
       },
       {
@@ -1857,7 +2351,7 @@
             "mode": "id",
             "value": "C0A6ES56MU2"
           },
-          "text": "={{ '🚨 *LinkedIn Outreach STOPPED - Critical Error*\\n\\n*Error Type:* ' + $json.criticalErrorType + '\\n*Message:* ' + $json.resultMessage + '\\n*Profile:* ' + $json.profileUrl + '\\n\\n*Action Required:* Check PhantomBuster credentials and LinkedIn session cookie.\\n\\n_Workflow has been stopped to prevent further issues. Please fix credentials and manually restart._' }}",
+          "text": "={{ '🚨 *LinkedIn Outreach STOPPED - Critical Error*\\n\\n*Error Type:* ' + $json.criticalErrorType + '\\n*Message:* ' + $json.resultMessage + '\\n*Profile:* ' + ($json.profileUrl || $json.defaultProfileUrl || '') + '\\n\\n*Action Required:* Check PhantomBuster credentials and LinkedIn session cookie.\\n\\n_Workflow has been stopped to prevent further issues. Please fix credentials and manually restart._' }}",
           "otherOptions": {}
         },
         "id": "slack-critical-error",
@@ -1866,8 +2360,9 @@
         "typeVersion": 2.2,
         "position": [
           6096,
-          440
+          448
         ],
+        "webhookId": "6038d27e-b8eb-4160-8d74-046aad2978de",
         "credentials": {
           "slackApi": {
             "id": "wkLpZSqhXl2iesnC",
@@ -1885,7 +2380,7 @@
         "typeVersion": 1,
         "position": [
           6320,
-          440
+          448
         ]
       },
       {
@@ -1917,7 +2412,7 @@
         "type": "n8n-nodes-base.if",
         "typeVersion": 2.2,
         "position": [
-          5760,
+          5664,
           720
         ]
       },
@@ -1930,8 +2425,8 @@
         "type": "n8n-nodes-base.wait",
         "typeVersion": 1.1,
         "position": [
-          5870,
-          900
+          6256,
+          704
         ],
         "webhookId": "retry-wait-webhook"
       },
@@ -1944,17 +2439,170 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          5980,
-          900
+          6432,
+          1024
         ]
+      },
+      {
+        "parameters": {},
+        "type": "n8n-nodes-base.manualTrigger",
+        "typeVersion": 1,
+        "position": [
+          2192,
+          1040
+        ],
+        "id": "e96e8079-64bb-4dd7-b4c7-e2feb21c10f7",
+        "name": "When clicking ‘Execute workflow’"
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 3
+            },
+            "conditions": [
+              {
+                "id": "8511f2cd-4b2a-47b9-b337-6e3ecf0dbc48",
+                "leftValue": "={{ $json.connectionFrom }}",
+                "rightValue": "={{  $('Take one profile').item.json.profile }}",
+                "operator": {
+                  "type": "string",
+                  "operation": "equals",
+                  "name": "filter.operator.equals"
+                }
+              },
+              {
+                "id": "942f8937-37d0-406c-a2ad-b15791fcc9c3",
+                "leftValue": "={{ $json.connectionFrom }}",
+                "rightValue": "both",
+                "operator": {
+                  "type": "string",
+                  "operation": "equals",
+                  "name": "filter.operator.equals"
+                }
+              }
+            ],
+            "combinator": "or"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.filter",
+        "typeVersion": 2.3,
+        "position": [
+          3456,
+          752
+        ],
+        "id": "5cc268de-4f0a-4c4d-8197-9b32e486dcfa",
+        "name": "Filter"
       }
     ],
     "connections": {
-      "Twice Daily (9am, 2pm)": {
+      "Schedule Kyle": {
         "main": [
           [
             {
-              "node": "Wait",
+              "node": "Fetch Doppler cookies",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Set profile Kyle",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Schedule Hudson": {
+        "main": [
+          [
+            {
+              "node": "Fetch Doppler cookies",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Set profile Hudson",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Set profile Kyle": {
+        "main": [
+          [
+            {
+              "node": "selectProfile",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Set profile Hudson": {
+        "main": [
+          [
+            {
+              "node": "selectProfile",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "selectProfile": {
+        "main": [
+          [
+            {
+              "node": "Profile + Doppler",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Fetch Doppler cookies": {
+        "main": [
+          [
+            {
+              "node": "Profile + Doppler",
+              "type": "main",
+              "index": 1
+            }
+          ]
+        ]
+      },
+      "Profile + Doppler": {
+        "main": [
+          [
+            {
+              "node": "Build profile items with cookies",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Build profile items with cookies": {
+        "main": [
+          [
+            {
+              "node": "Take one profile",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Take one profile": {
+        "main": [
+          [
+            {
+              "node": "Get Ready Leads",
               "type": "main",
               "index": 0
             }
@@ -1962,6 +2610,17 @@
         ]
       },
       "Sort by Score (Highest First)": {
+        "main": [
+          [
+            {
+              "node": "Prepare limit",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Prepare limit": {
         "main": [
           [
             {
@@ -2100,7 +2759,7 @@
         "main": [
           [
             {
-              "node": "Filter Ready Leads",
+              "node": "Filter",
               "type": "main",
               "index": 0
             }
@@ -2179,12 +2838,39 @@
             }
           ]
         ]
+      },
+      "When clicking ‘Execute workflow’": {
+        "main": [
+          [
+            {
+              "node": "Set profile Kyle",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Fetch Doppler cookies",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Filter": {
+        "main": [
+          [
+            {
+              "node": "Filter Ready Leads",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
       }
     },
     "authors": "Hudson Lorfing",
-    "name": null,
-    "description": null,
-    "autosaved": false
+    "name": "Version ba5e1614",
+    "description": "added additional logic to the filter to only get the leads with the correct connections from",
+    "autosaved": true
   },
   "tags": [
     {
