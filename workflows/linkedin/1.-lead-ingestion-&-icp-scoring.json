@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-02-03T19:25:58.000Z",
+  "updatedAt": "2026-02-04T16:58:47.188Z",
   "createdAt": "2025-12-17T17:08:43.420Z",
   "id": "aLxwvqoSTkZAQ3fq",
   "name": "1. Lead Ingestion & ICP Scoring",
@@ -157,7 +157,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const pb = $('Loop Over Leads1').item.json;\nlet aiResult = { score: 5, segment: 'Unknown', reason: 'Could not parse AI response', hubspotIndustry: '' };\n\ntry {\n  const content = $('AI ICP Score').item.json.content?.[0]?.text || '{}';\n  const parsed = JSON.parse(content.replace(/```json?|```/g, '').trim());\n  aiResult = {\n    score: parsed.score ?? 5,\n    segment: parsed.segment || 'Unknown',\n    reason: parsed.reason || 'No reason provided',\n    hubspotIndustry: parsed.hubspotIndustry || ''\n  };\n} catch (e) {}\n\n// Output all columns - mapped from New Leads (Sales Nav) headers to Master List\nreturn [{\n  json: {\n    profileUrl: pb.defaultProfileUrl || pb.linkedInProfileUrl || '',\n    fullName: pb.fullName || `${pb.firstName || ''} ${pb.lastName || ''}`.trim(),\n    firstName: pb.firstName || '',\n    lastName: pb.lastName || '',\n    school: '',\n    schoolDegree: '',\n    company: pb.companyName || '',\n    companyUrl: pb.companyUrl || pb.regularCompanyUrl || '',\n    companyId: pb.companyId || '',\n    jobTitle: pb.title || '',\n    jobDateRange: pb.durationInRole || '',\n    hsIndustry: aiResult.hubspotIndustry,\n    headline: pb.titleDescription || pb.title || '',\n    location: pb.location || '',\n    company2: pb.pastExperienceCompanyName || '',\n    companyUrl2: pb.pastExperienceCompanyUrl || pb.companyUrl2 || '',\n    companyId2: '',\n    jobTitle2: pb.pastExperienceCompanyTitle || '',\n    jobDateRange2: pb.pastExperienceDate || '',\n    score: aiResult.score,\n    segment: aiResult.segment,\n    reason: aiResult.reason,\n    status: aiResult.score >= 6 ? 'Ready' : 'Low Priority',\n    added: new Date().toISOString().split('T')[0],\n    kyleSentDate: '',\n    kyleConnectDate: '',\n    hudsonSentDate: '',\n    hudsonConnectDate: '',\n    hubspotSync: '',\n    hudsonNotes: '',\n    inviteResults: '',\n    connectionDegree: pb.connectionDegree || '',\n    previousRole: pb.pastExperienceCompanyTitle ? `${pb.pastExperienceCompanyTitle} @ ${pb.pastExperienceCompanyName || ''}` : '',\n    industry: pb.industry || '',\n    summary: pb.summary || '',\n    companyLocation: pb.companyLocation || '',\n    durationInCompany: pb.durationInCompany || '',\n    pastExperienceDuration: pb.pastExperienceDuration || '',\n    sharedConnectionsCount: pb.sharedConnectionsCount || '',\n    isPremium: pb.isPremium || false,\n    isOpenLink: pb.isOpenLink || false,\n    connectionFrom: pb.connectionFrom || ''\n  }\n}];"
+        "jsCode": "const pb = $('Loop Over Leads1').item.json;\nlet aiResult = { score: 5, segment: 'Unknown', reason: 'Could not parse AI response', hubspotIndustry: '' };\n\ntry {\n  const content = $('AI ICP Score').item.json.content?.[0]?.text || '{}';\n  const parsed = JSON.parse(content.replace(/```json?|```/g, '').trim());\n  aiResult = {\n    score: parsed.score ?? 5,\n    segment: parsed.segment || 'Unknown',\n    reason: parsed.reason || 'No reason provided',\n    hubspotIndustry: parsed.hubspotIndustry || ''\n  };\n} catch (e) {}\n\n// Output all columns - mapped from New Leads (Sales Nav) headers to Master List\nreturn [{\n  json: {\n    defaultProfileUrl: pb.defaultProfileUrl || pb.linkedInProfileUrl || '',\n    profileUrl: pb.profileUrl || '',\n    fullName: pb.fullName || `${pb.firstName || ''} ${pb.lastName || ''}`.trim(),\n    firstName: pb.firstName || '',\n    lastName: pb.lastName || '',\n    school: '',\n    schoolDegree: '',\n    company: pb.companyName || '',\n    companyUrl: pb.companyUrl || pb.regularCompanyUrl || '',\n    companyId: pb.companyId || '',\n    jobTitle: pb.title || '',\n    jobDateRange: pb.durationInRole || '',\n    hsIndustry: aiResult.hubspotIndustry,\n    headline: pb.titleDescription || pb.title || '',\n    location: pb.location || '',\n    company2: pb.pastExperienceCompanyName || '',\n    companyUrl2: pb.pastExperienceCompanyUrl || pb.companyUrl2 || '',\n    companyId2: '',\n    jobTitle2: pb.pastExperienceCompanyTitle || '',\n    jobDateRange2: pb.pastExperienceDate || '',\n    score: aiResult.score,\n    segment: aiResult.segment,\n    reason: aiResult.reason,\n    status: aiResult.score >= 6 ? 'Ready' : 'Low Priority',\n    added: new Date().toISOString().split('T')[0],\n    kyleSentDate: '',\n    kyleConnectDate: '',\n    hudsonSentDate: '',\n    hudsonConnectDate: '',\n    hubspotSync: '',\n    hudsonNotes: '',\n    inviteResults: '',\n    connectionDegree: pb.connectionDegree || '',\n    previousRole: pb.pastExperienceCompanyTitle ? `${pb.pastExperienceCompanyTitle} @ ${pb.pastExperienceCompanyName || ''}` : '',\n    industry: pb.industry || '',\n    summary: pb.summary || '',\n    companyLocation: pb.companyLocation || '',\n    durationInCompany: pb.durationInCompany || '',\n    pastExperienceDuration: pb.pastExperienceDuration || '',\n    sharedConnectionsCount: pb.sharedConnectionsCount || '',\n    isPremium: pb.isPremium || false,\n    isOpenLink: pb.isOpenLink || false,\n    connectionFrom: pb.connectionFrom || ''\n  }\n}];"
       },
       "id": "c78dafcf-3174-4792-b843-9512bfaa472e",
       "name": "Format for Master List",
@@ -187,8 +187,8 @@
           "matchingColumns": [],
           "schema": [
             {
-              "id": "profileUrl",
-              "displayName": "profileUrl",
+              "id": "defaultProfileUrl",
+              "displayName": "defaultProfileUrl",
               "required": false,
               "defaultMatch": false,
               "display": true,
@@ -297,8 +297,8 @@
               "removed": false
             },
             {
-              "id": "adj industry",
-              "displayName": "adj industry",
+              "id": "hsIndustry",
+              "displayName": "hsIndustry",
               "required": false,
               "defaultMatch": false,
               "display": true,
@@ -525,6 +525,106 @@
               "type": "string",
               "canBeUsedToMatch": true,
               "removed": false
+            },
+            {
+              "id": "adj industry",
+              "displayName": "adj industry",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "summary",
+              "displayName": "summary",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "companyLocation",
+              "displayName": "companyLocation",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "durationInCompany",
+              "displayName": "durationInCompany",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "pastExperienceDuration",
+              "displayName": "pastExperienceDuration",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "sharedConnectionsCount",
+              "displayName": "sharedConnectionsCount",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "isPremium",
+              "displayName": "isPremium",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "isOpenLink",
+              "displayName": "isOpenLink",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "connectionFrom",
+              "displayName": "connectionFrom",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "profileUrl",
+              "displayName": "profileUrl",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
             }
           ],
           "attemptToConvertTypes": false,
@@ -574,7 +674,7 @@
           "values": [
             {
               "lookupColumn": "defaultProfileUrl",
-              "lookupValue": "={{ $json.profileUrl }}"
+              "lookupValue": "={{ $json.defaultProfileUrl }}"
             }
           ]
         },
@@ -970,7 +1070,7 @@
     "templateCredsSetupCompleted": true
   },
   "pinData": {},
-  "versionId": "2f0fe6b9-6f95-4dbe-847c-df6cf64bf424",
+  "versionId": "22d93279-060b-41df-89be-9bf22b4e7148",
   "activeVersionId": null,
   "triggerCount": 1,
   "shared": [
