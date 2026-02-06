@@ -1,0 +1,951 @@
+{
+  "updatedAt": "2026-02-05T23:20:59.146Z",
+  "createdAt": "2026-02-05T21:08:41.637Z",
+  "id": "Iq6zXDU0cW0xCXOa",
+  "name": "1. Lead Ingestion & ICP Scoring - Apps Script TEST",
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0,30 * * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule-every-30min",
+      "name": "Schedule every 30 min",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -30240,
+        3056
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Dashboard"
+        },
+        "options": {}
+      },
+      "id": "read-dashboard-ingestion",
+      "name": "Read Dashboard",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -30080,
+        3056
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "hf9VoWnqYNXhUZsn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst kylePreProcessed = parseInt(data['kylePreProcessed'] || 0, 10);\nconst hudsonPreProcessed = parseInt(data['hudsonPreProcessed'] || 0, 10);\nconst kyleTargets = parseInt(data['kyleTargets'] || 0, 10);\nconst hudsonTargets = parseInt(data['hudsonTargets'] || 0, 10);\nconst priorityProfile = kyleTargets <= hudsonTargets ? 'kyle' : 'hudson';\n\nif (kyleTargets > 240 && hudsonTargets > 240) {\n  return [{ json: { skip: true, reason: 'both over 240 targets' } }];\n}\n\nreturn [{ json: { batchSize: 500, source: 'schedule', skip: false, priorityProfile, kylePreProcessed, hudsonPreProcessed, kyleTargets, hudsonTargets } }];"
+      },
+      "id": "check-preprocessed-priority",
+      "name": "Check pre-processed counts and priority",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -29888,
+        3056
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "need-run",
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-need-to-run",
+      "name": "Need to run?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -29696,
+        3056
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Single crawl per run: prefer priority; fallback to other when priority is maxed out (no URLs or no room to process).\nconst data = $input.first().json;\nconst kylePreProcessed = parseInt(data.kylePreProcessed || 0, 10);\nconst hudsonPreProcessed = parseInt(data.hudsonPreProcessed || 0, 10);\nconst kyleTargets = parseInt(data.kyleTargets || 0, 10);\nconst hudsonTargets = parseInt(data.hudsonTargets || 0, 10);\nconst priorityProfile = data.priorityProfile || (kyleTargets <= hudsonTargets ? 'kyle' : 'hudson');\n\nlet crawlProfile = null;\nlet processProfile = null;\nconst priorityTargets = priorityProfile === 'kyle' ? kyleTargets : hudsonTargets;\nconst priorityPreProcessed = priorityProfile === 'kyle' ? kylePreProcessed : hudsonPreProcessed;\nconst otherTargets = priorityProfile === 'kyle' ? hudsonTargets : kyleTargets;\nconst otherPreProcessed = priorityProfile === 'kyle' ? hudsonPreProcessed : kylePreProcessed;\n\nif (priorityTargets < 240 && priorityPreProcessed < 1000 && priorityTargets > 0) {\n  crawlProfile = priorityProfile;\n} else if (otherTargets < 240 && otherPreProcessed < 1000) {\n  crawlProfile = priorityProfile === 'kyle' ? 'hudson' : 'kyle';\n}\nif (priorityTargets < 240 && priorityPreProcessed > 500) {\n  processProfile = priorityProfile;\n} else if (otherTargets < 240 && otherPreProcessed > 500) {\n  processProfile = priorityProfile === 'kyle' ? 'hudson' : 'kyle';\n}\n\nreturn [{ json: { crawlProfile, processProfile, batchSize: data.batchSize || 25, source: data.source || 'schedule', priorityProfile, kylePreProcessed, hudsonPreProcessed, kyleTargets, hudsonTargets } }];"
+      },
+      "id": "choose-crawl-profile",
+      "name": "Choose crawl profile",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -29504,
+        3040
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "crawl-anyone",
+              "leftValue": "={{ Boolean($json.crawlProfile) }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-should-trigger-crawl",
+      "name": "Crawl for anyone?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -29296,
+        2976
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://chrt.app.n8n.cloud/webhook/pipeline-monitor-crawl",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ profile: $json.currentProfile }) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "http-trigger-crawl",
+      "name": "Trigger workflow 4 crawl",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -28432,
+        2752
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "notice": "Click 'Test workflow' to run manually after pasting PhantomBuster export into New Leads sheet"
+      },
+      "id": "948717d3-54d7-4dc2-beaa-ceb078510e74",
+      "name": "Run Manually",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -30016,
+        3264
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Determine batch size based on trigger source\n// Default: 10 for manual, 240 for webhook (pipeline monitor)\nlet batchSize = $('Choose crawl profile').first().json.batchSize || 25;\n\nreturn [{ json: { batchSize } }];"
+      },
+      "id": "determine-batch-size",
+      "name": "Determine Batch Size",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -27856,
+        2992
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "New Leads"
+        },
+        "options": {}
+      },
+      "id": "30a11b75-df9c-4f57-8241-0343d63b25b2",
+      "name": "Read New Leads",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -27648,
+        2976
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "hf9VoWnqYNXhUZsn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Master List"
+        },
+        "options": {}
+      },
+      "id": "984f4604-dd13-497a-9070-98c8d4e0c465",
+      "name": "Read Master List",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -27680,
+        3168
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "hf9VoWnqYNXhUZsn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        -27472,
+        3120
+      ],
+      "id": "merge-wait-for-both",
+      "name": "Wait for Both Sheets"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Data comes from Merge node (append mode)\n// Input 0: New Leads, Input 1: Master List\n// The merge appends both, so we need to identify them by structure\n\n// All items from the merge\nconst allItems = $input.all();\n\n// New Leads have 'linkedInProfileUrl' or 'profileUrl', Master List has 'profileUrl'\n// Master List items have 'score' field (from previous processing)\nconst newLeads = [];\nconst masterUrls = new Set();\n\nallItems.forEach(item => {\n  const data = item.json;\n  // Master List items have 'score' or 'segment' fields\n  if (data.score !== undefined || data.segment !== undefined) {\n    const url = (data.profileUrl || '').trim().toLowerCase();\n    if (url) masterUrls.add(url);\n  } else {\n    // This is a new lead\n    newLeads.push(item);\n  }\n});\n\n// Filter new leads to only those not in master list\nconst uniqueLeads = newLeads.filter(lead => {\n  const url = (lead.json.linkedInProfileUrl || lead.json.profileUrl || '').trim().toLowerCase();\n  return url && !masterUrls.has(url);\n});\n\nreturn uniqueLeads;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -27312,
+        3104
+      ],
+      "id": "1b0c3579-90f5-45b6-8881-d1143bf6959f",
+      "name": "Dedupe New Leads"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "has-items",
+              "leftValue": "={{ $input.all().length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -27152,
+        3104
+      ],
+      "id": "check-has-leads",
+      "name": "Has Leads to Process?"
+    },
+    {
+      "parameters": {
+        "maxItems": "={{ $('Determine Batch Size').first().json.batchSize || 25 }}"
+      },
+      "type": "n8n-nodes-base.limit",
+      "typeVersion": 1,
+      "position": [
+        -26784,
+        2960
+      ],
+      "id": "6cc0c946-726b-454e-955f-db87dd179c71",
+      "name": "Limit"
+    },
+    {
+      "parameters": {
+        "jsCode": "// No leads to process\nreturn [{ json: { success: true, processed: 0, message: 'No new leads to process', timestamp: new Date().toISOString() } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -26512,
+        3280
+      ],
+      "id": "no-leads-found",
+      "name": "No Leads Found"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Return final status\nreturn [{ json: { success: true, source: 'lead-ingestion', timestamp: new Date().toISOString() } }];"
+      },
+      "id": "final-status",
+      "name": "Final Status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -25984,
+        3072
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8",
+          "mode": "list",
+          "cachedResultName": "LinkedIn Leads",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 47866009,
+          "mode": "list",
+          "cachedResultName": "People to crawl",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8/edit#gid=47866009"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -29120,
+        2896
+      ],
+      "id": "0f5fd84e-73f6-4d7c-b917-8bf642464b8a",
+      "name": "Get row(s) in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "hf9VoWnqYNXhUZsn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "65435489-41af-449b-8a5f-698bd8d290d7",
+              "leftValue": "={{ $json.uncrawledCount }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -28720,
+        2880
+      ],
+      "id": "ae9fa9bf-3820-4119-807d-3abe67fd1ff6",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C0A6ES56MU2",
+          "mode": "list",
+          "cachedResultName": "automation"
+        },
+        "text": "=Uncrawled links are {{ $json.uncrawledCount }} for {{ $('Choose crawl profile').first().json.crawlProfile }}. Add more.",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [
+        -28480,
+        2928
+      ],
+      "id": "af409a30-a3b3-4e80-bfae-68e48f0c2e4d",
+      "name": "Send a message",
+      "webhookId": "c518fe1d-90ac-4623-b9e1-eb867bbbff60",
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "EBe7rpazmQ7oFc5K",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "dfa8c88a-3536-491d-89bf-a31a2bc9f4d8",
+              "leftValue": "={{ Boolean($('Choose crawl profile').first().json.processProfile) }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -28224,
+        2864
+      ],
+      "id": "bec696d1-e465-422f-b62e-744c7cc554ee",
+      "name": "processAnyone?"
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C0A6ES56MU2",
+          "mode": "list",
+          "cachedResultName": "automation"
+        },
+        "text": "=No processing needed/available: \nkyleTarget = {{ $('Choose crawl profile').item.json.kyleTargets}}\nkylePreProcess = {{ $('Choose crawl profile').item.json.kylePreProcessed}}\nhudsonTargets = {{ $('Choose crawl profile').item.json.hudsonTargets}}\nhudsonPreProcess = {{ $('Choose crawl profile').item.json.hudsonPreProcessed}}",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [
+        -28064,
+        3008
+      ],
+      "id": "5d55521c-1663-4c36-b069-ea89e9f461a5",
+      "name": "Send a message1",
+      "webhookId": "c518fe1d-90ac-4623-b9e1-eb867bbbff60",
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "EBe7rpazmQ7oFc5K",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "f9b73f87-56ca-486c-91ff-801b32582506",
+              "leftValue": "={{ $json.connectionFrom }}",
+              "rightValue": "={{ $('Choose crawl profile').first().json.processProfile }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.3,
+      "position": [
+        -26960,
+        3024
+      ],
+      "id": "1b87598e-bf02-41eb-966b-6f9408113d38",
+      "name": "Filter"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Collect all leads from Limit into a single payload for the Apps Script\nconst items = $input.all();\nconst leads = items.map(item => item.json);\nreturn [{ json: { leads } }];"
+      },
+      "id": "wf1-prepare-payload",
+      "name": "Prepare Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -26592,
+        2960
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://script.google.com/macros/s/AKfycbyDfaLDk-Pjt2kWOmTvK0K4zxQp61QlfqhaketxaLylzB23YJJAqVbjxRYcnDVTGuks-w/exec",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ leads: $json.leads }) }}",
+        "options": {
+          "redirect": {
+            "redirect": {}
+          },
+          "timeout": 120000
+        }
+      },
+      "id": "wf1-score-and-ingest",
+      "name": "Score and Ingest via Apps Script",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -26416,
+        2960
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse Apps Script response and pass to Final Status\nconst resp = $input.first().json;\nconst ok = resp.ok || false;\nconst processed = resp.processed || 0;\nconst appended = resp.appended || 0;\nconst deleted = resp.deleted || 0;\nconst aiErrors = resp.aiErrors || 0;\nconst errors = resp.errors || [];\n\nif (!ok) {\n  return [{ json: {\n    success: false,\n    source: 'lead-ingestion',\n    error: resp.error || 'Apps Script returned ok=false',\n    timestamp: new Date().toISOString()\n  }}];\n}\n\nreturn [{ json: {\n  success: true,\n  source: 'lead-ingestion',\n  processed,\n  appended,\n  deleted,\n  aiErrors,\n  errors,\n  timestamp: new Date().toISOString()\n}}];"
+      },
+      "id": "wf1-parse-response",
+      "name": "Parse Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -26224,
+        2960
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Analyze People to Crawl data\nconst allRows = $input.all();\n\n// 1. Determine Profile Prefix FIRST\n// We need this to know which column to check (k_salesNavLink vs h_salesNavLink)\nlet profile = 'kyle'; // Default\ntry {\n  profile = $('Choose crawl profile').first().json.crawlProfile\n} catch(e) {\n  // Error handling if previous node is empty during testing\n}\n\nlet profile_prefix = 'k_';\nif (profile !== 'kyle') {\n  profile_prefix = 'h_';\n}\n\n// Define the dynamic keys based on the profile\nconst linkKey = profile_prefix + 'salesNavLink';\nconst dateKey = profile_prefix + 'lastCrawlDate';\nconst nameKey = profile_prefix + 'name';\n\nconst uncrawled = [];\nconst crawled = [];\nlet totalValidLinks = 0;\n\n// 2. Iterate and Filter simultaneously\nallRows.forEach((item, index) => {\n  // Handle n8n data structure (checks if data is in item.json or just item)\n  const data = item.json || item;\n\n  // Get the link specifically for the active profile\n  const searchLink = data[linkKey];\n\n  // Only process if the link exists and is not empty\n  if (searchLink && typeof searchLink === 'string' && searchLink.trim().length > 0) {\n    \n    totalValidLinks++;\n    const lastCrawl = data[dateKey] || '';\n    const name = data[nameKey] || '';\n    const rowNumber = data.row_number || index + 2;\n    \n    const rowData = {\n      rowNumber,\n      name,\n      searchLink: searchLink.trim(),\n      lastCrawlDate: lastCrawl ? lastCrawl.trim() : null\n    };\n    \n    if (!lastCrawl || lastCrawl.trim() === '') {\n      uncrawled.push(rowData);\n    } else {\n      crawled.push(rowData);\n    }\n  }\n});\n\n// 3. Sort crawled by date (oldest first) for fallback\ncrawled.sort((a, b) => {\n  const dateA = new Date(a.lastCrawlDate || '2099-12-31');\n  const dateB = new Date(b.lastCrawlDate || '2099-12-31');\n  return dateA - dateB;\n});\n\nconst uncrawledCount = uncrawled.length;\nlet selectedURL = null;\nlet selectedRow = null;\nlet alertLevel = 'none'; // none, warning, critical, fallback\n\nif (uncrawledCount > 2) {\n  // Normal operation - use first uncrawled\n  selectedURL = uncrawled[0].searchLink;\n  selectedRow = uncrawled[0].rowNumber;\n  alertLevel = 'none';\n} else if (uncrawledCount > 0) {\n  // 1-2 URLs left - warning\n  selectedURL = uncrawled[0].searchLink;\n  selectedRow = uncrawled[0].rowNumber;\n  alertLevel = 'warning';\n} else if (crawled.length > 0) {\n  // No uncrawled - fallback to oldest crawled\n  selectedURL = crawled[0].searchLink;\n  selectedRow = crawled[0].rowNumber;\n  alertLevel = 'fallback';\n} else {\n  // No URLs at all\n  alertLevel = 'critical';\n}\n\nreturn [{\n  json: {\n    uncrawledCount,\n    crawledCount: crawled.length,\n    totalURLs: totalValidLinks,\n    selectedURL,\n    selectedRow,\n    alertLevel,\n    selectedName: selectedURL ? (uncrawledCount > 0 ? uncrawled[0].name : crawled[0]?.name) : null,\n    oldestCrawledDate: crawled[0]?.lastCrawlDate || null,\n    currentProfile: profile // Added for debugging\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -28928,
+        2896
+      ],
+      "id": "5f4beb79-b421-4603-a4f8-e84e7942e4c3",
+      "name": "set correct prefixes"
+    }
+  ],
+  "connections": {
+    "Schedule every 30 min": {
+      "main": [
+        [
+          {
+            "node": "Read Dashboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Dashboard": {
+      "main": [
+        [
+          {
+            "node": "Check pre-processed counts and priority",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check pre-processed counts and priority": {
+      "main": [
+        [
+          {
+            "node": "Need to run?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Need to run?": {
+      "main": [
+        [
+          {
+            "node": "Choose crawl profile",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Leads Found",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Choose crawl profile": {
+      "main": [
+        [
+          {
+            "node": "Crawl for anyone?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crawl for anyone?": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "processAnyone?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trigger workflow 4 crawl": {
+      "main": [
+        [
+          {
+            "node": "processAnyone?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run Manually": {
+      "main": [
+        []
+      ]
+    },
+    "Determine Batch Size": {
+      "main": [
+        [
+          {
+            "node": "Read Master List",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read New Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read New Leads": {
+      "main": [
+        [
+          {
+            "node": "Wait for Both Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Master List": {
+      "main": [
+        [
+          {
+            "node": "Wait for Both Sheets",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Wait for Both Sheets": {
+      "main": [
+        [
+          {
+            "node": "Dedupe New Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dedupe New Leads": {
+      "main": [
+        [
+          {
+            "node": "Has Leads to Process?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Leads to Process?": {
+      "main": [
+        [
+          {
+            "node": "Filter",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Leads Found",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limit": {
+      "main": [
+        [
+          {
+            "node": "Prepare Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "No Leads Found": {
+      "main": [
+        [
+          {
+            "node": "Final Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "set correct prefixes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Trigger workflow 4 crawl",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a message": {
+      "main": [
+        [
+          {
+            "node": "processAnyone?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "processAnyone?": {
+      "main": [
+        [
+          {
+            "node": "Determine Batch Size",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send a message1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter": {
+      "main": [
+        [
+          {
+            "node": "Limit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a message1": {
+      "main": [
+        []
+      ]
+    },
+    "Prepare Payload": {
+      "main": [
+        [
+          {
+            "node": "Score and Ingest via Apps Script",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Score and Ingest via Apps Script": {
+      "main": [
+        [
+          {
+            "node": "Parse Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Response": {
+      "main": [
+        [
+          {
+            "node": "Final Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "set correct prefixes": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false,
+    "errorWorkflow": "YWP69Qgq0ZlCN7Gj"
+  },
+  "staticData": {
+    "node:Schedule every 30 min": {
+      "recurrenceRules": []
+    }
+  },
+  "meta": null,
+  "pinData": {},
+  "versionId": "753afda5-5c04-4b84-aa70-e810c4b3e57e",
+  "activeVersionId": null,
+  "triggerCount": 1,
+  "shared": [
+    {
+      "updatedAt": "2026-02-05T21:08:42.372Z",
+      "createdAt": "2026-02-05T21:08:42.372Z",
+      "role": "workflow:owner",
+      "workflowId": "Iq6zXDU0cW0xCXOa",
+      "projectId": "O7lTivDfRl72aS23"
+    }
+  ],
+  "activeVersion": null,
+  "tags": [],
+  "_folderPath": "",
+  "_fileName": "1.-lead-ingestion-&-icp-scoring---apps-script-test.json"
+}
