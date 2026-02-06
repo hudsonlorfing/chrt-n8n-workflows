@@ -1,0 +1,676 @@
+{
+  "updatedAt": "2026-02-06T00:43:17.557Z",
+  "createdAt": "2026-02-06T00:40:38.615Z",
+  "id": "nfB8uIOOktCneJ2M",
+  "name": "2.1 LinkedIn Outreach - Send [V2]",
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "30 8 * * 1-6"
+            },
+            {
+              "field": "cronExpression",
+              "expression": "10 16 * * 1-6"
+            }
+          ]
+        }
+      },
+      "id": "wf2v2-schedule-kyle",
+      "name": "Schedule Kyle",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        2800,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "40 8 * * 1-6"
+            },
+            {
+              "field": "cronExpression",
+              "expression": "20 16 * * 1-6"
+            }
+          ]
+        }
+      },
+      "id": "wf2v2-schedule-hudson",
+      "name": "Schedule Hudson",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        2800,
+        912
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { profileIndex: 0 } }];"
+      },
+      "id": "wf2v2-set-kyle",
+      "name": "Set profile Kyle",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2960,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { profileIndex: 1 } }];"
+      },
+      "id": "wf2v2-set-hudson",
+      "name": "Set profile Hudson",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2960,
+        912
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const kyle = $('Set profile Kyle').isExecuted ? $('Set profile Kyle').first() : null;\nconst hudson = $('Set profile Hudson').isExecuted ? $('Set profile Hudson').first() : null;\nconst selected = kyle || hudson;\nif (!selected) throw new Error('No profile set');\nreturn [{ json: { profileIndex: selected.json.profileIndex } }];"
+      },
+      "id": "wf2v2-select-profile",
+      "name": "selectProfile",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3120,
+        816
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.doppler.com/v3/configs/config/secrets",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "project",
+              "value": "developers"
+            },
+            {
+              "name": "config",
+              "value": "hudson"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "wf2v2-fetch-doppler",
+      "name": "Fetch Doppler cookies",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3008,
+        576
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "dz2vX61Mpayywfq1",
+          "name": "Doppler API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch",
+        "useDataOfInput": 2
+      },
+      "id": "wf2v2-merge-doppler",
+      "name": "Profile + Doppler",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        3344,
+        896
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first();\nconst secrets = item.json.secrets || item.json || {};\nconst kyleCookie = secrets.LINKEDIN_KYLE_SESSION_COOKIE;\nconst hudsonCookie = secrets.LINKEDIN_HUDSON_SESSION_COOKIE;\nconst userAgents = { kyle: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36', hudson: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36' };\nreturn [{ json: { profile: 'kyle', sessionCookie: kyleCookie, userAgent: userAgents.kyle } }, { json: { profile: 'hudson', sessionCookie: hudsonCookie, userAgent: userAgents.hudson } }];"
+      },
+      "id": "wf2v2-build-profile",
+      "name": "Build profile items with cookies",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3504,
+        928
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nif (!items.length) return [];\nlet idx;\ntry { idx = $('selectProfile').first().json.profileIndex; } catch (e) { idx = 0; }\nif (idx === undefined || idx === null) idx = new Date().getDate() % 2;\nreturn [items[Math.min(idx, items.length - 1)]];"
+      },
+      "id": "wf2v2-take-one",
+      "name": "Take one profile",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3664,
+        928
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "=1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Master List",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "wf2v2-get-ready-leads",
+      "name": "Get Ready Leads",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        3824,
+        720
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "hf9VoWnqYNXhUZsn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const profile = $('Take one profile').first().json.profile;\nreturn $input.all().map(item => ({ json: { ...item.json, profile } }));"
+      },
+      "id": "wf2v2-inject-profile",
+      "name": "Inject profile",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3984,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "id-1",
+              "leftValue": "={{ $json['defaultProfileUrl'] ?? $json['profileUrl'] }}",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            },
+            {
+              "id": "id-3",
+              "leftValue": "={{ $json['segment'] }}",
+              "rightValue": "Skip",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            },
+            {
+              "id": "74d0d1bc-23d7-4f86-9973-468943edd504",
+              "leftValue": "={{ ($json.profile === 'kyle' && !$json.kyleSentDate) || ($json.profile === 'hudson' && !$json.hudsonSentDate) }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "wf2v2-filter-ready",
+      "name": "Filter Ready Leads",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.3,
+      "position": [
+        4144,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "sortFieldsUi": {
+          "sortField": [
+            {
+              "fieldName": "score",
+              "order": "descending"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "wf2v2-sort",
+      "name": "Sort by Score (Highest First)",
+      "type": "n8n-nodes-base.sort",
+      "typeVersion": 1,
+      "position": [
+        4304,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nif (!items.length) return [];\nconst profile = items[0].json.profile;\nlet maxItems;\nif (profile === 'kyle') {\n  maxItems = 8 + Math.floor(Math.random() * 4);\n} else {\n  const rampStart = new Date('2026-02-10');\n  const days = Math.min(30, Math.max(0, Math.floor((Date.now() - rampStart) / 86400000)));\n  const minPerRun = 4 + (days / 30) * 4;\n  const maxPerRun = 6 + (days / 30) * 5;\n  const range = maxPerRun - minPerRun + 1;\n  maxItems = minPerRun + Math.floor(Math.random() * range);\n}\nconst out = items.map((item, i) => ({ json: { ...item.json, maxItems: i === 0 ? maxItems : undefined } }));\nif (out[0]) out[0].json.maxItems = maxItems;\nreturn out;"
+      },
+      "id": "wf2v2-prepare-limit",
+      "name": "Prepare limit",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4464,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "maxItems": "={{ $('Prepare limit').first().json.maxItems ?? (8 + Math.floor(Math.random()*2)) }}"
+      },
+      "id": "wf2v2-limit",
+      "name": "Limit to 10/run (20/day)",
+      "type": "n8n-nodes-base.limit",
+      "typeVersion": 1,
+      "position": [
+        4624,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1xPgob7BwDoDGAOtDPBTvKzhQHl2FUZkJhJG0gEHWdgo",
+          "mode": "list",
+          "cachedResultName": "HoldingSheet",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1xPgob7BwDoDGAOtDPBTvKzhQHl2FUZkJhJG0gEHWdgo/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 2051829261,
+          "mode": "list",
+          "cachedResultName": "Sheet2",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1xPgob7BwDoDGAOtDPBTvKzhQHl2FUZkJhJG0gEHWdgo/edit#gid=2051829261"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "linkedInProfileUrl": "={{ $json.defaultProfileUrl }}"
+          },
+          "matchingColumns": [
+            "linkedInProfileUrl"
+          ],
+          "schema": [
+            {
+              "id": "linkedInProfileUrl",
+              "displayName": "linkedInProfileUrl",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        4800,
+        720
+      ],
+      "id": "wf2v2-append-holding",
+      "name": "Append to HoldingSheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "hf9VoWnqYNXhUZsn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Pass single item to PB launch\nreturn $input.first();"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4944,
+        720
+      ],
+      "id": "wf2v2-pass-one",
+      "name": "Pass One"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.phantombuster.com/api/v2/agents/launch",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  id: \"3044757503240384\",\n  bonusArgument: {\n    inputType: \"spreadsheetUrl\",\n    spreadsheetUrl: \"https://docs.google.com/spreadsheets/d/1xPgob7BwDoDGAOtDPBTvKzhQHl2FUZkJhJG0gEHWdgo/edit?pli=1&gid=2051829261#gid=2051829261\",\n    numberOfAddsPerLaunch: $('Prepare limit').first().json.maxItems,\n    onlySecondCircle: false,\n    dwellTime: true,\n    sessionCookie: $('Take one profile').first().json.sessionCookie?.computed ?? $('Take one profile').first().json.sessionCookie,\n    userAgent: $('Take one profile').first().json.userAgent\n  }\n}) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "wf2v2-pb-send",
+      "name": "PhantomBuster: SendConnectionList",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        5104,
+        720
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "KWeabljbYSzoLpjI",
+          "name": "Phantom Header Auth"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Log the PB launch result and exit — 2.2 workflow handles results via PB webhook\nconst result = $input.first().json;\nconst profile = $('Take one profile').first().json.profile;\nconst maxItems = $('Prepare limit').first().json.maxItems;\nreturn [{ json: {\n  success: true,\n  profile,\n  maxItems,\n  containerId: result.containerId || 'unknown',\n  status: result.status || 'launched',\n  message: 'PB launched — results handled by 2.2 workflow via webhook',\n  timestamp: new Date().toISOString()\n}}];"
+      },
+      "id": "wf2v2-done",
+      "name": "Done - PB Launched",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5264,
+        720
+      ]
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        2800,
+        1104
+      ],
+      "id": "wf2v2-manual",
+      "name": "When clicking 'Execute workflow'"
+    }
+  ],
+  "connections": {
+    "Schedule Kyle": {
+      "main": [
+        [
+          {
+            "node": "Fetch Doppler cookies",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Set profile Kyle",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Hudson": {
+      "main": [
+        [
+          {
+            "node": "Fetch Doppler cookies",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Set profile Hudson",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set profile Kyle": {
+      "main": [
+        [
+          {
+            "node": "selectProfile",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set profile Hudson": {
+      "main": [
+        [
+          {
+            "node": "selectProfile",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "selectProfile": {
+      "main": [
+        [
+          {
+            "node": "Profile + Doppler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Doppler cookies": {
+      "main": [
+        [
+          {
+            "node": "Profile + Doppler",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Profile + Doppler": {
+      "main": [
+        [
+          {
+            "node": "Build profile items with cookies",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build profile items with cookies": {
+      "main": [
+        [
+          {
+            "node": "Take one profile",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Take one profile": {
+      "main": [
+        [
+          {
+            "node": "Get Ready Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Ready Leads": {
+      "main": [
+        [
+          {
+            "node": "Inject profile",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inject profile": {
+      "main": [
+        [
+          {
+            "node": "Filter Ready Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Ready Leads": {
+      "main": [
+        [
+          {
+            "node": "Sort by Score (Highest First)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sort by Score (Highest First)": {
+      "main": [
+        [
+          {
+            "node": "Prepare limit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare limit": {
+      "main": [
+        [
+          {
+            "node": "Limit to 10/run (20/day)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limit to 10/run (20/day)": {
+      "main": [
+        [
+          {
+            "node": "Append to HoldingSheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append to HoldingSheet": {
+      "main": [
+        [
+          {
+            "node": "Pass One",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pass One": {
+      "main": [
+        [
+          {
+            "node": "PhantomBuster: SendConnectionList",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PhantomBuster: SendConnectionList": {
+      "main": [
+        [
+          {
+            "node": "Done - PB Launched",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking 'Execute workflow'": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": {},
+  "versionId": "38c1bd91-b326-47ca-a173-51d9641289c2",
+  "activeVersionId": null,
+  "triggerCount": 0,
+  "shared": [
+    {
+      "updatedAt": "2026-02-06T00:40:39.063Z",
+      "createdAt": "2026-02-06T00:40:39.063Z",
+      "role": "workflow:owner",
+      "workflowId": "nfB8uIOOktCneJ2M",
+      "projectId": "O7lTivDfRl72aS23"
+    }
+  ],
+  "activeVersion": null,
+  "tags": [],
+  "_folderPath": "",
+  "_fileName": "2.1-linkedin-outreach---send-[v2].json"
+}
