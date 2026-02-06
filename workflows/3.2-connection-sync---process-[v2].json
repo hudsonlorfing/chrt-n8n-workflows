@@ -1,0 +1,593 @@
+{
+  "updatedAt": "2026-02-06T00:41:20.588Z",
+  "createdAt": "2026-02-06T00:40:40.626Z",
+  "id": "EjNGBdN420LQmX2M",
+  "name": "3.2 Connection Sync - Process [V2]",
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "connection-sync-process",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wf3v2p-webhook",
+      "name": "PB Webhook (Connection Export)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        3200,
+        800
+      ],
+      "webhookId": "connection-sync-process-v2"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        3200,
+        1000
+      ],
+      "id": "wf3v2p-manual",
+      "name": "When clicking 'Execute workflow'"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst body = input.body || input;\nreturn [{ json: {\n  containerId: body.containerId || '',\n  agentId: body.agentId || '1830882665479437',\n  profile: body.profile || 'kyle'\n}}];"
+      },
+      "id": "wf3v2p-parse",
+      "name": "Parse Webhook Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3400,
+        800
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getOutput",
+        "agentId": "={{ $json.agentId }}",
+        "additionalFields": {}
+      },
+      "id": "wf3v2p-get-output",
+      "name": "Get Connection Export Output",
+      "type": "n8n-nodes-base.phantombuster",
+      "typeVersion": 1,
+      "position": [
+        3600,
+        800
+      ],
+      "credentials": {
+        "phantombusterApi": {
+          "id": "UYQpQC8SBIqIkifM",
+          "name": "Phantombuster account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.jsonUrl }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "wf3v2p-fetch-json",
+      "name": "Fetch Connection Export JSON",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3800,
+        800
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Master List"
+        },
+        "options": {}
+      },
+      "id": "wf3v2p-read-master",
+      "name": "Get Pending Leads",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        3600,
+        600
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "hf9VoWnqYNXhUZsn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "sent-date",
+              "leftValue": "={{ $json.kyleSentDate || $json.hudsonSentDate }}",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            },
+            {
+              "id": "no-connect",
+              "leftValue": "={{ $json.kyleConnectDate }}",
+              "operator": {
+                "type": "string",
+                "operation": "empty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "wf3v2p-filter",
+      "name": "Filter Pending (Sent, Not Connected)",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.3,
+      "position": [
+        3800,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch",
+        "useDataOfInput": 2
+      },
+      "id": "wf3v2p-merge-data",
+      "name": "Merge Export + Pending",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        4000,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Find new connections by comparing export results against pending leads\nconst exportItems = $('Fetch Connection Export JSON').all();\nconst pendingItems = $('Filter Pending (Sent, Not Connected)').all();\nconst context = $('Parse Webhook Context').first().json;\n\n// Build set of exported connection URLs (these are current connections)\nconst connectedUrls = new Set();\nexportItems.forEach(item => {\n  const url = (item.json.profileUrl || item.json.linkedinProfileUrl || '').trim().toLowerCase().replace('https://www.linkedin.com', 'https://linkedin.com').replace(/\\/$/, '');\n  if (url) connectedUrls.add(url);\n});\n\n// Find pending leads who are now connected\nconst newConnections = pendingItems.filter(item => {\n  const url = (item.json.defaultProfileUrl || item.json.profileUrl || '').trim().toLowerCase().replace('https://www.linkedin.com', 'https://linkedin.com').replace(/\\/$/, '');\n  return url && connectedUrls.has(url);\n});\n\nreturn [{ json: {\n  newConnectionCount: newConnections.length,\n  totalExported: exportItems.length,\n  totalPending: pendingItems.length,\n  profile: context.profile,\n  newConnections: newConnections.map(item => ({\n    profileUrl: item.json.defaultProfileUrl || item.json.profileUrl || '',\n    fullName: item.json.fullName || '',\n    company: item.json.company || ''\n  }))\n}}];"
+      },
+      "id": "wf3v2p-find-new",
+      "name": "Find New Connections",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4200,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract URLs of new connections for email scraper input\nconst data = $input.first().json;\nconst connections = data.newConnections || [];\nreturn connections.map(c => ({ json: { linkedInProfileUrl: c.profileUrl } }));"
+      },
+      "id": "wf3v2p-extract-urls",
+      "name": "Extract Connected URLs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4400,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "has-connections",
+              "leftValue": "={{ $input.all().length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "wf3v2p-has-connections",
+      "name": "Has New Connections?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        4600,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "clear",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1xPgob7BwDoDGAOtDPBTvKzhQHl2FUZkJhJG0gEHWdgo"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "EmailScraper"
+        },
+        "clear": "specificRange",
+        "range": "A2:A"
+      },
+      "id": "wf3v2p-clear-sheet",
+      "name": "Clear Scraper Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        4800,
+        640
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "hf9VoWnqYNXhUZsn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1xPgob7BwDoDGAOtDPBTvKzhQHl2FUZkJhJG0gEHWdgo"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "EmailScraper"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {}
+        },
+        "options": {}
+      },
+      "id": "wf3v2p-append-urls",
+      "name": "Append URLs to Scraper Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        4800,
+        800
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "hf9VoWnqYNXhUZsn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch"
+      },
+      "id": "wf3v2p-wait-sheet",
+      "name": "Wait for Sheet Ready",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        5040,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.phantombuster.com/api/v2/agents/launch",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  id: '5768405047812127',\n  bonusArgument: {\n    spreadsheetUrl: 'https://docs.google.com/spreadsheets/d/1xPgob7BwDoDGAOtDPBTvKzhQHl2FUZkJhJG0gEHWdgo/edit',\n    sessionCookie: '',\n    numberOfProfilesPerLaunch: 100\n  }\n}) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "wf3v2p-launch-email",
+      "name": "Launch Profile Scraper with Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        5280,
+        720
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "KWeabljbYSzoLpjI",
+          "name": "Phantom Header Auth"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const result = $input.first().json;\nconst context = $('Parse Webhook Context').first().json;\nreturn [{ json: {\n  success: true,\n  profile: context.profile,\n  emailScraperContainerId: result.containerId || 'unknown',\n  message: 'Email scraper launched — 3.3 handles results via PB webhook',\n  timestamp: new Date().toISOString()\n}}];"
+      },
+      "id": "wf3v2p-done",
+      "name": "Done - Email Scraper Launched",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5520,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, message: $json.message }) }}",
+        "options": {}
+      },
+      "id": "wf3v2p-respond",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        5760,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, message: 'No new connections found' }) }}",
+        "options": {}
+      },
+      "id": "wf3v2p-respond-skip",
+      "name": "Respond - No Connections",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        4800,
+        960
+      ]
+    }
+  ],
+  "connections": {
+    "PB Webhook (Connection Export)": {
+      "main": [
+        [
+          {
+            "node": "Parse Webhook Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking 'Execute workflow'": {
+      "main": [
+        []
+      ]
+    },
+    "Parse Webhook Context": {
+      "main": [
+        [
+          {
+            "node": "Get Connection Export Output",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Pending Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Connection Export Output": {
+      "main": [
+        [
+          {
+            "node": "Fetch Connection Export JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Connection Export JSON": {
+      "main": [
+        [
+          {
+            "node": "Merge Export + Pending",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Get Pending Leads": {
+      "main": [
+        [
+          {
+            "node": "Filter Pending (Sent, Not Connected)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Pending (Sent, Not Connected)": {
+      "main": [
+        [
+          {
+            "node": "Merge Export + Pending",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Export + Pending": {
+      "main": [
+        [
+          {
+            "node": "Find New Connections",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find New Connections": {
+      "main": [
+        [
+          {
+            "node": "Extract Connected URLs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Connected URLs": {
+      "main": [
+        [
+          {
+            "node": "Has New Connections?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has New Connections?": {
+      "main": [
+        [
+          {
+            "node": "Clear Scraper Sheet",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Append URLs to Scraper Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond - No Connections",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clear Scraper Sheet": {
+      "main": [
+        [
+          {
+            "node": "Wait for Sheet Ready",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append URLs to Scraper Sheet": {
+      "main": [
+        [
+          {
+            "node": "Wait for Sheet Ready",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Wait for Sheet Ready": {
+      "main": [
+        [
+          {
+            "node": "Launch Profile Scraper with Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Launch Profile Scraper with Email": {
+      "main": [
+        [
+          {
+            "node": "Done - Email Scraper Launched",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Done - Email Scraper Launched": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": null,
+  "versionId": "dc473b6f-18a4-4281-a4cb-b79d7b982cf5",
+  "activeVersionId": null,
+  "triggerCount": 0,
+  "shared": [
+    {
+      "updatedAt": "2026-02-06T00:40:41.057Z",
+      "createdAt": "2026-02-06T00:40:41.057Z",
+      "role": "workflow:owner",
+      "workflowId": "EjNGBdN420LQmX2M",
+      "projectId": "O7lTivDfRl72aS23"
+    }
+  ],
+  "activeVersion": null,
+  "tags": [],
+  "_folderPath": "",
+  "_fileName": "3.2-connection-sync---process-[v2].json"
+}
