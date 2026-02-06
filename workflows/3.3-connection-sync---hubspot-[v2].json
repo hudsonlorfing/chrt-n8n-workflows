@@ -1,0 +1,931 @@
+{
+  "updatedAt": "2026-02-06T00:41:19.032Z",
+  "createdAt": "2026-02-06T00:40:42.073Z",
+  "id": "wKYz16GbzqWTh2DK",
+  "name": "3.3 Connection Sync - HubSpot [V2]",
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "connection-sync-hubspot",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wf3v2h-webhook",
+      "name": "PB Webhook (Email Scraper)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        2400,
+        1000
+      ],
+      "webhookId": "connection-sync-hubspot-v2"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        2400,
+        1200
+      ],
+      "id": "wf3v2h-manual",
+      "name": "When clicking 'Execute workflow'"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst body = input.body || input;\nreturn [{ json: {\n  containerId: body.containerId || '',\n  agentId: body.agentId || '5768405047812127',\n  profile: body.profile || 'kyle'\n}}];"
+      },
+      "id": "wf3v2h-parse",
+      "name": "Parse Webhook Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2600,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getOutput",
+        "agentId": "={{ $json.agentId }}",
+        "additionalFields": {}
+      },
+      "id": "wf3v2h-get-output",
+      "name": "Get Email Scraper Output",
+      "type": "n8n-nodes-base.phantombuster",
+      "typeVersion": 1,
+      "position": [
+        2800,
+        1000
+      ],
+      "credentials": {
+        "phantombusterApi": {
+          "id": "UYQpQC8SBIqIkifM",
+          "name": "Phantombuster account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "has-json",
+              "leftValue": "={{ !!$json.jsonUrl }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "wf3v2h-has-json",
+      "name": "Has jsonUrl?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3000,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.jsonUrl }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "wf3v2h-fetch-json",
+      "name": "Fetch Email Scraper JSON",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3200,
+        940
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merge connection data with email scraper data\n// The email scraper adds email addresses to profiles\nconst items = $input.all();\nconst context = $('Parse Webhook Context').first().json;\n\nreturn items.map(item => {\n  const p = item.json;\n  const profileUrl = (p.baseUrl || p.profileUrl || p.linkedinProfileUrl || '').trim();\n  const email = p.email || p.mail || '';\n  const hasRealEmail = !!email && !email.includes('linkedin.com');\n  \n  return {\n    json: {\n      profileUrl,\n      fullName: p.fullName || ((p.firstName || '') + ' ' + (p.lastName || '')).trim(),\n      firstName: p.firstName || '',\n      lastName: p.lastName || '',\n      email,\n      hasRealEmail,\n      jobTitle: p.jobTitle || p.title || '',\n      companyName: p.companyName || p.company || '',\n      industry: p.industry || '',\n      location: p.location || '',\n      connectionDegree: p.connectionDegree || '1st',\n      profile: context.profile\n    }\n  };\n});"
+      },
+      "id": "wf3v2h-merge-data",
+      "name": "Merge Connection + Email Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3400,
+        940
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare HubSpot data from merged connection + email data\nconst items = $input.all();\nconst today = new Date().toISOString().split('T')[0];\n\nreturn items.map(item => {\n  const p = item.json;\n  return {\n    json: {\n      ...p,\n      _hs: {\n        firstName: p.firstName,\n        lastName: p.lastName,\n        email: p.email,\n        hasRealEmail: p.hasRealEmail,\n        companyName: p.companyName,\n        jobTitle: p.jobTitle,\n        industry: p.industry,\n        location: p.location,\n        linkedinUrl: p.profileUrl,\n        syncDate: today\n      }\n    }\n  };\n});"
+      },
+      "id": "wf3v2h-prepare",
+      "name": "Prepare HubSpot Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3600,
+        940
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "wf3v2h-loop",
+      "name": "Loop Over Items",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        3800,
+        940
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "wf3v2h-start-item",
+      "name": "Process Item",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        4000,
+        940
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/companies/search",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ filterGroups: [{ filters: [{ propertyName: 'name', operator: 'EQ', value: $json.companyName || $json.company || '' }] }], properties: ['name', 'domain', 'industry'] }) }}",
+        "options": {}
+      },
+      "id": "wf3v2h-search-company",
+      "name": "Search Company",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4200,
+        940
+      ],
+      "credentials": {
+        "hubspotOAuth2Api": {
+          "id": "3JZVnZQkHgMfXMRx",
+          "name": "HubSpot account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "company-exists",
+              "leftValue": "={{ $json.total }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "wf3v2h-company-exists",
+      "name": "Company Exists?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        4400,
+        940
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const searchResult = $('Search Company').item.json;\nconst preparedData = $('Prepare HubSpot Data').item.json;\nreturn [{ json: { ...preparedData, _hs: { ...preparedData._hs, companyId: searchResult.results[0].id, companyCreated: false } } }];"
+      },
+      "id": "wf3v2h-use-existing",
+      "name": "Use Existing Company",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4600,
+        860
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/companies",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ properties: { name: $('Prepare HubSpot Data').item.json._hs.companyName || '', industry: $('Prepare HubSpot Data').item.json._hs.industry || '' } }) }}",
+        "options": {}
+      },
+      "id": "wf3v2h-create-company",
+      "name": "Create Company",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4600,
+        1060
+      ],
+      "credentials": {
+        "hubspotOAuth2Api": {
+          "id": "3JZVnZQkHgMfXMRx",
+          "name": "HubSpot account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const createResult = $('Create Company').item.json;\nconst preparedData = $('Prepare HubSpot Data').item.json;\nreturn [{ json: { ...preparedData, _hs: { ...preparedData._hs, companyId: createResult.id, companyCreated: true } } }];"
+      },
+      "id": "wf3v2h-store-company",
+      "name": "Store New Company ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4800,
+        1060
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "wf3v2h-merge-company",
+      "name": "Merge Company Results",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        5000,
+        940
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/contacts/search",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ filterGroups: [{ filters: [{ propertyName: 'email', operator: 'EQ', value: $json._hs.email }] }], properties: ['firstname', 'lastname', 'email', 'jobtitle'] }) }}",
+        "options": {}
+      },
+      "id": "wf3v2h-search-contact",
+      "name": "Search Contact",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        5200,
+        940
+      ],
+      "credentials": {
+        "hubspotOAuth2Api": {
+          "id": "3JZVnZQkHgMfXMRx",
+          "name": "HubSpot account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "contact-exists",
+              "leftValue": "={{ $json.total }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "wf3v2h-contact-exists",
+      "name": "Contact Exists?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        5400,
+        940
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ 'https://api.hubapi.com/crm/v3/objects/contacts/' + $json.results[0].id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ properties: { jobtitle: $('Merge Company Results').item.json._hs.jobTitle || '', company: $('Merge Company Results').item.json._hs.companyName || '', hs_lead_status: 'CONNECTED', city: $('Merge Company Results').item.json._hs.location || '' } }) }}",
+        "options": {}
+      },
+      "id": "wf3v2h-update-contact",
+      "name": "Update Contact",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        5600,
+        860
+      ],
+      "credentials": {
+        "hubspotOAuth2Api": {
+          "id": "3JZVnZQkHgMfXMRx",
+          "name": "HubSpot account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/contacts",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ properties: { email: $('Merge Company Results').item.json._hs.hasRealEmail ? $('Merge Company Results').item.json._hs.email : undefined, firstname: $('Merge Company Results').item.json._hs.firstName, lastname: $('Merge Company Results').item.json._hs.lastName, jobtitle: $('Merge Company Results').item.json._hs.jobTitle || '', company: $('Merge Company Results').item.json._hs.companyName || '', hs_lead_status: 'CONNECTED', city: $('Merge Company Results').item.json._hs.location || '' } }) }}",
+        "options": {}
+      },
+      "id": "wf3v2h-create-contact",
+      "name": "Create Contact",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        5600,
+        1060
+      ],
+      "credentials": {
+        "hubspotOAuth2Api": {
+          "id": "3JZVnZQkHgMfXMRx",
+          "name": "HubSpot account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const updateResult = $('Update Contact').item.json;\nconst mergedData = $('Merge Company Results').item.json;\nreturn [{ json: { ...mergedData, _hs: { ...mergedData._hs, contactId: updateResult.id, contactCreated: false } } }];"
+      },
+      "id": "wf3v2h-store-updated",
+      "name": "Store Updated Contact ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5800,
+        860
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const createResult = $('Create Contact').item.json;\nconst mergedData = $('Merge Company Results').item.json;\nreturn [{ json: { ...mergedData, _hs: { ...mergedData._hs, contactId: createResult.id, contactCreated: true } } }];"
+      },
+      "id": "wf3v2h-store-new",
+      "name": "Store New Contact ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5800,
+        1060
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "wf3v2h-merge-contact",
+      "name": "Merge Contact Results",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        6000,
+        940
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "={{ 'https://api.hubapi.com/crm/v3/objects/contacts/' + $json._hs.contactId + '/associations/company/' + $json._hs.companyId + '/contact_to_company' }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotOAuth2Api",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "wf3v2h-associate",
+      "name": "Associate Contact → Company",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        6200,
+        940
+      ],
+      "credentials": {
+        "hubspotOAuth2Api": {
+          "id": "3JZVnZQkHgMfXMRx",
+          "name": "HubSpot account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format output for logging\nconst item = $input.first().json;\nreturn [{ json: {\n  profileUrl: item.profileUrl || '',\n  fullName: item.fullName || '',\n  contactId: item._hs?.contactId || '',\n  companyId: item._hs?.companyId || '',\n  contactCreated: item._hs?.contactCreated || false,\n  companyCreated: item._hs?.companyCreated || false,\n  syncDate: item._hs?.syncDate || ''\n}}];"
+      },
+      "id": "wf3v2h-format",
+      "name": "Format Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6400,
+        940
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Master List"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "hubspotSync": "={{ $json.syncDate }}",
+            "kyleConnectDate": "={{ $('Parse Webhook Context').first().json.profile === 'kyle' ? $json.syncDate : '' }}",
+            "hudsonConnectDate": "={{ $('Parse Webhook Context').first().json.profile === 'hudson' ? $json.syncDate : '' }}"
+          },
+          "matchingColumns": [
+            "profileUrl"
+          ],
+          "schema": [
+            {
+              "id": "profileUrl",
+              "displayName": "profileUrl",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "wf3v2h-update-sheet",
+      "name": "Update HubSpot Status",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        6600,
+        940
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "hf9VoWnqYNXhUZsn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "wf3v2h-loop-back",
+      "name": "Back to Loop",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        6800,
+        940
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, message: 'HubSpot sync complete' }) }}",
+        "options": {}
+      },
+      "id": "wf3v2h-respond",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        4200,
+        1200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// No email scraper JSON URL — use direct profiles if available\nconst output = $('Get Email Scraper Output').first().json;\nif (output.output) {\n  // Try to extract profiles from raw output\n  return [{ json: { message: 'No JSON URL available, check PB dashboard' } }];\n}\nreturn [{ json: { message: 'No data from email scraper' } }];"
+      },
+      "id": "wf3v2h-no-json",
+      "name": "No JSON Available",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3200,
+        1100
+      ]
+    }
+  ],
+  "connections": {
+    "PB Webhook (Email Scraper)": {
+      "main": [
+        [
+          {
+            "node": "Parse Webhook Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking 'Execute workflow'": {
+      "main": [
+        []
+      ]
+    },
+    "Parse Webhook Context": {
+      "main": [
+        [
+          {
+            "node": "Get Email Scraper Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Email Scraper Output": {
+      "main": [
+        [
+          {
+            "node": "Has jsonUrl?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has jsonUrl?": {
+      "main": [
+        [
+          {
+            "node": "Fetch Email Scraper JSON",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No JSON Available",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "No JSON Available": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Email Scraper JSON": {
+      "main": [
+        [
+          {
+            "node": "Merge Connection + Email Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Connection + Email Data": {
+      "main": [
+        [
+          {
+            "node": "Prepare HubSpot Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare HubSpot Data": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Process Item",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Item": {
+      "main": [
+        [
+          {
+            "node": "Search Company",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Company": {
+      "main": [
+        [
+          {
+            "node": "Company Exists?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Company Exists?": {
+      "main": [
+        [
+          {
+            "node": "Use Existing Company",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Company",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Use Existing Company": {
+      "main": [
+        [
+          {
+            "node": "Merge Company Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Company": {
+      "main": [
+        [
+          {
+            "node": "Store New Company ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store New Company ID": {
+      "main": [
+        [
+          {
+            "node": "Merge Company Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Company Results": {
+      "main": [
+        [
+          {
+            "node": "Search Contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Contact": {
+      "main": [
+        [
+          {
+            "node": "Contact Exists?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Contact Exists?": {
+      "main": [
+        [
+          {
+            "node": "Update Contact",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Contact": {
+      "main": [
+        [
+          {
+            "node": "Store Updated Contact ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Contact": {
+      "main": [
+        [
+          {
+            "node": "Store New Contact ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Updated Contact ID": {
+      "main": [
+        [
+          {
+            "node": "Merge Contact Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store New Contact ID": {
+      "main": [
+        [
+          {
+            "node": "Merge Contact Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Contact Results": {
+      "main": [
+        [
+          {
+            "node": "Associate Contact → Company",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Associate Contact → Company": {
+      "main": [
+        [
+          {
+            "node": "Format Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Output": {
+      "main": [
+        [
+          {
+            "node": "Update HubSpot Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update HubSpot Status": {
+      "main": [
+        [
+          {
+            "node": "Back to Loop",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Back to Loop": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": null,
+  "versionId": "16d721db-5ef7-4648-ace3-59e63692d631",
+  "activeVersionId": null,
+  "triggerCount": 0,
+  "shared": [
+    {
+      "updatedAt": "2026-02-06T00:40:42.455Z",
+      "createdAt": "2026-02-06T00:40:42.455Z",
+      "role": "workflow:owner",
+      "workflowId": "wKYz16GbzqWTh2DK",
+      "projectId": "O7lTivDfRl72aS23"
+    }
+  ],
+  "activeVersion": null,
+  "tags": [],
+  "_folderPath": "",
+  "_fileName": "3.3-connection-sync---hubspot-[v2].json"
+}
