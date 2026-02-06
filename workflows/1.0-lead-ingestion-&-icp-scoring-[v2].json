@@ -1,0 +1,742 @@
+{
+  "updatedAt": "2026-02-06T02:16:47.554Z",
+  "createdAt": "2026-02-06T02:05:41.751Z",
+  "id": "f4PepQxbygW1QeWZ",
+  "name": "1.0 Lead Ingestion & ICP Scoring [V2]",
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0,30 * * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule-every-30min",
+      "name": "Schedule every 30 min",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -29008,
+        3008
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Dashboard"
+        },
+        "options": {}
+      },
+      "id": "read-dashboard-ingestion",
+      "name": "Read Dashboard",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -28928,
+        3008
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "hf9VoWnqYNXhUZsn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst kylePreProcessed = parseInt(data['kylePreProcessed'] || 0, 10);\nconst hudsonPreProcessed = parseInt(data['hudsonPreProcessed'] || 0, 10);\nconst kyleTargets = parseInt(data['kyleTargets'] || 0, 10);\nconst hudsonTargets = parseInt(data['hudsonTargets'] || 0, 10);\nconst priorityProfile = kyleTargets <= hudsonTargets ? 'kyle' : 'hudson';\nif (kylePreProcessed < 100 && hudsonPreProcessed < 100) {\n  return [{ json: { skip: true, reason: 'both under 100' } }];\n}\nreturn [{ json: { batchSize: 25, source: 'schedule', skip: false, priorityProfile, kylePreProcessed, hudsonPreProcessed, kyleTargets, hudsonTargets } }];"
+      },
+      "id": "check-preprocessed-priority",
+      "name": "Check pre-processed counts and priority",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -28848,
+        3008
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "need-run",
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-need-to-run",
+      "name": "Need to run?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -28768,
+        3008
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Single crawl per run: prefer priority; fallback to other when priority is maxed out (no URLs or no room to process).\nconst data = $input.first().json;\nconst kylePreProcessed = parseInt(data.kylePreProcessed || 0, 10);\nconst hudsonPreProcessed = parseInt(data.hudsonPreProcessed || 0, 10);\nconst kyleTargets = parseInt(data.kyleTargets || 0, 10);\nconst hudsonTargets = parseInt(data.hudsonTargets || 0, 10);\nconst priorityProfile = data.priorityProfile || (kyleTargets <= hudsonTargets ? 'kyle' : 'hudson');\n\nlet crawlProfile = null;\nconst priorityTargets = priorityProfile === 'kyle' ? kyleTargets : hudsonTargets;\nconst priorityPreProcessed = priorityProfile === 'kyle' ? kylePreProcessed : hudsonPreProcessed;\nconst otherTargets = priorityProfile === 'kyle' ? hudsonTargets : kyleTargets;\nconst otherPreProcessed = priorityProfile === 'kyle' ? hudsonPreProcessed : kylePreProcessed;\n\nif (priorityTargets < 240 && priorityPreProcessed < 100 && priorityTargets > 0) {\n  crawlProfile = priorityProfile;\n} else if (otherTargets < 240 && otherPreProcessed < 100) {\n  crawlProfile = priorityProfile === 'kyle' ? 'hudson' : 'kyle';\n}\n\nreturn [{ json: { crawlProfile, batchSize: data.batchSize || 25, source: data.source || 'schedule', priorityProfile, kylePreProcessed, hudsonPreProcessed, kyleTargets, hudsonTargets } }];"
+      },
+      "id": "choose-crawl-profile",
+      "name": "Choose crawl profile",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -28688,
+        3008
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "crawl-anyone",
+              "leftValue": "={{ Boolean($json.crawlProfile) }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-should-trigger-crawl",
+      "name": "Crawl for anyone?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -28608,
+        3008
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://chrt.app.n8n.cloud/webhook/pipeline-monitor-crawl",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ profile: $json.crawlProfile }) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "http-trigger-crawl",
+      "name": "Trigger workflow 4 crawl",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -28608,
+        2928
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Restore batch payload after HTTP (HTTP replaces item with response)\nreturn [{ json: { batchSize: 25, source: 'schedule' } }];"
+      },
+      "id": "ensure-batch-payload",
+      "name": "Ensure batch payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -28320,
+        2944
+      ]
+    },
+    {
+      "parameters": {
+        "notice": "Click 'Test workflow' to run manually after pasting PhantomBuster export into New Leads sheet"
+      },
+      "id": "948717d3-54d7-4dc2-beaa-ceb078510e74",
+      "name": "Run Manually",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -28656,
+        3104
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "lead-ingestion",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook-trigger-ingestion",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -28656,
+        2912
+      ],
+      "webhookId": "lead-ingestion-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Determine batch size based on trigger source\n// Default: 10 for manual, capped at 250 for schedule/webhook\nlet batchSize = 10;\n\ntry {\n  const inputData = $input.first()?.json || {};\n  if (inputData.batchSize) {\n    batchSize = Math.min(parseInt(inputData.batchSize) || 250, 250);\n  }\n  if (inputData.body && inputData.body.batchSize) {\n    batchSize = Math.min(parseInt(inputData.body.batchSize) || 250, 250);\n  }\n} catch (e) {\n  batchSize = 10;\n}\n\nreturn [{ json: { batchSize, source: batchSize > 10 ? 'pipeline-monitor' : 'manual' } }];"
+      },
+      "id": "determine-batch-size",
+      "name": "Determine Batch Size",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -28224,
+        2880
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "New Leads"
+        },
+        "options": {}
+      },
+      "id": "30a11b75-df9c-4f57-8241-0343d63b25b2",
+      "name": "Read New Leads",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -27952,
+        2864
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "hf9VoWnqYNXhUZsn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Master List"
+        },
+        "options": {}
+      },
+      "id": "984f4604-dd13-497a-9070-98c8d4e0c465",
+      "name": "Read Master List",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -28160,
+        3184
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "hf9VoWnqYNXhUZsn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        -27872,
+        3120
+      ],
+      "id": "merge-wait-for-both",
+      "name": "Wait for Both Sheets"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Data comes from Merge node (append mode)\n// Input 0: New Leads, Input 1: Master List\n// The merge appends both, so we need to identify them by structure\n\n// All items from the merge\nconst allItems = $input.all();\n\n// New Leads have 'linkedInProfileUrl' or 'profileUrl', Master List has 'profileUrl'\n// Master List items have 'score' field (from previous processing)\nconst newLeads = [];\nconst masterUrls = new Set();\n\nallItems.forEach(item => {\n  const data = item.json;\n  // Master List items have 'score' or 'segment' fields\n  if (data.score !== undefined || data.segment !== undefined) {\n    const url = (data.profileUrl || '').trim().toLowerCase();\n    if (url) masterUrls.add(url);\n  } else {\n    // This is a new lead\n    newLeads.push(item);\n  }\n});\n\n// Filter new leads to only those not in master list\nconst uniqueLeads = newLeads.filter(lead => {\n  const url = (lead.json.linkedInProfileUrl || lead.json.profileUrl || '').trim().toLowerCase();\n  return url && !masterUrls.has(url);\n});\n\nreturn uniqueLeads;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -27696,
+        3104
+      ],
+      "id": "1b0c3579-90f5-45b6-8881-d1143bf6959f",
+      "name": "Dedupe New Leads"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "has-items",
+              "leftValue": "={{ $input.all().length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -27600,
+        3104
+      ],
+      "id": "check-has-leads",
+      "name": "Has Leads to Process?"
+    },
+    {
+      "parameters": {
+        "maxItems": "={{ $('Determine Batch Size').first().json.batchSize || 25 }}"
+      },
+      "type": "n8n-nodes-base.limit",
+      "typeVersion": 1,
+      "position": [
+        -27408,
+        3008
+      ],
+      "id": "6cc0c946-726b-454e-955f-db87dd179c71",
+      "name": "Limit"
+    },
+    {
+      "parameters": {
+        "jsCode": "// No leads to process\nreturn [{ json: { success: true, processed: 0, message: 'No new leads to process', timestamp: new Date().toISOString() } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -27408,
+        3200
+      ],
+      "id": "no-leads-found",
+      "name": "No Leads Found"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Return final status\nreturn [{ json: { success: true, source: 'lead-ingestion', timestamp: new Date().toISOString() } }];"
+      },
+      "id": "final-status",
+      "name": "Final Status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -25808,
+        2928
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Collect all leads from Limit into a single payload for the Apps Script\n// Include callbackUrl for the Wait for Scoring webhook resume\nconst items = $input.all();\nconst leads = items.map(item => item.json);\nconst callbackUrl = 'https://chrt.app.n8n.cloud/webhook-waiting/b3a4c5d6-e7f8-4901-abcd-123456789012';\nreturn [{ json: { leads, callbackUrl } }];"
+      },
+      "id": "wf1-prepare-payload",
+      "name": "Prepare Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -27008,
+        3008
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://script.google.com/macros/s/AKfycbzN2kwN4O6QgDpkLVZkyfW4y1zckE4cOOS9hlrle8hMnYLDPOUsmbII59-_9zjqGjM55Q/exec",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ leads: $json.leads, callbackUrl: $json.callbackUrl }) }}",
+        "options": {
+          "redirect": {
+            "redirect": {}
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "wf1-score-and-ingest",
+      "name": "Score and Ingest via Apps Script",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -26608,
+        3008
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "resume": "webhook",
+        "options": {}
+      },
+      "id": "wf1-wait-for-scoring",
+      "name": "Wait for Scoring",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -26416,
+        3008
+      ],
+      "webhookId": "b3a4c5d6-e7f8-4901-abcd-123456789012"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse Apps Script callback response (POSTed by processJob to the Wait node)\nconst resp = $input.first().json;\nconst ok = resp.ok || false;\nconst processed = resp.processed || 0;\nconst appended = resp.appended || 0;\nconst deleted = resp.deleted || 0;\nconst aiErrors = resp.aiErrors || 0;\nconst errors = resp.errors || [];\n\nif (!ok) {\n  return [{ json: {\n    success: false,\n    source: 'lead-ingestion',\n    error: resp.error || 'Apps Script returned ok=false',\n    jobId: resp.jobId || '',\n    timestamp: new Date().toISOString()\n  }}];\n}\n\nreturn [{ json: {\n  success: true,\n  source: 'lead-ingestion',\n  jobId: resp.jobId || '',\n  processed,\n  appended,\n  deleted,\n  aiErrors,\n  errors,\n  timestamp: new Date().toISOString()\n}}];"
+      },
+      "id": "wf1-parse-response",
+      "name": "Parse Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -26112,
+        3008
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule every 30 min": {
+      "main": [
+        [
+          {
+            "node": "Read Dashboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Dashboard": {
+      "main": [
+        [
+          {
+            "node": "Check pre-processed counts and priority",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check pre-processed counts and priority": {
+      "main": [
+        [
+          {
+            "node": "Need to run?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Need to run?": {
+      "main": [
+        [
+          {
+            "node": "Choose crawl profile",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Leads Found",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Choose crawl profile": {
+      "main": [
+        [
+          {
+            "node": "Crawl for anyone?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crawl for anyone?": {
+      "main": [
+        [
+          {
+            "node": "Trigger workflow 4 crawl",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Determine Batch Size",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trigger workflow 4 crawl": {
+      "main": [
+        [
+          {
+            "node": "Ensure batch payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ensure batch payload": {
+      "main": [
+        [
+          {
+            "node": "Determine Batch Size",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run Manually": {
+      "main": [
+        [
+          {
+            "node": "Determine Batch Size",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Determine Batch Size",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Determine Batch Size": {
+      "main": [
+        [
+          {
+            "node": "Read Master List",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read New Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read New Leads": {
+      "main": [
+        [
+          {
+            "node": "Wait for Both Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Master List": {
+      "main": [
+        [
+          {
+            "node": "Wait for Both Sheets",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Wait for Both Sheets": {
+      "main": [
+        [
+          {
+            "node": "Dedupe New Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dedupe New Leads": {
+      "main": [
+        [
+          {
+            "node": "Has Leads to Process?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Leads to Process?": {
+      "main": [
+        [
+          {
+            "node": "Limit",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Leads Found",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limit": {
+      "main": [
+        [
+          {
+            "node": "Prepare Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "No Leads Found": {
+      "main": [
+        [
+          {
+            "node": "Final Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Payload": {
+      "main": [
+        [
+          {
+            "node": "Score and Ingest via Apps Script",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Score and Ingest via Apps Script": {
+      "main": [
+        [
+          {
+            "node": "Wait for Scoring",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for Scoring": {
+      "main": [
+        [
+          {
+            "node": "Parse Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Response": {
+      "main": [
+        [
+          {
+            "node": "Final Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false,
+    "errorWorkflow": "YWP69Qgq0ZlCN7Gj"
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": {},
+  "versionId": "11c47628-1394-4ba1-81ad-c2e66d8c3abe",
+  "activeVersionId": null,
+  "triggerCount": 0,
+  "shared": [
+    {
+      "updatedAt": "2026-02-06T02:05:42.446Z",
+      "createdAt": "2026-02-06T02:05:42.446Z",
+      "role": "workflow:owner",
+      "workflowId": "f4PepQxbygW1QeWZ",
+      "projectId": "O7lTivDfRl72aS23"
+    }
+  ],
+  "activeVersion": null,
+  "tags": [],
+  "_folderPath": "",
+  "_fileName": "1.0-lead-ingestion-&-icp-scoring-[v2].json"
+}
