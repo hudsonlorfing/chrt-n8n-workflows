@@ -1,0 +1,1114 @@
+{
+  "updatedAt": "2026-02-05T21:05:21.422Z",
+  "createdAt": "2026-02-05T17:59:48.321Z",
+  "id": "RdeXvr6pEAFkOpwN",
+  "name": "2. LinkedIn Outreach (PhantomBuster) [TEST]",
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "30 8 * * 1-6"
+            },
+            {
+              "field": "cronExpression",
+              "expression": "10 16 * * 1-6"
+            }
+          ]
+        }
+      },
+      "id": "wf2-test-schedule-kyle",
+      "name": "Schedule Kyle",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        2800,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "40 8 * * 1-6"
+            },
+            {
+              "field": "cronExpression",
+              "expression": "20 16 * * 1-6"
+            }
+          ]
+        }
+      },
+      "id": "wf2-test-schedule-hudson",
+      "name": "Schedule Hudson",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        2800,
+        912
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { profileIndex: 0 } }];"
+      },
+      "id": "wf2-test-set-kyle",
+      "name": "Set profile Kyle",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2960,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { profileIndex: 1 } }];"
+      },
+      "id": "wf2-test-set-hudson",
+      "name": "Set profile Hudson",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2960,
+        912
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const kyle = $('Set profile Kyle').isExecuted ? $('Set profile Kyle').first() : null;\nconst hudson = $('Set profile Hudson').isExecuted ? $('Set profile Hudson').first() : null;\nconst selected = kyle || hudson;\nif (!selected) throw new Error('No profile set');\nreturn [{ json: { profileIndex: selected.json.profileIndex } }];"
+      },
+      "id": "wf2-test-select-profile",
+      "name": "selectProfile",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3120,
+        816
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.doppler.com/v3/configs/config/secrets",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "project",
+              "value": "developers"
+            },
+            {
+              "name": "config",
+              "value": "hudson"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "wf2-test-fetch-doppler",
+      "name": "Fetch Doppler cookies",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3008,
+        576
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "dz2vX61Mpayywfq1",
+          "name": "Doppler API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch",
+        "useDataOfInput": 2
+      },
+      "id": "wf2-test-merge-doppler",
+      "name": "Profile + Doppler",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        3344,
+        896
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first();\nconst secrets = item.json.secrets || item.json || {};\nconst kyleCookie = secrets.LINKEDIN_KYLE_SESSION_COOKIE;\nconst hudsonCookie = secrets.LINKEDIN_HUDSON_SESSION_COOKIE;\nconst userAgents = { kyle: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36', hudson: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36' };\nreturn [{ json: { profile: 'kyle', sessionCookie: kyleCookie, userAgent: userAgents.kyle } }, { json: { profile: 'hudson', sessionCookie: hudsonCookie, userAgent: userAgents.hudson } }];"
+      },
+      "id": "wf2-test-build-profile",
+      "name": "Build profile items with cookies",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3504,
+        928
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nif (!items.length) return [];\nlet idx;\ntry { idx = $('selectProfile').first().json.profileIndex; } catch (e) { idx = 0; }\nif (idx === undefined || idx === null) idx = new Date().getDate() % 2;\nreturn [items[Math.min(idx, items.length - 1)]];"
+      },
+      "id": "wf2-test-take-one",
+      "name": "Take one profile",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3760,
+        960
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "=1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Master List",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "ac4c7dd1-c381-4886-8e6d-2d726778a41b",
+      "name": "Get Ready Leads",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        3632,
+        720
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "hf9VoWnqYNXhUZsn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const profile = $('Take one profile').first().json.profile;\nreturn $input.all().map(item => ({ json: { ...item.json, profile } }));"
+      },
+      "id": "wf2-test-inject-profile",
+      "name": "Inject profile",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3792,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "sortFieldsUi": {
+          "sortField": [
+            {
+              "fieldName": "score",
+              "order": "descending"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "254e1cf2-8d02-4677-8a37-0aac504ff4e7",
+      "name": "Sort by Score (Highest First)",
+      "type": "n8n-nodes-base.sort",
+      "typeVersion": 1,
+      "position": [
+        4128,
+        576
+      ]
+    },
+    {
+      "parameters": {
+        "maxItems": "={{ $('Prepare limit').first().json.maxItems ?? (8 + Math.floor(Math.random()*2)) }}"
+      },
+      "id": "f25d40b4-754d-42da-b306-ede874c46532",
+      "name": "Limit to 10/run (20/day)",
+      "type": "n8n-nodes-base.limit",
+      "typeVersion": 1,
+      "position": [
+        4464,
+        576
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "id-1",
+              "leftValue": "={{ $json['defaultProfileUrl'] ?? $json['profileUrl'] }}",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            },
+            {
+              "id": "id-3",
+              "leftValue": "={{ $json['segment'] }}",
+              "rightValue": "Skip",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            },
+            {
+              "id": "74d0d1bc-23d7-4f86-9973-468943edd504",
+              "leftValue": "={{ ($json.profile === 'kyle' && !$json.kyleSentDate) || ($json.profile === 'hudson' && !$json.hudsonSentDate) }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "7f0037ba-4496-46d6-9bbb-c8c748be69c3",
+      "name": "Filter Ready Leads",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.3,
+      "position": [
+        3920,
+        576
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nif (!items.length) return [];\nconst profile = items[0].json.profile;\nlet maxItems;\nif (profile === 'kyle') {\n  maxItems = 8 + Math.floor(Math.random() * 4);\n} else {\n  const rampStart = new Date('2026-02-10');\n  const days = Math.min(30, Math.max(0, Math.floor((Date.now() - rampStart) / 86400000)));\n  const minPerRun = 4 + (days / 30) * 4;\n  const maxPerRun = 6 + (days / 30) * 5;\n  const range = maxPerRun - minPerRun + 1;\n  maxItems = minPerRun + Math.floor(Math.random() * range);\n}\nconst out = items.map((item, i) => ({ json: { ...item.json, maxItems: i === 0 ? maxItems : undefined } }));\nif (out[0]) out[0].json.maxItems = maxItems;\nreturn out;"
+      },
+      "id": "wf2-test-prepare-limit",
+      "name": "Prepare limit",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4288,
+        576
+      ]
+    },
+    {
+      "parameters": {
+        "amount": "={{ Math.floor( Math.random() * 135) + 5 }}",
+        "unit": "minutes"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        3408,
+        720
+      ],
+      "id": "7067c636-295b-49d8-b137-66768e27d862",
+      "name": "Wait",
+      "webhookId": "10738656-08f5-421b-8125-3980acc2fdb7"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1xPgob7BwDoDGAOtDPBTvKzhQHl2FUZkJhJG0gEHWdgo",
+          "mode": "list",
+          "cachedResultName": "HoldingSheet",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1xPgob7BwDoDGAOtDPBTvKzhQHl2FUZkJhJG0gEHWdgo/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 2051829261,
+          "mode": "list",
+          "cachedResultName": "Sheet2",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1xPgob7BwDoDGAOtDPBTvKzhQHl2FUZkJhJG0gEHWdgo/edit#gid=2051829261"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "linkedInProfileUrl": "={{ $json.defaultProfileUrl }}"
+          },
+          "matchingColumns": [
+            "linkedInProfileUrl"
+          ],
+          "schema": [
+            {
+              "id": "linkedInProfileUrl",
+              "displayName": "linkedInProfileUrl",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        4576,
+        368
+      ],
+      "id": "53340d90-f681-47b9-9821-7c6049f1e67a",
+      "name": "Append row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "hf9VoWnqYNXhUZsn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ 'https://api.phantombuster.com/api/v2/agents/fetch-output?id=' + \"3044757503240384\" + '&containerId=' + $('PhantomBuster: SendConnectionList').item.json.containerId }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "a7a0b956-8095-43ae-adf1-8728a53e085b",
+      "name": "Fetch Result1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        5328,
+        256
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "KWeabljbYSzoLpjI",
+          "name": "Phantom Header Auth"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse PhantomBuster batch result — extract JSON URL + detect critical errors\nconst result = $('Fetch Result1').item.json;\nconst profile = $('Take one profile').first().json.profile;\nconst output = result.output || '';\nconst outputLower = output.toLowerCase();\n\nlet isCriticalError = false;\nlet criticalErrorType = null;\nlet resultMessage = '';\n\n// Exit code\nconst exitCodeMatch = output.match(/exit code: (\\d+)/);\nconst exitCode = exitCodeMatch ? parseInt(exitCodeMatch[1]) : null;\n\n// Extract the JSON results URL from PB output\nconst jsonUrlMatch = output.match(/JSON saved at (https:\\/\\/[^\\s]+\\.json)/);\nconst jsonResultUrl = jsonUrlMatch ? jsonUrlMatch[1] : null;\n\n// Count processed profiles from output\nconst countMatch = output.match(/(\\d+) profiles? (?:have|has) been processed/);\nconst processedCount = countMatch ? parseInt(countMatch[1]) : 0;\n\n// CRITICAL ERROR DETECTION\nif (outputLower.includes('disconnected by linkedin')) {\n  isCriticalError = true;\n  criticalErrorType = 'DISCONNECTED';\n  resultMessage = 'Disconnected by LinkedIn - session may be flagged';\n} else if (outputLower.includes('no valid credentials') || outputLower.includes('invalid credentials') || exitCode === 87) {\n  isCriticalError = true;\n  criticalErrorType = 'INVALID_CREDENTIALS';\n  resultMessage = 'Invalid LinkedIn credentials - cookie needs refresh';\n} else if (outputLower.includes('session expired') || outputLower.includes('not logged in') || outputLower.includes('login required')) {\n  isCriticalError = true;\n  criticalErrorType = 'SESSION_EXPIRED';\n  resultMessage = 'LinkedIn session expired - need to re-authenticate';\n} else if (outputLower.includes('account restricted') || outputLower.includes('account suspended')) {\n  isCriticalError = true;\n  criticalErrorType = 'ACCOUNT_RESTRICTED';\n  resultMessage = 'LinkedIn account may be restricted';\n} else if (outputLower.includes('rate limit') || outputLower.includes('too many requests')) {\n  isCriticalError = true;\n  criticalErrorType = 'RATE_LIMITED';\n  resultMessage = 'LinkedIn rate limit reached';\n} else if (exitCode === 87 || (exitCode === 1 && processedCount === 0)) {\n  isCriticalError = true;\n  criticalErrorType = 'EXIT_CODE_ERROR';\n  resultMessage = `PhantomBuster error (exit code ${exitCode}) - possible credential issue`;\n} else if (!jsonResultUrl && result.status === 'finished' && exitCode === 0) {\n  resultMessage = 'Phantom finished but no JSON result URL found in output';\n} else {\n  resultMessage = `Processed ${processedCount} profile(s) successfully`;\n}\n\nreturn [{\n  json: {\n    profile,\n    jsonResultUrl,\n    processedCount,\n    sentDate: new Date().toISOString().split('T')[0],\n    isCriticalError,\n    criticalErrorType,\n    resultMessage,\n    _debug: {\n      phantomStatus: result.status,\n      exitCode,\n      outputSnippet: output.substring(output.length - 600)\n    }\n  }\n}];"
+      },
+      "id": "8748d69f-b34c-411d-ba52-4cf428d16422",
+      "name": "Parse Result1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5792,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.phantombuster.com/api/v2/agents/launch",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  id: \"3044757503240384\",\n  bonusArgument: {\n    inputType: \"spreadsheetUrl\",\n    spreadsheetUrl: \"https://docs.google.com/spreadsheets/d/1xPgob7BwDoDGAOtDPBTvKzhQHl2FUZkJhJG0gEHWdgo/edit?pli=1&gid=2051829261#gid=2051829261\",\n    numberOfAddsPerLaunch: $('Prepare limit').first().json.maxItems,\n    onlySecondCircle: false,\n    dwellTime: true,\n    sessionCookie: $('Take one profile').first().json.sessionCookie?.computed ?? $('Take one profile').first().json.sessionCookie,\n    userAgent: $('Take one profile').first().json.userAgent\n  }\n}) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "7b3451f3-4bd3-439e-83f9-70376aadc1d5",
+      "name": "PhantomBuster: SendConnectionList",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4912,
+        368
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "KWeabljbYSzoLpjI",
+          "name": "Phantom Header Auth"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Loop over input items and add a new field called 'myNewField' to the JSON of each one\nreturn $input.first();"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4736,
+        368
+      ],
+      "id": "aaa4265a-1914-4475-8268-57440f582e69",
+      "name": "Pass One"
+    },
+    {
+      "parameters": {
+        "operation": "clear",
+        "documentId": {
+          "__rl": true,
+          "value": "1xPgob7BwDoDGAOtDPBTvKzhQHl2FUZkJhJG0gEHWdgo",
+          "mode": "list",
+          "cachedResultName": "HoldingSheet",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1xPgob7BwDoDGAOtDPBTvKzhQHl2FUZkJhJG0gEHWdgo/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 2051829261,
+          "mode": "list",
+          "cachedResultName": "Sheet2",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1xPgob7BwDoDGAOtDPBTvKzhQHl2FUZkJhJG0gEHWdgo/edit#gid=2051829261"
+        },
+        "clear": "specificRange",
+        "range": "A2:A"
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        7168,
+        576
+      ],
+      "id": "175d5c29-a154-4589-8c12-e216677bc8b5",
+      "name": "Clear sheet1",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "hf9VoWnqYNXhUZsn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "unit": "minutes"
+      },
+      "id": "ffc7e768-2aa5-4657-94ef-1fc48618d3c8",
+      "name": "Wait for Execution (10 min)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        5088,
+        368
+      ],
+      "webhookId": "e66b1416-4fd0-4893-a988-28cfcd7403f9"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "2a209b49-cdf3-4b40-acb9-81dbea2634d1",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "running",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        5536,
+        256
+      ],
+      "id": "78df8a6f-3d5b-4fc3-8f52-0b5dc795c2d3",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "unit": "minutes"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        5824,
+        240
+      ],
+      "id": "b9429ffc-9d3c-4205-9f95-b78409756e81",
+      "name": "Wait1",
+      "webhookId": "0f4c526b-718f-4a2f-8e83-65e9711d53e5"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "critical-error-check",
+              "leftValue": "={{ $json.isCriticalError }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "6327fe42-8944-49b1-b360-bf0ebea4b272",
+      "name": "Critical Error?1",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        6016,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "C0A6ES56MU2"
+        },
+        "text": "={{ '🚨 *LinkedIn Outreach STOPPED - Critical Error*\\n\\n*Error Type:* ' + $json.criticalErrorType + '\\n*Message:* ' + $json.resultMessage + '\\n*Profile:* ' + ($json.profileUrl || $json.defaultProfileUrl || '') + '\\n\\n*Action Required:* Check PhantomBuster credentials and LinkedIn session cookie.\\n\\n_Workflow has been stopped to prevent further issues. Please fix credentials and manually restart._' }}",
+        "otherOptions": {}
+      },
+      "id": "3c6dedc8-d9c2-416e-a174-8cd8b019c222",
+      "name": "Slack: Critical Error Alert1",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        6288,
+        288
+      ],
+      "webhookId": "ec31d7c3-1716-40c7-bf5a-97ed2cec6d2e",
+      "credentials": {
+        "slackApi": {
+          "id": "wkLpZSqhXl2iesnC",
+          "name": "Chrt Slack App"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "errorMessage": "={{ 'Critical LinkedIn error: ' + $('Parse Result').item.json.criticalErrorType + ' - ' + $('Parse Result').item.json.resultMessage }}"
+      },
+      "id": "d8412d8a-e549-47b3-a2db-b952c90422de",
+      "name": "Stop Workflow (Critical Error)1",
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        6528,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.jsonResultUrl }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "wf2-fetch-pb-results-json",
+      "name": "Fetch PB Results JSON",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        6240,
+        576
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "KWeabljbYSzoLpjI",
+          "name": "Phantom Header Auth"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Collect ALL PB result items into one updates array for batch POST\nconst allItems = $('Fetch PB Results JSON').all();\nconst profile = $('Parse Result1').first().json.profile;\nconst sentDate = $('Parse Result1').first().json.sentDate;\n\nconst updates = allItems.map(item => {\n  const r = item.json;\n  const url = r.linkedinProfileUrl || r.baseUrl || r.defaultProfileUrl || '';\n  let status = 'Request Sent';\n  if (r.error) {\n    status = r.error.includes('unavailable') ? 'Profile Not Found' : 'Error';\n  } else if (r.message && r.message.toLowerCase().includes('already connected')) {\n    status = 'Already Connected';\n  } else if (r.message && r.message.toLowerCase().includes('already invited')) {\n    status = 'Already Invited';\n  } else if (r.message && r.message.toLowerCase().includes('pending invitation')) {\n    status = 'Already Invited';\n  }\n  return { defaultProfileUrl: url, status, sentDate };\n}).filter(u => u.defaultProfileUrl);\n\nreturn [{ json: { profile, updates } }];"
+      },
+      "id": "wf2-prepare-updates",
+      "name": "Prepare Updates",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6688,
+        576
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://script.google.com/macros/s/AKfycby-b3UjCFjGFb_QTH4qIGdG13H1yrucs1aUoFNV4uF5HFg8c9hfMic_LFc-3XlS4DSMFQ/exec",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ profile: $json.profile, updates: $json.updates }) }}",
+        "options": {
+          "redirect": {
+            "redirect": {}
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "wf2-batch-update-master",
+      "name": "Batch Update Master List",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        6928,
+        576
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "id": "6a4724da-b14c-4294-9b92-1aedc2ef6a46",
+      "name": "Next Lead1",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        7408,
+        576
+      ]
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        5536,
+        544
+      ],
+      "id": "13f39fb5-59db-4bdd-a1d5-cd40a740afee",
+      "name": "When clicking ‘Execute workflow’"
+    }
+  ],
+  "connections": {
+    "Schedule Kyle": {
+      "main": [
+        [
+          {
+            "node": "Fetch Doppler cookies",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Set profile Kyle",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Hudson": {
+      "main": [
+        [
+          {
+            "node": "Fetch Doppler cookies",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Set profile Hudson",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set profile Kyle": {
+      "main": [
+        [
+          {
+            "node": "selectProfile",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set profile Hudson": {
+      "main": [
+        [
+          {
+            "node": "selectProfile",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "selectProfile": {
+      "main": [
+        [
+          {
+            "node": "Profile + Doppler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Doppler cookies": {
+      "main": [
+        [
+          {
+            "node": "Profile + Doppler",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Profile + Doppler": {
+      "main": [
+        [
+          {
+            "node": "Build profile items with cookies",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build profile items with cookies": {
+      "main": [
+        [
+          {
+            "node": "Take one profile",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Take one profile": {
+      "main": [
+        [
+          {
+            "node": "Get Ready Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sort by Score (Highest First)": {
+      "main": [
+        [
+          {
+            "node": "Prepare limit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare limit": {
+      "main": [
+        [
+          {
+            "node": "Limit to 10/run (20/day)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limit to 10/run (20/day)": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Ready Leads": {
+      "main": [
+        [
+          {
+            "node": "Inject profile",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inject profile": {
+      "main": [
+        [
+          {
+            "node": "Filter Ready Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Ready Leads": {
+      "main": [
+        [
+          {
+            "node": "Sort by Score (Highest First)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Get Ready Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append row in sheet": {
+      "main": [
+        [
+          {
+            "node": "Pass One",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Result1": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Result1": {
+      "main": [
+        [
+          {
+            "node": "Critical Error?1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PhantomBuster: SendConnectionList": {
+      "main": [
+        [
+          {
+            "node": "Wait for Execution (10 min)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pass One": {
+      "main": [
+        [
+          {
+            "node": "PhantomBuster: SendConnectionList",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for Execution (10 min)": {
+      "main": [
+        [
+          {
+            "node": "Fetch Result1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Wait1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Parse Result1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait1": {
+      "main": [
+        [
+          {
+            "node": "Fetch Result1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Critical Error?1": {
+      "main": [
+        [
+          {
+            "node": "Slack: Critical Error Alert1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fetch PB Results JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch PB Results JSON": {
+      "main": [
+        [
+          {
+            "node": "Prepare Updates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Updates": {
+      "main": [
+        [
+          {
+            "node": "Batch Update Master List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Batch Update Master List": {
+      "main": [
+        [
+          {
+            "node": "Clear sheet1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack: Critical Error Alert1": {
+      "main": [
+        [
+          {
+            "node": "Stop Workflow (Critical Error)1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clear sheet1": {
+      "main": [
+        [
+          {
+            "node": "Next Lead1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": {
+    "node:Schedule Kyle": {
+      "recurrenceRules": []
+    },
+    "node:Schedule Hudson": {
+      "recurrenceRules": []
+    }
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "versionId": "6ac7c428-1211-4952-a085-5f59a1a000f3",
+  "activeVersionId": null,
+  "triggerCount": 2,
+  "shared": [
+    {
+      "updatedAt": "2026-02-05T17:59:48.765Z",
+      "createdAt": "2026-02-05T17:59:48.765Z",
+      "role": "workflow:owner",
+      "workflowId": "RdeXvr6pEAFkOpwN",
+      "projectId": "O7lTivDfRl72aS23"
+    }
+  ],
+  "activeVersion": null,
+  "tags": [],
+  "_folderPath": "",
+  "_fileName": "2.-linkedin-outreach-(phantombuster)-[test].json"
+}
