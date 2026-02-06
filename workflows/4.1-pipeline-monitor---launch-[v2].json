@@ -1,0 +1,643 @@
+{
+  "updatedAt": "2026-02-06T00:41:22.617Z",
+  "createdAt": "2026-02-06T00:40:40.488Z",
+  "id": "OVjPWkmSVnXYlQDP",
+  "name": "4.1 Pipeline Monitor - Launch [V2]",
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 6 * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule-kyle-6am",
+      "name": "Schedule Kyle",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        1120,
+        928
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "5 6 * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule-hudson-6am",
+      "name": "Schedule Hudson",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        1120,
+        1120
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { profileIndex: 0 } }];"
+      },
+      "id": "set-kyle",
+      "name": "Set profile Kyle",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1280,
+        928
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { profileIndex: 1 } }];"
+      },
+      "id": "set-hudson",
+      "name": "Set profile Hudson",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1280,
+        1120
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "pipeline-monitor-crawl",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "crawl-webhook",
+      "name": "Crawl for profile webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        1312
+      ],
+      "webhookId": "pipeline-monitor-crawl-v2"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nconst profile = body.profile || 'kyle';\nconst idx = profile === 'hudson' ? 1 : 0;\nreturn [{ json: { profileIndex: idx } }];"
+      },
+      "id": "set-from-webhook",
+      "name": "Set profile from webhook",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1280,
+        1312
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.doppler.com/v3/configs/config/secrets",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "project",
+              "value": "developers"
+            },
+            {
+              "name": "config",
+              "value": "hudson"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "fetch-doppler",
+      "name": "Fetch Doppler cookies",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1280,
+        768
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "dz2vX61Mpayywfq1",
+          "name": "Doppler API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch",
+        "useDataOfInput": 2
+      },
+      "id": "merge-doppler",
+      "name": "Profile + Doppler",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        1504,
+        1024
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first();\nconst secrets = item.json.secrets || item.json || {};\nconst kyleCookie = secrets.LINKEDIN_KYLE_SESSION_COOKIE;\nconst hudsonCookie = secrets.LINKEDIN_HUDSON_SESSION_COOKIE;\nreturn [\n  { json: { profile: 'kyle', sessionCookie: kyleCookie, exportPhantom: '4606663815675720' } },\n  { json: { profile: 'hudson', sessionCookie: hudsonCookie, exportPhantom: '4606663815675720' } }\n];"
+      },
+      "id": "build-profiles",
+      "name": "Build profile items with cookies",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1664,
+        1024
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nif (!items.length) return [];\nlet idx;\ntry { idx = $('Profile + Doppler').first().json.profileIndex; } catch (e) {\n  try { idx = $('Set profile Kyle').isExecuted ? 0 : 1; } catch (e2) { idx = 0; }\n}\nif (idx === undefined || idx === null) idx = 0;\nreturn [items[Math.min(idx, items.length - 1)]];"
+      },
+      "id": "take-one",
+      "name": "Take one profile",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1824,
+        1024
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Dashboard"
+        },
+        "options": {}
+      },
+      "id": "read-dashboard",
+      "name": "Read Dashboard Metrics",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1984,
+        1024
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "hf9VoWnqYNXhUZsn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst kylePreProcessed = parseInt(data['kylePreProcessed'] || 0);\nconst kyleTargets = parseInt(data['kyleTargets'] || 0);\nconst hudsonPreProcessed = parseInt(data['hudsonPreProcessed'] || 0);\nconst hudsonTargets = parseInt(data['hudsonTargets'] || 0);\nconst profile = $('Take one profile').first().json.profile;\nlet needScrape = false;\nlet needTargets = false;\nif (profile == 'kyle') { needScrape = kylePreProcessed < 1000; needTargets = kyleTargets < 240; }\nelse { needScrape = hudsonPreProcessed < 1000; needTargets = hudsonTargets < 240; }\nreturn [{ json: { profile, needScrape, needTargets } }];"
+      },
+      "id": "parse-metrics",
+      "name": "Parse Dashboard Metrics",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2144,
+        1024
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "needs-scrape",
+              "leftValue": "={{ $json.needScrape }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "need-leads-check",
+      "name": "Need more leads?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2400,
+        1024
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "People to crawl"
+        },
+        "options": {}
+      },
+      "id": "read-people-to-crawl",
+      "name": "Read People to Crawl",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2640,
+        960
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "hf9VoWnqYNXhUZsn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Analyze People to Crawl data\nconst allRows = $input.all();\nlet profile = 'kyle';\ntry { profile = $('Take one profile').first().json.profile; } catch(e) {}\nlet profile_prefix = profile !== 'kyle' ? 'h_' : 'k_';\nconst linkKey = profile_prefix + 'salesNavLink';\nconst dateKey = profile_prefix + 'lastCrawlDate';\nconst nameKey = profile_prefix + 'name';\nconst uncrawled = [];\nconst crawled = [];\nlet totalValidLinks = 0;\nallRows.forEach((item, index) => {\n  const data = item.json || item;\n  const searchLink = data[linkKey];\n  if (searchLink && typeof searchLink === 'string' && searchLink.trim().length > 0) {\n    totalValidLinks++;\n    const lastCrawl = data[dateKey] || '';\n    const name = data[nameKey] || '';\n    const rowNumber = data.row_number || index + 2;\n    const rowData = { rowNumber, name, searchLink: searchLink.trim(), lastCrawlDate: lastCrawl ? lastCrawl.trim() : null };\n    if (!lastCrawl || lastCrawl.trim() === '') { uncrawled.push(rowData); } else { crawled.push(rowData); }\n  }\n});\ncrawled.sort((a, b) => new Date(a.lastCrawlDate || '2099-12-31') - new Date(b.lastCrawlDate || '2099-12-31'));\nconst uncrawledCount = uncrawled.length;\nlet selectedURL = null, selectedRow = null, alertLevel = 'none';\nif (uncrawledCount > 2) { selectedURL = uncrawled[0].searchLink; selectedRow = uncrawled[0].rowNumber; }\nelse if (uncrawledCount > 0) { selectedURL = uncrawled[0].searchLink; selectedRow = uncrawled[0].rowNumber; alertLevel = 'warning'; }\nelse if (crawled.length > 0) { selectedURL = crawled[0].searchLink; selectedRow = crawled[0].rowNumber; alertLevel = 'fallback'; }\nelse { alertLevel = 'critical'; }\nreturn [{ json: { uncrawledCount, crawledCount: crawled.length, totalURLs: totalValidLinks, selectedURL, selectedRow, alertLevel, selectedName: selectedURL ? (uncrawledCount > 0 ? uncrawled[0].name : crawled[0]?.name) : null, currentProfile: profile } }];"
+      },
+      "id": "analyze-urls",
+      "name": "Analyze URLs & Select Next",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2832,
+        960
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "has-url",
+              "leftValue": "={{ $json.uncrawledCount }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-has-url",
+      "name": "Has URL to Process?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3024,
+        960
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.phantombuster.com/api/v2/agents/launch",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  id: $('Take one profile').first().json.exportPhantom || '4606663815675720',\n  manualLaunch: true,\n  bonusArgument: {\n    salesNavigatorSearchUrl: $json.selectedURL,\n    numberOfResultsPerSearch: 2500,\n    removeDuplicateProfiles: true\n  }\n}) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "launch-phantom",
+      "name": "Launch Search Export Phantom",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3264,
+        896
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "KWeabljbYSzoLpjI",
+          "name": "Phantom Header Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// PB launched — 4.2 will handle results via PB webhook\nconst result = $input.first().json;\nconst profile = $('Take one profile').first().json.profile;\nconst analyzeData = $('Analyze URLs & Select Next').first().json;\nreturn [{ json: {\n  success: true,\n  profile,\n  containerId: result.containerId || 'unknown',\n  agentId: $('Take one profile').first().json.exportPhantom || '4606663815675720',\n  selectedRow: analyzeData.selectedRow,\n  selectedURL: analyzeData.selectedURL,\n  selectedName: analyzeData.selectedName,\n  message: 'PB launched — 4.2 workflow handles results via webhook',\n  timestamp: new Date().toISOString()\n}}];"
+      },
+      "id": "done-launched",
+      "name": "Done - PB Launched",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3504,
+        896
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { success: false, message: 'No URLs to process or no scrape needed', timestamp: new Date().toISOString() } }];"
+      },
+      "id": "done-skip",
+      "name": "Done - Skipped",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3264,
+        1120
+      ]
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        1504
+      ],
+      "id": "manual-trigger",
+      "name": "When clicking 'Execute workflow'"
+    }
+  ],
+  "connections": {
+    "Schedule Kyle": {
+      "main": [
+        [
+          {
+            "node": "Set profile Kyle",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch Doppler cookies",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Hudson": {
+      "main": [
+        [
+          {
+            "node": "Set profile Hudson",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch Doppler cookies",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crawl for profile webhook": {
+      "main": [
+        [
+          {
+            "node": "Set profile from webhook",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch Doppler cookies",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set profile Kyle": {
+      "main": [
+        [
+          {
+            "node": "Profile + Doppler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set profile Hudson": {
+      "main": [
+        [
+          {
+            "node": "Profile + Doppler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set profile from webhook": {
+      "main": [
+        [
+          {
+            "node": "Profile + Doppler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Doppler cookies": {
+      "main": [
+        [
+          {
+            "node": "Profile + Doppler",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Profile + Doppler": {
+      "main": [
+        [
+          {
+            "node": "Build profile items with cookies",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build profile items with cookies": {
+      "main": [
+        [
+          {
+            "node": "Take one profile",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Take one profile": {
+      "main": [
+        [
+          {
+            "node": "Read Dashboard Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Dashboard Metrics": {
+      "main": [
+        [
+          {
+            "node": "Parse Dashboard Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Dashboard Metrics": {
+      "main": [
+        [
+          {
+            "node": "Need more leads?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Need more leads?": {
+      "main": [
+        [
+          {
+            "node": "Read People to Crawl",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Done - Skipped",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read People to Crawl": {
+      "main": [
+        [
+          {
+            "node": "Analyze URLs & Select Next",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze URLs & Select Next": {
+      "main": [
+        [
+          {
+            "node": "Has URL to Process?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has URL to Process?": {
+      "main": [
+        [
+          {
+            "node": "Launch Search Export Phantom",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Done - Skipped",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Launch Search Export Phantom": {
+      "main": [
+        [
+          {
+            "node": "Done - PB Launched",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking 'Execute workflow'": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": null,
+  "versionId": "fb53b50f-156e-4286-a823-138f010311c5",
+  "activeVersionId": null,
+  "triggerCount": 0,
+  "shared": [
+    {
+      "updatedAt": "2026-02-06T00:40:40.915Z",
+      "createdAt": "2026-02-06T00:40:40.915Z",
+      "role": "workflow:owner",
+      "workflowId": "OVjPWkmSVnXYlQDP",
+      "projectId": "O7lTivDfRl72aS23"
+    }
+  ],
+  "activeVersion": null,
+  "tags": [],
+  "_folderPath": "",
+  "_fileName": "4.1-pipeline-monitor---launch-[v2].json"
+}
