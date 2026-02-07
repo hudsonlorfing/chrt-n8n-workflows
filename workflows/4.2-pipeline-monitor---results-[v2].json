@@ -1,9 +1,9 @@
 {
-  "updatedAt": "2026-02-06T00:41:17.665Z",
+  "updatedAt": "2026-02-07T01:25:09.079Z",
   "createdAt": "2026-02-06T00:40:41.897Z",
   "id": "A35Yu92OFuYKvEtR",
   "name": "4.2 Pipeline Monitor - Results [V2]",
-  "active": false,
+  "active": true,
   "isArchived": false,
   "nodes": [
     {
@@ -19,7 +19,7 @@
       "typeVersion": 2,
       "position": [
         4400,
-        1000
+        1008
       ],
       "webhookId": "a1b2c3d4-pipeline-results-v2"
     },
@@ -36,15 +36,15 @@
     },
     {
       "parameters": {
-        "jsCode": "// Parse webhook payload — accepts PB webhook or manual test with context\n// Expected: { containerId, agentId, profile, selectedRow, selectedURL, selectedName }\nconst input = $input.first().json;\nconst body = input.body || input;\nreturn [{ json: {\n  containerId: body.containerId || '',\n  agentId: body.agentId || '4606663815675720',\n  profile: body.profile || 'kyle',\n  selectedRow: body.selectedRow || null,\n  selectedURL: body.selectedURL || null,\n  selectedName: body.selectedName || null\n}}];"
+        "jsCode": "const items = $input.all();\n\nreturn items.map((item, index) => {\n  // 1. Access the 'body' property\n  const body = item.json.body || {};\n  const agentName = body.agentName || \"\";\n  console.log(`--- Processing Webhook Item ${index} ---`);\n\n  // 2. Extract and Parse resultObject\n  // Note: Based on your input, resultObject is a stringified OBJECT, not an array.\n  let parsedResults = {};\n  try {\n    parsedResults = JSON.parse(body.resultObject || \"{}\");\n  } catch (e) {\n    console.error(\"JSON Parse Error:\", e.message);\n  }\n\n  // 3. Determine profileKey by searching the agentName string\n  let profileKey = 'kyle'; // Default fallback\n  const searchName = agentName.toLowerCase();\n\n  if (searchName.includes('hudson')) {\n    profileKey = 'hudson';\n  } else if (searchName.includes('kyle')) {\n    profileKey = 'kyle';\n  }\n\n  console.log(`Agent Name: \"${agentName}\" -> Profile Key: \"${profileKey}\"`);\n\n  // 4. Return the formatted result\n  return {\n    json: {\n      profile: profileKey,\n      agentName: agentName,\n      agentId: body.agentId || '',\n      containerId: body.containerId || '',\n      // Since resultObject contains URLs and not a list, \n      // we check if we successfully got the csvURL.\n      hasResults: !!parsedResults.csvURL,\n      csvURL: parsedResults.csvURL || ''\n    }\n  };\n});"
       },
       "id": "wf4v2r-parse-webhook",
       "name": "Parse Webhook Context",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4600,
-        1000
+        4640,
+        1008
       ]
     },
     {
@@ -58,8 +58,8 @@
       "type": "n8n-nodes-base.phantombuster",
       "typeVersion": 1,
       "position": [
-        4800,
-        1000
+        4880,
+        1008
       ],
       "credentials": {
         "phantombusterApi": {
@@ -97,8 +97,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        5000,
-        1000
+        5120,
+        1008
       ]
     },
     {
@@ -113,289 +113,30 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        5200,
-        940
+        5360,
+        944
       ]
     },
     {
       "parameters": {
-        "jsCode": "// Parse PhantomBuster JSON — collect all profiles\nconst allItems = $input.all();\nconst context = $('Parse Webhook Context').first().json;\n\nconst profiles = allItems\n  .filter(item => {\n    const j = item.json || {};\n    return j.linkedinProfileUrl || j.profileUrl;\n  })\n  .map(item => {\n    const p = item.json;\n    let url = (p.linkedinProfileUrl || p.profileUrl || '').trim().toLowerCase();\n    url = url.replace('https://www.linkedin.com', 'https://linkedin.com').replace(/\\/$/, '');\n    return { ...p, profileUrl: url };\n  });\n\nreturn [{ json: {\n  profiles,\n  profileCount: profiles.length,\n  selectedRow: context.selectedRow,\n  selectedURL: context.selectedURL,\n  selectedName: context.selectedName,\n  profile: context.profile,\n  phantomStatus: 'finished'\n}}];"
+        "jsCode": "// Parse PhantomBuster JSON — collect all profiles with ALL fields\nconst allItems = $input.all();\nconst context = $('Parse Webhook Context').first().json;\n\nconst profiles = allItems\n  .filter(item => {\n    const j = item.json || {};\n    return j.linkedinProfileUrl || j.profileUrl || j.defaultProfileUrl;\n  })\n  .map(item => ({ ...item.json }));\n\nreturn [{ json: {\n  profiles,\n  profileCount: profiles.length,\n  profile: context.profile\n}}];"
       },
       "id": "wf4v2r-parse-output",
       "name": "Parse Phantom Output",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        5400,
-        940
-      ]
-    },
-    {
-      "parameters": {
-        "documentId": {
-          "__rl": true,
-          "mode": "id",
-          "value": "1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8"
-        },
-        "sheetName": {
-          "__rl": true,
-          "mode": "name",
-          "value": "Master List"
-        },
-        "options": {}
-      },
-      "id": "wf4v2r-read-master",
-      "name": "Read Master List",
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.5,
-      "position": [
         5600,
-        840
-      ],
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "hf9VoWnqYNXhUZsn",
-          "name": "Google Sheets account"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "jsCode": "const items = $input.all();\nreturn items.map(item => ({ json: { ...item.json, _sheet: 'Master List' } }));"
-      },
-      "id": "wf4v2r-tag-master",
-      "name": "Tag Master List",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        5800,
-        840
-      ]
-    },
-    {
-      "parameters": {
-        "documentId": {
-          "__rl": true,
-          "mode": "id",
-          "value": "1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8"
-        },
-        "sheetName": {
-          "__rl": true,
-          "mode": "name",
-          "value": "New Leads"
-        },
-        "options": {}
-      },
-      "id": "wf4v2r-read-new-leads",
-      "name": "Read New Leads",
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.5,
-      "position": [
-        5600,
-        1100
-      ],
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "hf9VoWnqYNXhUZsn",
-          "name": "Google Sheets account"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "jsCode": "const items = $input.all();\nreturn items.map(item => ({ json: { ...item.json, _sheet: 'New Leads' } }));"
-      },
-      "id": "wf4v2r-tag-new-leads",
-      "name": "Tag New Leads",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        5800,
-        1100
-      ]
-    },
-    {
-      "parameters": {
-        "mode": "append",
-        "numberInputs": 2
-      },
-      "id": "wf4v2r-merge",
-      "name": "Merge Lists",
-      "type": "n8n-nodes-base.merge",
-      "typeVersion": 3,
-      "position": [
-        6000,
-        960
-      ]
-    },
-    {
-      "parameters": {
-        "jsCode": "// Profile-aware dedupe: compare phantom results against Master List + New Leads\nconst phantomData = $('Parse Phantom Output').first().json;\nconst mergedItems = $input.all();\nconst currentProfile = phantomData.profile || 'kyle';\n\nfunction normalizeUrl(url) {\n  if (!url) return '';\n  return String(url).trim().toLowerCase()\n    .replace('https://www.linkedin.com', 'https://linkedin.com')\n    .replace(/\\/$/, '');\n}\n\nconst urlToRows = new Map();\nmergedItems.forEach(item => {\n  const url = normalizeUrl(item.json.defaultProfileUrl || item.json.profileUrl || item.json.linkedInProfileUrl);\n  if (!url) return;\n  const connectionFrom = (item.json.connectionFrom != null && item.json.connectionFrom !== '') ? String(item.json.connectionFrom).trim().toLowerCase() : '';\n  const _sheet = item.json._sheet || 'New Leads';\n  const list = urlToRows.get(url) || [];\n  list.push({ connectionFrom, _sheet });\n  urlToRows.set(url, list);\n});\n\nconst uniqueProfiles = [];\nconst profilesToUpdate = [];\nfor (const profile of phantomData.profiles || []) {\n  const url = normalizeUrl(profile.defaultProfileUrl || profile.profileUrl || profile.linkedInProfileUrl);\n  if (!url) continue;\n  const rows = urlToRows.get(url);\n  if (!rows || rows.length === 0) {\n    uniqueProfiles.push(profile);\n    continue;\n  }\n  for (const row of rows) {\n    const cf = row.connectionFrom;\n    if (cf === currentProfile || cf === 'both') continue;\n    profilesToUpdate.push({ defaultProfileUrl: profile.defaultProfileUrl || profile.profileUrl, _sheet: row._sheet });\n  }\n}\n\nreturn [{ json: {\n  uniqueProfiles,\n  profilesToUpdate,\n  uniqueCount: uniqueProfiles.length,\n  totalScraped: phantomData.profileCount || 0,\n  duplicatesRemoved: (phantomData.profileCount || 0) - uniqueProfiles.length,\n  selectedRow: phantomData.selectedRow,\n  selectedURL: phantomData.selectedURL,\n  selectedName: phantomData.selectedName,\n  profile: currentProfile\n}}];"
-      },
-      "id": "wf4v2r-dedupe",
-      "name": "Dedupe Against Master + New Leads",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        6200,
-        960
-      ]
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 2
-          },
-          "conditions": [
-            {
-              "id": "has-unique",
-              "leftValue": "={{ $json.uniqueCount }}",
-              "rightValue": 0,
-              "operator": {
-                "type": "number",
-                "operation": "gt"
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "id": "wf4v2r-has-unique",
-      "name": "Has Unique Profiles?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [
-        6400,
-        800
-      ]
-    },
-    {
-      "parameters": {
-        "jsCode": "// Prepare unique profiles for append to New Leads\nconst data = $('Dedupe Against Master + New Leads').first().json;\nconst profiles = data.uniqueProfiles || [];\nconst profile = data.profile;\nreturn profiles.map(p => ({\n  json: {\n    defaultProfileUrl: p.profileUrl || p.linkedinProfileUrl || '',\n    linkedInProfileUrl: p.linkedinProfileUrl || p.profileUrl || '',\n    fullName: (p.firstName || '') + ' ' + (p.lastName || ''),\n    firstName: p.firstName || '',\n    lastName: p.lastName || '',\n    title: p.title || '',\n    titleDescription: p.titleDescription || '',\n    companyName: p.companyName || '',\n    companyUrl: p.companyUrl || '',\n    industry: p.industry || '',\n    location: p.location || '',\n    connectionDegree: p.connectionDegree || '',\n    connectionFrom: profile,\n    summary: p.summary || '',\n    durationInRole: p.durationInRole || '',\n    durationInCompany: p.durationInCompany || '',\n    companyLocation: p.companyLocation || '',\n    sharedConnectionsCount: p.sharedConnectionsCount || '',\n    pastExperienceCompanyTitle: p.pastExperienceCompanyTitle || '',\n    pastExperienceCompanyName: p.pastExperienceCompanyName || '',\n    pastExperienceDuration: p.pastExperienceDuration || ''\n  }\n}));"
-      },
-      "id": "wf4v2r-prepare-append",
-      "name": "Prepare for Append",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        6640,
-        720
-      ]
-    },
-    {
-      "parameters": {
-        "operation": "append",
-        "documentId": {
-          "__rl": true,
-          "mode": "id",
-          "value": "1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8"
-        },
-        "sheetName": {
-          "__rl": true,
-          "mode": "name",
-          "value": "New Leads"
-        },
-        "columns": {
-          "mappingMode": "autoMapInputData",
-          "value": {}
-        },
-        "options": {}
-      },
-      "id": "wf4v2r-append",
-      "name": "Append to New Leads",
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.5,
-      "position": [
-        6880,
-        720
-      ],
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "hf9VoWnqYNXhUZsn",
-          "name": "Google Sheets account"
-        }
-      }
-    },
-    {
-      "parameters": {},
-      "id": "wf4v2r-noop-a",
-      "name": "No Op Path A",
-      "type": "n8n-nodes-base.noOp",
-      "typeVersion": 1,
-      "position": [
-        6640,
-        880
-      ]
-    },
-    {
-      "parameters": {},
-      "id": "wf4v2r-path-a-done",
-      "name": "Path A done",
-      "type": "n8n-nodes-base.noOp",
-      "typeVersion": 1,
-      "position": [
-        7120,
-        800
-      ]
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 2
-          },
-          "conditions": [
-            {
-              "id": "has-updates",
-              "leftValue": "={{ $json.profilesToUpdate?.length > 0 }}",
-              "rightValue": true,
-              "operator": {
-                "type": "boolean",
-                "operation": "equals"
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "id": "wf4v2r-has-updates",
-      "name": "Has profiles to update?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [
-        6400,
-        1120
-      ]
-    },
-    {
-      "parameters": {
-        "jsCode": "// Prepare connectionFrom payload for batch Apps Script update\nconst data = $('Dedupe Against Master + New Leads').first().json;\nconst updates = data.profilesToUpdate || [];\nreturn [{ json: { updates } }];"
-      },
-      "id": "wf4v2r-prep-cf",
-      "name": "Prepare connectionFrom Payload",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        6640,
-        1060
+        944
       ]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "https://script.google.com/macros/s/DEPLOY_CONNECTION_FROM_SCRIPT_HERE/exec",
+        "url": "https://script.google.com/macros/s/AKfycbwGZTi6Stg4FwYP9d9OwxcbSiL7dJKtvLxucN41aHZn7LQaluJGV3A8blyYu_A8bHvj/exec",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ updates: $json.updates || [] }) }}",
+        "jsonBody": "={{ JSON.stringify({ profiles: $json.profiles, profile: $json.profile }) }}",
         "options": {
           "redirect": {
             "redirect": {}
@@ -403,68 +144,33 @@
           "timeout": 120000
         }
       },
-      "id": "wf4v2r-batch-cf",
-      "name": "Batch Update connectionFrom",
+      "id": "wf4v2r-process-script",
+      "name": "Process via Apps Script",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        6880,
-        1060
+        5840,
+        944
       ],
       "onError": "continueRegularOutput"
     },
     {
-      "parameters": {},
-      "id": "wf4v2r-noop-b",
-      "name": "No Op Path B",
-      "type": "n8n-nodes-base.noOp",
-      "typeVersion": 1,
-      "position": [
-        6640,
-        1220
-      ]
-    },
-    {
-      "parameters": {},
-      "id": "wf4v2r-path-b-done",
-      "name": "Path B done",
-      "type": "n8n-nodes-base.noOp",
-      "typeVersion": 1,
-      "position": [
-        7120,
-        1120
-      ]
-    },
-    {
       "parameters": {
-        "mode": "chooseBranch"
+        "jsCode": "// Parse the all-in-one Apps Script response\nconst resp = $input.first().json;\n\nif (!resp.ok) {\n  throw new Error('Pipeline Apps Script error: ' + (resp.error || 'unknown'));\n}\n\nconst stats = resp.stats || {};\n\nreturn [{ json: {\n  ok: true,\n  profile: resp.profile || '',\n  totalScraped: stats.phantom || 0,\n  uniqueCount: stats.unique || 0,\n  duplicatesRemoved: stats.duplicates || 0,\n  appended: stats.appended || 0,\n  connectionFromUpdated: stats.updated || 0,\n  masterListSize: stats.masterListSize || 0,\n  newLeadsSize: stats.newLeadsSize || 0,\n  elapsedMs: stats.elapsedMs || 0\n}}];"
       },
-      "id": "wf4v2r-wait-both",
-      "name": "Wait for both paths",
-      "type": "n8n-nodes-base.merge",
-      "typeVersion": 3,
-      "position": [
-        7360,
-        960
-      ]
-    },
-    {
-      "parameters": {
-        "jsCode": "// Prepare crawl date update for People to Crawl sheet\nconst context = $('Parse Webhook Context').first().json;\nconst dedupeData = $('Dedupe Against Master + New Leads').first().json;\nconst profile = context.profile || 'kyle';\nconst selectedRow = context.selectedRow || dedupeData.selectedRow;\nconst dateCol = (profile === 'kyle' ? 'k_' : 'h_') + 'lastCrawlDate';\nconst today = new Date().toISOString().split('T')[0];\nreturn [{ json: {\n  selectedRow,\n  dateCol,\n  today,\n  profile,\n  uniqueCount: dedupeData.uniqueCount || 0,\n  totalScraped: dedupeData.totalScraped || 0\n}}];"
-      },
-      "id": "wf4v2r-prep-crawl-date",
-      "name": "Prepare Crawl Date Update",
+      "id": "wf4v2r-parse-results",
+      "name": "Parse Results",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        7560,
-        960
+        6080,
+        944
       ]
     },
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ JSON.stringify({ ok: true, uniqueCount: $json.uniqueCount, totalScraped: $json.totalScraped, profile: $json.profile }) }}",
+        "responseBody": "={{ JSON.stringify({ ok: $json.ok, profile: $json.profile, totalScraped: $json.totalScraped, uniqueCount: $json.uniqueCount, appended: $json.appended, connectionFromUpdated: $json.connectionFromUpdated, elapsedMs: $json.elapsedMs }) }}",
         "options": {}
       },
       "id": "wf4v2r-respond",
@@ -472,21 +178,8 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [
-        7800,
-        960
-      ]
-    },
-    {
-      "parameters": {
-        "jsCode": "return [{ json: { error: 'No JSON URL found in Phantom output', timestamp: new Date().toISOString() } }];"
-      },
-      "id": "wf4v2r-no-url",
-      "name": "No JSON URL",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        5200,
-        1100
+        6320,
+        1008
       ]
     }
   ],
@@ -540,7 +233,7 @@
         ],
         [
           {
-            "node": "No JSON URL",
+            "node": "Parse Phantom Output",
             "type": "main",
             "index": 0
           }
@@ -562,225 +255,25 @@
       "main": [
         [
           {
-            "node": "Read Master List",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Read New Leads",
+            "node": "Process via Apps Script",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Read Master List": {
+    "Process via Apps Script": {
       "main": [
         [
           {
-            "node": "Tag Master List",
+            "node": "Parse Results",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Tag Master List": {
-      "main": [
-        [
-          {
-            "node": "Merge Lists",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Read New Leads": {
-      "main": [
-        [
-          {
-            "node": "Tag New Leads",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Tag New Leads": {
-      "main": [
-        [
-          {
-            "node": "Merge Lists",
-            "type": "main",
-            "index": 1
-          }
-        ]
-      ]
-    },
-    "Merge Lists": {
-      "main": [
-        [
-          {
-            "node": "Dedupe Against Master + New Leads",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Dedupe Against Master + New Leads": {
-      "main": [
-        [
-          {
-            "node": "Has Unique Profiles?",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Has profiles to update?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Has Unique Profiles?": {
-      "main": [
-        [
-          {
-            "node": "Prepare for Append",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "No Op Path A",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Prepare for Append": {
-      "main": [
-        [
-          {
-            "node": "Append to New Leads",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Append to New Leads": {
-      "main": [
-        [
-          {
-            "node": "Path A done",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "No Op Path A": {
-      "main": [
-        [
-          {
-            "node": "Path A done",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Path A done": {
-      "main": [
-        [
-          {
-            "node": "Wait for both paths",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Has profiles to update?": {
-      "main": [
-        [
-          {
-            "node": "Prepare connectionFrom Payload",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "No Op Path B",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Prepare connectionFrom Payload": {
-      "main": [
-        [
-          {
-            "node": "Batch Update connectionFrom",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Batch Update connectionFrom": {
-      "main": [
-        [
-          {
-            "node": "Path B done",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "No Op Path B": {
-      "main": [
-        [
-          {
-            "node": "Path B done",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Path B done": {
-      "main": [
-        [
-          {
-            "node": "Wait for both paths",
-            "type": "main",
-            "index": 1
-          }
-        ]
-      ]
-    },
-    "Wait for both paths": {
-      "main": [
-        [
-          {
-            "node": "Prepare Crawl Date Update",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Prepare Crawl Date Update": {
+    "Parse Results": {
       "main": [
         [
           {
@@ -799,10 +292,10 @@
   },
   "staticData": null,
   "meta": null,
-  "pinData": null,
-  "versionId": "0c9d0e64-5293-43a7-855d-54810d6c9aaa",
-  "activeVersionId": null,
-  "triggerCount": 0,
+  "pinData": {},
+  "versionId": "b62a6db9-3793-4ba7-b7ce-0ad821a44e1f",
+  "activeVersionId": "b62a6db9-3793-4ba7-b7ce-0ad821a44e1f",
+  "triggerCount": 1,
   "shared": [
     {
       "updatedAt": "2026-02-06T00:40:42.279Z",
@@ -812,7 +305,296 @@
       "projectId": "O7lTivDfRl72aS23"
     }
   ],
-  "activeVersion": null,
+  "activeVersion": {
+    "updatedAt": "2026-02-07T01:25:10.000Z",
+    "createdAt": "2026-02-07T01:22:57.408Z",
+    "versionId": "b62a6db9-3793-4ba7-b7ce-0ad821a44e1f",
+    "workflowId": "A35Yu92OFuYKvEtR",
+    "nodes": [
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "pipeline-results",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "wf4v2r-webhook",
+        "name": "PB Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          4400,
+          1008
+        ],
+        "webhookId": "a1b2c3d4-pipeline-results-v2"
+      },
+      {
+        "parameters": {},
+        "type": "n8n-nodes-base.manualTrigger",
+        "typeVersion": 1,
+        "position": [
+          4400,
+          1200
+        ],
+        "id": "wf4v2r-manual",
+        "name": "When clicking 'Execute workflow'"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\n\nreturn items.map((item, index) => {\n  // 1. Access the 'body' property\n  const body = item.json.body || {};\n  const agentName = body.agentName || \"\";\n  console.log(`--- Processing Webhook Item ${index} ---`);\n\n  // 2. Extract and Parse resultObject\n  // Note: Based on your input, resultObject is a stringified OBJECT, not an array.\n  let parsedResults = {};\n  try {\n    parsedResults = JSON.parse(body.resultObject || \"{}\");\n  } catch (e) {\n    console.error(\"JSON Parse Error:\", e.message);\n  }\n\n  // 3. Determine profileKey by searching the agentName string\n  let profileKey = 'kyle'; // Default fallback\n  const searchName = agentName.toLowerCase();\n\n  if (searchName.includes('hudson')) {\n    profileKey = 'hudson';\n  } else if (searchName.includes('kyle')) {\n    profileKey = 'kyle';\n  }\n\n  console.log(`Agent Name: \"${agentName}\" -> Profile Key: \"${profileKey}\"`);\n\n  // 4. Return the formatted result\n  return {\n    json: {\n      profile: profileKey,\n      agentName: agentName,\n      agentId: body.agentId || '',\n      containerId: body.containerId || '',\n      // Since resultObject contains URLs and not a list, \n      // we check if we successfully got the csvURL.\n      hasResults: !!parsedResults.csvURL,\n      csvURL: parsedResults.csvURL || ''\n    }\n  };\n});"
+        },
+        "id": "wf4v2r-parse-webhook",
+        "name": "Parse Webhook Context",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          4640,
+          1008
+        ]
+      },
+      {
+        "parameters": {
+          "operation": "getOutput",
+          "agentId": "={{ $json.agentId }}",
+          "additionalFields": {}
+        },
+        "id": "wf4v2r-get-output",
+        "name": "Get Phantom Output",
+        "type": "n8n-nodes-base.phantombuster",
+        "typeVersion": 1,
+        "position": [
+          4880,
+          1008
+        ],
+        "credentials": {
+          "phantombusterApi": {
+            "id": "UYQpQC8SBIqIkifM",
+            "name": "Phantombuster account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "has-url",
+                "leftValue": "={{ !!$json.jsonUrl }}",
+                "rightValue": true,
+                "operator": {
+                  "type": "boolean",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "wf4v2r-if-url",
+        "name": "Has JSON URL?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          5120,
+          1008
+        ]
+      },
+      {
+        "parameters": {
+          "url": "={{ $json.jsonUrl }}",
+          "options": {
+            "timeout": 60000
+          }
+        },
+        "id": "wf4v2r-fetch-json",
+        "name": "Fetch Phantom JSON",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          5360,
+          944
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "// Parse PhantomBuster JSON — collect all profiles with ALL fields\nconst allItems = $input.all();\nconst context = $('Parse Webhook Context').first().json;\n\nconst profiles = allItems\n  .filter(item => {\n    const j = item.json || {};\n    return j.linkedinProfileUrl || j.profileUrl || j.defaultProfileUrl;\n  })\n  .map(item => ({ ...item.json }));\n\nreturn [{ json: {\n  profiles,\n  profileCount: profiles.length,\n  profile: context.profile\n}}];"
+        },
+        "id": "wf4v2r-parse-output",
+        "name": "Parse Phantom Output",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          5600,
+          944
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://script.google.com/macros/s/AKfycbwGZTi6Stg4FwYP9d9OwxcbSiL7dJKtvLxucN41aHZn7LQaluJGV3A8blyYu_A8bHvj/exec",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ profiles: $json.profiles, profile: $json.profile }) }}",
+          "options": {
+            "redirect": {
+              "redirect": {}
+            },
+            "timeout": 120000
+          }
+        },
+        "id": "wf4v2r-process-script",
+        "name": "Process via Apps Script",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          5840,
+          944
+        ],
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Parse the all-in-one Apps Script response\nconst resp = $input.first().json;\n\nif (!resp.ok) {\n  throw new Error('Pipeline Apps Script error: ' + (resp.error || 'unknown'));\n}\n\nconst stats = resp.stats || {};\n\nreturn [{ json: {\n  ok: true,\n  profile: resp.profile || '',\n  totalScraped: stats.phantom || 0,\n  uniqueCount: stats.unique || 0,\n  duplicatesRemoved: stats.duplicates || 0,\n  appended: stats.appended || 0,\n  connectionFromUpdated: stats.updated || 0,\n  masterListSize: stats.masterListSize || 0,\n  newLeadsSize: stats.newLeadsSize || 0,\n  elapsedMs: stats.elapsedMs || 0\n}}];"
+        },
+        "id": "wf4v2r-parse-results",
+        "name": "Parse Results",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          6080,
+          944
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ JSON.stringify({ ok: $json.ok, profile: $json.profile, totalScraped: $json.totalScraped, uniqueCount: $json.uniqueCount, appended: $json.appended, connectionFromUpdated: $json.connectionFromUpdated, elapsedMs: $json.elapsedMs }) }}",
+          "options": {}
+        },
+        "id": "wf4v2r-respond",
+        "name": "Respond to Webhook",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [
+          6320,
+          1008
+        ]
+      }
+    ],
+    "connections": {
+      "PB Webhook": {
+        "main": [
+          [
+            {
+              "node": "Parse Webhook Context",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "When clicking 'Execute workflow'": {
+        "main": [
+          []
+        ]
+      },
+      "Parse Webhook Context": {
+        "main": [
+          [
+            {
+              "node": "Get Phantom Output",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Get Phantom Output": {
+        "main": [
+          [
+            {
+              "node": "Has JSON URL?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Has JSON URL?": {
+        "main": [
+          [
+            {
+              "node": "Fetch Phantom JSON",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Parse Phantom Output",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Fetch Phantom JSON": {
+        "main": [
+          [
+            {
+              "node": "Parse Phantom Output",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Parse Phantom Output": {
+        "main": [
+          [
+            {
+              "node": "Process via Apps Script",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Process via Apps Script": {
+        "main": [
+          [
+            {
+              "node": "Parse Results",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Parse Results": {
+        "main": [
+          [
+            {
+              "node": "Respond to Webhook",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "authors": "Hudson Lorfing",
+    "name": "Version b62a6db9",
+    "description": "",
+    "autosaved": true
+  },
   "tags": [],
   "_folderPath": "",
   "_fileName": "4.2-pipeline-monitor---results-[v2].json"
