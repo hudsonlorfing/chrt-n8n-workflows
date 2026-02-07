@@ -1,9 +1,9 @@
 {
-  "updatedAt": "2026-02-06T00:41:26.766Z",
+  "updatedAt": "2026-02-06T16:02:55.417Z",
   "createdAt": "2026-02-06T00:40:39.169Z",
   "id": "Qts1zslbqxab1aHc",
   "name": "3.1 Connection Sync - Launch [V2]",
-  "active": false,
+  "active": true,
   "isArchived": false,
   "nodes": [
     {
@@ -55,7 +55,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1360,
+        1376,
         800
       ]
     },
@@ -68,7 +68,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1360,
+        1376,
         992
       ]
     },
@@ -136,7 +136,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const item = $input.first();\nconst secrets = item.json.secrets || item.json || {};\nconst kyleCookie = secrets.LINKEDIN_KYLE_SESSION_COOKIE;\nconst hudsonCookie = secrets.LINKEDIN_HUDSON_SESSION_COOKIE;\nconst userAgents = { kyle: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36', hudson: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36' };\nreturn [\n  { json: { profile: 'kyle', sessionCookie: kyleCookie, userAgent: userAgents.kyle, connectionExportPhantom: '1830882665479437' } },\n  { json: { profile: 'hudson', sessionCookie: hudsonCookie, userAgent: userAgents.hudson, connectionExportPhantom: '1830882665479437' } }\n];"
+        "jsCode": "const item = $input.first();\nconst secrets = item.json.secrets || item.json || {};\nconst kyleCookie = secrets.LINKEDIN_KYLE_SESSION_COOKIE;\nconst hudsonCookie = secrets.LINKEDIN_HUDSON_SESSION_COOKIE;\nconst userAgents = { kyle: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36', hudson: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36' };\nreturn [\n  { json: { profile: 'kyle', sessionCookie: kyleCookie, userAgent: userAgents.kyle, connectionExportPhantom: '959265651312489' } },\n  { json: { profile: 'hudson', sessionCookie: hudsonCookie, userAgent: userAgents.hudson, connectionExportPhantom: '959265651312489' } }\n];"
       },
       "id": "wf3v2-build",
       "name": "Build profile items with cookies",
@@ -156,7 +156,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2000,
+        2032,
         896
       ]
     },
@@ -168,7 +168,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({\n  id: $json.connectionExportPhantom || '1830882665479437',\n  bonusArgument: {\n    sessionCookie: $json.sessionCookie?.computed ?? $json.sessionCookie,\n    userAgent: $json.userAgent\n  }\n}) }}",
+        "jsonBody": "={{ JSON.stringify({\n  id: $json.connectionExportPhantom || '959265651312489',\n  bonusArgument: {\n    sessionCookie: $json.sessionCookie?.computed ?? $json.sessionCookie,\n    userAgent: $json.userAgent\n  }\n}) }}",
         "options": {
           "timeout": 120000
         }
@@ -348,12 +348,19 @@
     "callerPolicy": "workflowsFromSameOwner",
     "availableInMCP": false
   },
-  "staticData": null,
+  "staticData": {
+    "node:Schedule Kyle": {
+      "recurrenceRules": []
+    },
+    "node:Schedule Hudson": {
+      "recurrenceRules": []
+    }
+  },
   "meta": null,
-  "pinData": null,
-  "versionId": "9fa31cfd-5579-4c57-b5e1-a6d2785ead35",
-  "activeVersionId": null,
-  "triggerCount": 0,
+  "pinData": {},
+  "versionId": "9824dc0e-6b94-49e2-81be-149a01307a7c",
+  "activeVersionId": "9824dc0e-6b94-49e2-81be-149a01307a7c",
+  "triggerCount": 2,
   "shared": [
     {
       "updatedAt": "2026-02-06T00:40:39.559Z",
@@ -363,7 +370,354 @@
       "projectId": "O7lTivDfRl72aS23"
     }
   ],
-  "activeVersion": null,
+  "activeVersion": {
+    "updatedAt": "2026-02-06T20:08:15.000Z",
+    "createdAt": "2026-02-06T16:02:55.418Z",
+    "versionId": "9824dc0e-6b94-49e2-81be-149a01307a7c",
+    "workflowId": "Qts1zslbqxab1aHc",
+    "nodes": [
+      {
+        "parameters": {
+          "rule": {
+            "interval": [
+              {
+                "field": "cronExpression",
+                "expression": "0 18 * * 1-6"
+              }
+            ]
+          }
+        },
+        "id": "wf3v2-schedule-kyle",
+        "name": "Schedule Kyle",
+        "type": "n8n-nodes-base.scheduleTrigger",
+        "typeVersion": 1.2,
+        "position": [
+          1200,
+          800
+        ]
+      },
+      {
+        "parameters": {
+          "rule": {
+            "interval": [
+              {
+                "field": "cronExpression",
+                "expression": "5 18 * * 1-6"
+              }
+            ]
+          }
+        },
+        "id": "wf3v2-schedule-hudson",
+        "name": "Schedule Hudson",
+        "type": "n8n-nodes-base.scheduleTrigger",
+        "typeVersion": 1.2,
+        "position": [
+          1200,
+          992
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "return [{ json: { profileIndex: 0 } }];"
+        },
+        "id": "wf3v2-set-kyle",
+        "name": "Set profile Kyle",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1376,
+          800
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "return [{ json: { profileIndex: 1 } }];"
+        },
+        "id": "wf3v2-set-hudson",
+        "name": "Set profile Hudson",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1376,
+          992
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "const kyle = $('Set profile Kyle').isExecuted ? $('Set profile Kyle').first() : null;\nconst hudson = $('Set profile Hudson').isExecuted ? $('Set profile Hudson').first() : null;\nconst selected = kyle || hudson;\nif (!selected) throw new Error('No profile set');\nreturn [{ json: { profileIndex: selected.json.profileIndex } }];"
+        },
+        "id": "wf3v2-select",
+        "name": "selectProfile",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1520,
+          896
+        ]
+      },
+      {
+        "parameters": {
+          "url": "https://api.doppler.com/v3/configs/config/secrets",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpHeaderAuth",
+          "sendQuery": true,
+          "queryParameters": {
+            "parameters": [
+              {
+                "name": "project",
+                "value": "developers"
+              },
+              {
+                "name": "config",
+                "value": "hudson"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "wf3v2-doppler",
+        "name": "Fetch Doppler cookies",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1360,
+          656
+        ],
+        "credentials": {
+          "httpHeaderAuth": {
+            "id": "dz2vX61Mpayywfq1",
+            "name": "Doppler API"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "mode": "chooseBranch",
+          "useDataOfInput": 2
+        },
+        "id": "wf3v2-merge",
+        "name": "Profile + Doppler",
+        "type": "n8n-nodes-base.merge",
+        "typeVersion": 3,
+        "position": [
+          1680,
+          896
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "const item = $input.first();\nconst secrets = item.json.secrets || item.json || {};\nconst kyleCookie = secrets.LINKEDIN_KYLE_SESSION_COOKIE;\nconst hudsonCookie = secrets.LINKEDIN_HUDSON_SESSION_COOKIE;\nconst userAgents = { kyle: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36', hudson: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36' };\nreturn [\n  { json: { profile: 'kyle', sessionCookie: kyleCookie, userAgent: userAgents.kyle, connectionExportPhantom: '959265651312489' } },\n  { json: { profile: 'hudson', sessionCookie: hudsonCookie, userAgent: userAgents.hudson, connectionExportPhantom: '959265651312489' } }\n];"
+        },
+        "id": "wf3v2-build",
+        "name": "Build profile items with cookies",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1840,
+          896
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\nif (!items.length) return [];\nlet idx;\ntry { idx = $('selectProfile').first().json.profileIndex; } catch (e) { idx = 0; }\nif (idx === undefined || idx === null) idx = new Date().getDate() % 2;\nreturn [items[Math.min(idx, items.length - 1)]];"
+        },
+        "id": "wf3v2-take-one",
+        "name": "Take one profile",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2032,
+          896
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.phantombuster.com/api/v2/agents/launch",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpHeaderAuth",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({\n  id: $json.connectionExportPhantom || '959265651312489',\n  bonusArgument: {\n    sessionCookie: $json.sessionCookie?.computed ?? $json.sessionCookie,\n    userAgent: $json.userAgent\n  }\n}) }}",
+          "options": {
+            "timeout": 120000
+          }
+        },
+        "id": "wf3v2-launch-export",
+        "name": "Launch Connection Export",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          2240,
+          896
+        ],
+        "retryOnFail": true,
+        "maxTries": 2,
+        "credentials": {
+          "httpHeaderAuth": {
+            "id": "KWeabljbYSzoLpjI",
+            "name": "Phantom Header Auth"
+          }
+        },
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "const result = $input.first().json;\nconst profile = $('Take one profile').first().json.profile;\nreturn [{ json: {\n  success: true,\n  profile,\n  containerId: result.containerId || 'unknown',\n  agentId: $('Take one profile').first().json.connectionExportPhantom || '1830882665479437',\n  message: 'Connection export launched — 3.2 handles results via PB webhook',\n  timestamp: new Date().toISOString()\n}}];"
+        },
+        "id": "wf3v2-done",
+        "name": "Done - Export Launched",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2480,
+          896
+        ]
+      },
+      {
+        "parameters": {},
+        "type": "n8n-nodes-base.manualTrigger",
+        "typeVersion": 1,
+        "position": [
+          1200,
+          1184
+        ],
+        "id": "wf3v2-manual",
+        "name": "When clicking 'Execute workflow'"
+      }
+    ],
+    "connections": {
+      "Schedule Kyle": {
+        "main": [
+          [
+            {
+              "node": "Fetch Doppler cookies",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Set profile Kyle",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Schedule Hudson": {
+        "main": [
+          [
+            {
+              "node": "Fetch Doppler cookies",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Set profile Hudson",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Set profile Kyle": {
+        "main": [
+          [
+            {
+              "node": "selectProfile",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Set profile Hudson": {
+        "main": [
+          [
+            {
+              "node": "selectProfile",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "selectProfile": {
+        "main": [
+          [
+            {
+              "node": "Profile + Doppler",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Fetch Doppler cookies": {
+        "main": [
+          [
+            {
+              "node": "Profile + Doppler",
+              "type": "main",
+              "index": 1
+            }
+          ]
+        ]
+      },
+      "Profile + Doppler": {
+        "main": [
+          [
+            {
+              "node": "Build profile items with cookies",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Build profile items with cookies": {
+        "main": [
+          [
+            {
+              "node": "Take one profile",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Take one profile": {
+        "main": [
+          [
+            {
+              "node": "Launch Connection Export",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Launch Connection Export": {
+        "main": [
+          [
+            {
+              "node": "Done - Export Launched",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "When clicking 'Execute workflow'": {
+        "main": [
+          []
+        ]
+      }
+    },
+    "authors": "Hudson Lorfing",
+    "name": "Version 9824dc0e",
+    "description": "",
+    "autosaved": true
+  },
   "tags": [],
   "_folderPath": "",
   "_fileName": "3.1-connection-sync---launch-[v2].json"
