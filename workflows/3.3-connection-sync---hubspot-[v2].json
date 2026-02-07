@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-02-06T00:41:19.032Z",
+  "updatedAt": "2026-02-06T20:00:33.351Z",
   "createdAt": "2026-02-06T00:40:42.073Z",
   "id": "wKYz16GbzqWTh2DK",
   "name": "3.3 Connection Sync - HubSpot [V2]",
@@ -18,8 +18,8 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [
-        2400,
-        1000
+        2176,
+        1008
       ],
       "webhookId": "connection-sync-hubspot-v2"
     },
@@ -28,23 +28,23 @@
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
       "position": [
-        2400,
-        1200
+        2752,
+        816
       ],
       "id": "wf3v2h-manual",
       "name": "When clicking 'Execute workflow'"
     },
     {
       "parameters": {
-        "jsCode": "const input = $input.first().json;\nconst body = input.body || input;\nreturn [{ json: {\n  containerId: body.containerId || '',\n  agentId: body.agentId || '5768405047812127',\n  profile: body.profile || 'kyle'\n}}];"
+        "jsCode": "const items = $input.all();\n\nreturn items.map((item, index) => {\n  // 1. Access the 'body' property where n8n stores webhook data\n  const body = item.json.body || {};\n  console.log(`--- Processing Webhook Item ${index} ---`);\n\n  // 2. Extract the resultObject string\n  const rawResult = body.resultObject || \"[]\";\n  \n  let parsedResults = [];\n  try {\n    // 3. Parse the string into a real array\n    parsedResults = JSON.parse(rawResult);\n    console.log(`Parsed ${parsedResults.length} connections from resultObject.`);\n  } catch (e) {\n    console.error(\"JSON Parse Error:\", e.message);\n  }\n\n  // 4. Get the owner from the first connection in the list\n  const firstConnection = parsedResults[0] || {};\n  const ownerName = firstConnection.connectedUsername || \"Unknown\";\n  console.log(`Detected Owner: \"${ownerName}\"`);\n\n  // 5. Assign profile key based on the owner's name\n  let profileKey = 'kyle'; // Default fallback\n  if (ownerName === 'Hudson Lorfing') {\n    profileKey = 'hudson';\n  } else if (ownerName === 'Kyle Reagan') {\n    profileKey = 'kyle';\n  }\n  console.log(`Profile Key assigned: \"${profileKey}\"`);\n\n  // 6. Return the formatted result\n  return {\n    json: {\n      profile: profileKey,\n      owner: ownerName,\n      agentId: body.agentId || '',\n      containerId: body.containerId || '',\n      connectionCount: parsedResults.length\n    }\n  };\n});"
       },
       "id": "wf3v2h-parse",
       "name": "Parse Webhook Context",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2600,
-        1000
+        2576,
+        1008
       ]
     },
     {
@@ -58,8 +58,8 @@
       "type": "n8n-nodes-base.phantombuster",
       "typeVersion": 1,
       "position": [
-        2800,
-        1000
+        2784,
+        1008
       ],
       "credentials": {
         "phantombusterApi": {
@@ -97,13 +97,13 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        3000,
-        1000
+        2960,
+        1008
       ]
     },
     {
       "parameters": {
-        "url": "={{ $json.jsonUrl }}",
+        "url": "https://cache1.phantombooster.com/kZNB9hf1HNo/6lPsE1wJ0ljmN0bspubSLg/result.json",
         "options": {
           "timeout": 60000
         }
@@ -114,7 +114,7 @@
       "typeVersion": 4.2,
       "position": [
         3200,
-        940
+        944
       ]
     },
     {
@@ -126,8 +126,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3400,
-        940
+        3408,
+        944
       ]
     },
     {
@@ -140,12 +140,26 @@
       "typeVersion": 2,
       "position": [
         3600,
-        940
+        944
       ]
     },
     {
       "parameters": {
-        "batchSize": 1,
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, message: 'HubSpot sync started', profileCount: $input.all().length }) }}",
+        "options": {}
+      },
+      "id": "wf3v2h-respond",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        3792,
+        944
+      ]
+    },
+    {
+      "parameters": {
         "options": {}
       },
       "id": "wf3v2h-loop",
@@ -153,19 +167,67 @@
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
       "position": [
-        3800,
-        940
+        4000,
+        944
       ]
     },
     {
-      "parameters": {},
-      "id": "wf3v2h-start-item",
-      "name": "Process Item",
-      "type": "n8n-nodes-base.noOp",
-      "typeVersion": 1,
+      "parameters": {
+        "jsCode": "// Loop complete — summary\nreturn [{ json: { done: true, message: 'HubSpot sync complete' } }];"
+      },
+      "id": "wf3v2h-sync-complete",
+      "name": "Sync Complete",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
-        4000,
-        940
+        4208,
+        1200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "has-company",
+              "leftValue": "={{ !!($json._hs && $json._hs.companyName) }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "wf3v2h-has-company",
+      "name": "Has Company Name?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        4336,
+        944
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Skip company processing — no company name provided\nconst preparedData = $('Prepare HubSpot Data').item.json;\nreturn [{ json: { ...preparedData, _hs: { ...preparedData._hs, companyId: null, companyCreated: false, companySkipped: true } } }];"
+      },
+      "id": "wf3v2h-skip-company",
+      "name": "Skip Company",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4608,
+        1168
       ]
     },
     {
@@ -176,7 +238,7 @@
         "nodeCredentialType": "hubspotOAuth2Api",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ filterGroups: [{ filters: [{ propertyName: 'name', operator: 'EQ', value: $json.companyName || $json.company || '' }] }], properties: ['name', 'domain', 'industry'] }) }}",
+        "jsonBody": "={{ JSON.stringify({ filterGroups: [{ filters: [{ propertyName: 'name', operator: 'EQ', value: $json._hs.companyName || '' }] }], properties: ['name', 'domain', 'industry'] }) }}",
         "options": {}
       },
       "id": "wf3v2h-search-company",
@@ -184,15 +246,17 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        4200,
-        940
+        4592,
+        944
       ],
       "credentials": {
         "hubspotOAuth2Api": {
           "id": "3JZVnZQkHgMfXMRx",
           "name": "HubSpot account"
         }
-      }
+      },
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -223,8 +287,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        4400,
-        940
+        4800,
+        944
       ]
     },
     {
@@ -236,8 +300,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4600,
-        860
+        5008,
+        864
       ]
     },
     {
@@ -256,15 +320,17 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        4600,
-        1060
+        5008,
+        1072
       ],
       "credentials": {
         "hubspotOAuth2Api": {
           "id": "3JZVnZQkHgMfXMRx",
           "name": "HubSpot account"
         }
-      }
+      },
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -275,8 +341,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4800,
-        1060
+        5200,
+        1072
       ]
     },
     {
@@ -286,8 +352,41 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        5000,
-        940
+        5408,
+        944
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "has-email",
+              "leftValue": "={{ !!($json._hs && $json._hs.hasRealEmail) }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "wf3v2h-has-email",
+      "name": "Has Real Email?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        5600,
+        944
       ]
     },
     {
@@ -306,15 +405,17 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        5200,
-        940
+        5808,
+        944
       ],
       "credentials": {
         "hubspotOAuth2Api": {
           "id": "3JZVnZQkHgMfXMRx",
           "name": "HubSpot account"
         }
-      }
+      },
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -345,8 +446,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        5400,
-        940
+        6000,
+        944
       ]
     },
     {
@@ -365,15 +466,17 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        5600,
-        860
+        6208,
+        864
       ],
       "credentials": {
         "hubspotOAuth2Api": {
           "id": "3JZVnZQkHgMfXMRx",
           "name": "HubSpot account"
         }
-      }
+      },
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -391,15 +494,17 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        5600,
-        1060
+        6208,
+        1072
       ],
       "credentials": {
         "hubspotOAuth2Api": {
           "id": "3JZVnZQkHgMfXMRx",
           "name": "HubSpot account"
         }
-      }
+      },
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -410,8 +515,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        5800,
-        860
+        6400,
+        864
       ]
     },
     {
@@ -423,8 +528,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        5800,
-        1060
+        6400,
+        1072
       ]
     },
     {
@@ -434,8 +539,8 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        6000,
-        940
+        6608,
+        944
       ]
     },
     {
@@ -457,27 +562,29 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        6200,
-        940
+        6800,
+        944
       ],
       "credentials": {
         "hubspotOAuth2Api": {
           "id": "3JZVnZQkHgMfXMRx",
           "name": "HubSpot account"
         }
-      }
+      },
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
-        "jsCode": "// Format output for logging\nconst item = $input.first().json;\nreturn [{ json: {\n  profileUrl: item.profileUrl || '',\n  fullName: item.fullName || '',\n  contactId: item._hs?.contactId || '',\n  companyId: item._hs?.companyId || '',\n  contactCreated: item._hs?.contactCreated || false,\n  companyCreated: item._hs?.companyCreated || false,\n  syncDate: item._hs?.syncDate || ''\n}}];"
+        "jsCode": "// Format output for logging\nconst item = $input.first().json;\nreturn [{ json: {\n  profileUrl: item.profileUrl || '',\n  fullName: item.fullName || '',\n  contactId: item._hs?.contactId || '',\n  companyId: item._hs?.companyId || '',\n  contactCreated: item._hs?.contactCreated || false,\n  companyCreated: item._hs?.companyCreated || false,\n  companySkipped: item._hs?.companySkipped || false,\n  syncDate: item._hs?.syncDate || ''\n}}];"
       },
       "id": "wf3v2h-format",
       "name": "Format Output",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        6400,
-        940
+        7008,
+        944
       ]
     },
     {
@@ -522,8 +629,8 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        6600,
-        940
+        7200,
+        944
       ],
       "credentials": {
         "googleSheetsOAuth2Api": {
@@ -539,28 +646,13 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        6800,
-        940
+        7408,
+        944
       ]
     },
     {
       "parameters": {
-        "respondWith": "json",
-        "responseBody": "={{ JSON.stringify({ ok: true, message: 'HubSpot sync complete' }) }}",
-        "options": {}
-      },
-      "id": "wf3v2h-respond",
-      "name": "Respond to Webhook",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.1,
-      "position": [
-        4200,
-        1200
-      ]
-    },
-    {
-      "parameters": {
-        "jsCode": "// No email scraper JSON URL — use direct profiles if available\nconst output = $('Get Email Scraper Output').first().json;\nif (output.output) {\n  // Try to extract profiles from raw output\n  return [{ json: { message: 'No JSON URL available, check PB dashboard' } }];\n}\nreturn [{ json: { message: 'No data from email scraper' } }];"
+        "jsCode": "// No email scraper JSON URL — use direct profiles if available\nconst output = $('Get Email Scraper Output').first().json;\nif (output.output) {\n  return [{ json: { message: 'No JSON URL available, check PB dashboard' } }];\n}\nreturn [{ json: { message: 'No data from email scraper' } }];"
       },
       "id": "wf3v2h-no-json",
       "name": "No JSON Available",
@@ -568,8 +660,56 @@
       "typeVersion": 2,
       "position": [
         3200,
-        1100
+        1104
       ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, message: 'No JSON URL from email scraper' }) }}",
+        "options": {}
+      },
+      "id": "wf3v2h-respond-no-json",
+      "name": "Respond - No JSON",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        3408,
+        1104
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "clear",
+        "documentId": {
+          "__rl": true,
+          "value": "1xPgob7BwDoDGAOtDPBTvKzhQHl2FUZkJhJG0gEHWdgo",
+          "mode": "list",
+          "cachedResultName": "HoldingSheet",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1xPgob7BwDoDGAOtDPBTvKzhQHl2FUZkJhJG0gEHWdgo/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Sheet1",
+          "mode": "name"
+        },
+        "clear": "specificRange",
+        "range": "A2:A"
+      },
+      "id": "8a3fb2c2-7101-45f6-add5-a60f90566947",
+      "name": "Clear Scraper Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2400,
+        1008
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "hf9VoWnqYNXhUZsn",
+          "name": "Google Sheets account"
+        }
+      }
     }
   ],
   "connections": {
@@ -577,7 +717,7 @@
       "main": [
         [
           {
-            "node": "Parse Webhook Context",
+            "node": "Clear Scraper Sheet",
             "type": "main",
             "index": 0
           }
@@ -586,7 +726,13 @@
     },
     "When clicking 'Execute workflow'": {
       "main": [
-        []
+        [
+          {
+            "node": "Fetch Email Scraper JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Parse Webhook Context": {
@@ -633,7 +779,7 @@
       "main": [
         [
           {
-            "node": "Respond to Webhook",
+            "node": "Respond - No JSON",
             "type": "main",
             "index": 0
           }
@@ -666,6 +812,17 @@
       "main": [
         [
           {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond to Webhook": {
+      "main": [
+        [
+          {
             "node": "Loop Over Items",
             "type": "main",
             "index": 0
@@ -677,25 +834,43 @@
       "main": [
         [
           {
-            "node": "Respond to Webhook",
+            "node": "Sync Complete",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Process Item",
+            "node": "Has Company Name?",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Process Item": {
+    "Has Company Name?": {
       "main": [
         [
           {
             "node": "Search Company",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Skip Company",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip Company": {
+      "main": [
+        [
+          {
+            "node": "Merge Company Results",
             "type": "main",
             "index": 0
           }
@@ -768,7 +943,25 @@
       "main": [
         [
           {
+            "node": "Has Real Email?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Real Email?": {
+      "main": [
+        [
+          {
             "node": "Search Contact",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Contact",
             "type": "main",
             "index": 0
           }
@@ -902,6 +1095,17 @@
           }
         ]
       ]
+    },
+    "Clear Scraper Sheet": {
+      "main": [
+        [
+          {
+            "node": "Parse Webhook Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
@@ -911,10 +1115,10 @@
   },
   "staticData": null,
   "meta": null,
-  "pinData": null,
-  "versionId": "16d721db-5ef7-4648-ace3-59e63692d631",
+  "pinData": {},
+  "versionId": "d945e6f4-836e-4962-b0bb-669466624aec",
   "activeVersionId": null,
-  "triggerCount": 0,
+  "triggerCount": 1,
   "shared": [
     {
       "updatedAt": "2026-02-06T00:40:42.455Z",
