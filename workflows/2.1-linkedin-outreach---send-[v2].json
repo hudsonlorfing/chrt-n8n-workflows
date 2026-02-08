@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-02-06T21:57:40.470Z",
+  "updatedAt": "2026-02-07T17:09:37.020Z",
   "createdAt": "2026-02-06T00:40:38.615Z",
   "id": "nfB8uIOOktCneJ2M",
   "name": "2.1 LinkedIn Outreach - Send [V2]",
@@ -36,7 +36,7 @@
           "interval": [
             {
               "field": "cronExpression",
-              "expression": "40 8 * * 1-6"
+              "expression": "05 9 * * 1-6"
             },
             {
               "field": "cronExpression",
@@ -200,7 +200,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        4112,
+        4320,
         928
       ],
       "onError": "continueRegularOutput"
@@ -214,7 +214,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4336,
+        4544,
         928
       ]
     },
@@ -263,7 +263,7 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.7,
       "position": [
-        4560,
+        4768,
         928
       ],
       "id": "wf2v2-append-holding",
@@ -282,7 +282,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4784,
+        4992,
         928
       ],
       "id": "wf2v2-pass-one",
@@ -306,7 +306,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        5008,
+        5216,
         928
       ],
       "retryOnFail": true,
@@ -328,7 +328,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        5232,
+        5440,
         928
       ]
     },
@@ -342,6 +342,20 @@
       ],
       "id": "wf2v2-manual",
       "name": "When clicking 'Execute workflow'"
+    },
+    {
+      "parameters": {
+        "amount": "={{ Math.floor(Math.random()*15)}}"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        4080,
+        928
+      ],
+      "id": "c36cef08-e462-42a2-a89f-338e6e7bb192",
+      "name": "Wait",
+      "webhookId": "8a06cdef-788d-40ca-a3f4-c8414d8e3761"
     }
   ],
   "connections": {
@@ -458,7 +472,7 @@
       "main": [
         [
           {
-            "node": "Fetch Ready Leads",
+            "node": "Wait",
             "type": "main",
             "index": 0
           }
@@ -524,6 +538,17 @@
       "main": [
         []
       ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Fetch Ready Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
@@ -541,8 +566,8 @@
   },
   "meta": null,
   "pinData": {},
-  "versionId": "b57a7643-fa70-4941-af3f-00fae265d8ba",
-  "activeVersionId": "b57a7643-fa70-4941-af3f-00fae265d8ba",
+  "versionId": "dc6ef398-a15b-439e-8999-786b72c53372",
+  "activeVersionId": "dc6ef398-a15b-439e-8999-786b72c53372",
   "triggerCount": 2,
   "shared": [
     {
@@ -554,9 +579,9 @@
     }
   ],
   "activeVersion": {
-    "updatedAt": "2026-02-06T22:13:20.000Z",
-    "createdAt": "2026-02-06T21:57:40.472Z",
-    "versionId": "b57a7643-fa70-4941-af3f-00fae265d8ba",
+    "updatedAt": "2026-02-07T17:09:47.000Z",
+    "createdAt": "2026-02-07T17:09:37.021Z",
+    "versionId": "dc6ef398-a15b-439e-8999-786b72c53372",
     "workflowId": "nfB8uIOOktCneJ2M",
     "nodes": [
       {
@@ -589,7 +614,7 @@
             "interval": [
               {
                 "field": "cronExpression",
-                "expression": "40 8 * * 1-6"
+                "expression": "05 9 * * 1-6"
               },
               {
                 "field": "cronExpression",
@@ -753,7 +778,7 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          4112,
+          4320,
           928
         ],
         "onError": "continueRegularOutput"
@@ -767,7 +792,7 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          4336,
+          4544,
           928
         ]
       },
@@ -816,7 +841,7 @@
         "type": "n8n-nodes-base.googleSheets",
         "typeVersion": 4.7,
         "position": [
-          4560,
+          4768,
           928
         ],
         "id": "wf2v2-append-holding",
@@ -835,7 +860,7 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          4784,
+          4992,
           928
         ],
         "id": "wf2v2-pass-one",
@@ -859,7 +884,7 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          5008,
+          5216,
           928
         ],
         "retryOnFail": true,
@@ -881,7 +906,7 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          5232,
+          5440,
           928
         ]
       },
@@ -895,6 +920,20 @@
         ],
         "id": "wf2v2-manual",
         "name": "When clicking 'Execute workflow'"
+      },
+      {
+        "parameters": {
+          "amount": "={{ Math.floor(Math.random()*15)}}"
+        },
+        "type": "n8n-nodes-base.wait",
+        "typeVersion": 1.1,
+        "position": [
+          4080,
+          928
+        ],
+        "id": "c36cef08-e462-42a2-a89f-338e6e7bb192",
+        "name": "Wait",
+        "webhookId": "8a06cdef-788d-40ca-a3f4-c8414d8e3761"
       }
     ],
     "connections": {
@@ -1011,7 +1050,7 @@
         "main": [
           [
             {
-              "node": "Fetch Ready Leads",
+              "node": "Wait",
               "type": "main",
               "index": 0
             }
@@ -1077,10 +1116,21 @@
         "main": [
           []
         ]
+      },
+      "Wait": {
+        "main": [
+          [
+            {
+              "node": "Fetch Ready Leads",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
       }
     },
     "authors": "Hudson Lorfing",
-    "name": "Version b57a7643",
+    "name": "Version dc6ef398",
     "description": "",
     "autosaved": true
   },
