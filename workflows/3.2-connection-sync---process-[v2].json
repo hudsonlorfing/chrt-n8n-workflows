@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-02-07T01:16:07.752Z",
+  "updatedAt": "2026-02-08T15:51:18.459Z",
   "createdAt": "2026-02-06T00:40:40.626Z",
   "id": "EjNGBdN420LQmX2M",
   "name": "3.2 Connection Sync - Process [V2]",
@@ -28,8 +28,8 @@
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
       "position": [
-        2528,
-        1040
+        2496,
+        1056
       ],
       "id": "wf3v2p-manual",
       "name": "When clicking 'Execute workflow'"
@@ -286,21 +286,6 @@
       "position": [
         6256,
         688
-      ]
-    },
-    {
-      "parameters": {
-        "respondWith": "json",
-        "responseBody": "={{ JSON.stringify({ ok: true, message: 'Connections found but hubspot flow disconnected' }) }}",
-        "options": {}
-      },
-      "id": "wf3v2p-respond-skip",
-      "name": "Respond - No Connections",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.1,
-      "position": [
-        5248,
-        496
       ]
     },
     {
@@ -788,8 +773,8 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        5008,
-        896
+        4848,
+        880
       ],
       "credentials": {
         "googleSheetsOAuth2Api": {
@@ -927,7 +912,7 @@
               "rightValue": "",
               "operator": {
                 "type": "string",
-                "operation": "notEmpty",
+                "operation": "empty",
                 "singleValue": true
               }
             }
@@ -1009,13 +994,7 @@
     },
     "When clicking 'Execute workflow'": {
       "main": [
-        [
-          {
-            "node": "Parse Webhook Context",
-            "type": "main",
-            "index": 0
-          }
-        ]
+        []
       ]
     },
     "Parse Webhook Context": {
@@ -1077,7 +1056,7 @@
       "main": [
         [
           {
-            "node": "Respond - No Connections",
+            "node": "Append URLs to Scraper Sheet",
             "type": "main",
             "index": 0
           }
@@ -1255,8 +1234,8 @@
   "staticData": null,
   "meta": null,
   "pinData": {},
-  "versionId": "b01ea7e1-c7da-40ba-9819-1c3ae2d8cdcb",
-  "activeVersionId": "b01ea7e1-c7da-40ba-9819-1c3ae2d8cdcb",
+  "versionId": "9c8feb53-9c9a-4cb9-ad40-fd3f8c508297",
+  "activeVersionId": "9c8feb53-9c9a-4cb9-ad40-fd3f8c508297",
   "triggerCount": 1,
   "shared": [
     {
@@ -1268,9 +1247,9 @@
     }
   ],
   "activeVersion": {
-    "updatedAt": "2026-02-07T01:16:11.000Z",
-    "createdAt": "2026-02-07T01:16:07.753Z",
-    "versionId": "b01ea7e1-c7da-40ba-9819-1c3ae2d8cdcb",
+    "updatedAt": "2026-02-08T15:51:20.000Z",
+    "createdAt": "2026-02-08T15:51:14.609Z",
+    "versionId": "9c8feb53-9c9a-4cb9-ad40-fd3f8c508297",
     "workflowId": "EjNGBdN420LQmX2M",
     "nodes": [
       {
@@ -1295,8 +1274,8 @@
         "type": "n8n-nodes-base.manualTrigger",
         "typeVersion": 1,
         "position": [
-          2528,
-          1040
+          2496,
+          1056
         ],
         "id": "wf3v2p-manual",
         "name": "When clicking 'Execute workflow'"
@@ -1553,21 +1532,6 @@
         "position": [
           6256,
           688
-        ]
-      },
-      {
-        "parameters": {
-          "respondWith": "json",
-          "responseBody": "={{ JSON.stringify({ ok: true, message: 'Connections found but hubspot flow disconnected' }) }}",
-          "options": {}
-        },
-        "id": "wf3v2p-respond-skip",
-        "name": "Respond - No Connections",
-        "type": "n8n-nodes-base.respondToWebhook",
-        "typeVersion": 1.1,
-        "position": [
-          5248,
-          496
         ]
       },
       {
@@ -2055,8 +2019,8 @@
         "type": "n8n-nodes-base.googleSheets",
         "typeVersion": 4.5,
         "position": [
-          5008,
-          896
+          4848,
+          880
         ],
         "credentials": {
           "googleSheetsOAuth2Api": {
@@ -2194,7 +2158,7 @@
                 "rightValue": "",
                 "operator": {
                   "type": "string",
-                  "operation": "notEmpty",
+                  "operation": "empty",
                   "singleValue": true
                 }
               }
@@ -2276,13 +2240,7 @@
       },
       "When clicking 'Execute workflow'": {
         "main": [
-          [
-            {
-              "node": "Parse Webhook Context",
-              "type": "main",
-              "index": 0
-            }
-          ]
+          []
         ]
       },
       "Parse Webhook Context": {
@@ -2344,7 +2302,7 @@
         "main": [
           [
             {
-              "node": "Respond - No Connections",
+              "node": "Append URLs to Scraper Sheet",
               "type": "main",
               "index": 0
             }
@@ -2515,7 +2473,7 @@
       }
     },
     "authors": "Hudson Lorfing",
-    "name": "Version b01ea7e1",
+    "name": "Version 9c8feb53",
     "description": "",
     "autosaved": true
   },
