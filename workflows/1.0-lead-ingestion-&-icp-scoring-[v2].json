@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-02-06T23:51:36.452Z",
+  "updatedAt": "2026-02-08T14:48:11.189Z",
   "createdAt": "2026-02-06T02:05:41.751Z",
   "id": "f4PepQxbygW1QeWZ",
   "name": "1.0 Lead Ingestion & ICP Scoring [V2]",
@@ -12,7 +12,7 @@
           "interval": [
             {
               "field": "cronExpression",
-              "expression": "27 * * * *"
+              "expression": "0 6,9,12,15,18 * * *"
             }
           ]
         }
@@ -562,8 +562,8 @@
   },
   "meta": null,
   "pinData": {},
-  "versionId": "fbca5061-1986-44d4-8ef9-fd62a4e6e59c",
-  "activeVersionId": "fbca5061-1986-44d4-8ef9-fd62a4e6e59c",
+  "versionId": "2689c0d2-7109-4435-96f6-17d0ca30aa60",
+  "activeVersionId": "2689c0d2-7109-4435-96f6-17d0ca30aa60",
   "triggerCount": 2,
   "shared": [
     {
@@ -575,9 +575,9 @@
     }
   ],
   "activeVersion": {
-    "updatedAt": "2026-02-06T23:58:47.000Z",
-    "createdAt": "2026-02-06T23:51:36.452Z",
-    "versionId": "fbca5061-1986-44d4-8ef9-fd62a4e6e59c",
+    "updatedAt": "2026-02-08T14:48:01.000Z",
+    "createdAt": "2026-02-08T14:47:58.768Z",
+    "versionId": "2689c0d2-7109-4435-96f6-17d0ca30aa60",
     "workflowId": "f4PepQxbygW1QeWZ",
     "nodes": [
       {
@@ -586,7 +586,7 @@
             "interval": [
               {
                 "field": "cronExpression",
-                "expression": "27 * * * *"
+                "expression": "0 6,9,12,15,18 * * *"
               }
             ]
           }
@@ -1124,7 +1124,7 @@
       }
     },
     "authors": "Hudson Lorfing",
-    "name": "Version fbca5061",
+    "name": "Version 2689c0d2",
     "description": "",
     "autosaved": true
   },
