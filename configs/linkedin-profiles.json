@@ -1,0 +1,20 @@
+{
+  "profiles": {
+    "kyle": {
+      "identityId": "873166477112851",
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36",
+      "agentIdConnectionsExport": "959265651312489"
+    },
+    "hudson": {
+      "identityId": "4408890722660549",
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
+      "agentIdConnectionsExport": "959265651312489"
+    }
+  },
+  "agentIds": {
+    "connectionsExport": "959265651312489",
+    "profileScraper": "3627182471241497",
+    "searchExport": "4606663815675720",
+    "sendConnection": "3044757503240384"
+  }
+}

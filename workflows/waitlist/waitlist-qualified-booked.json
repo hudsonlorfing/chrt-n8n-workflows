@@ -1,0 +1,464 @@
+{
+  "name": "Waitlist Qualified Booked",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "waitlist-calendly-booked",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "calendly-booking-webhook",
+      "name": "Calendly Booking Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-2000, 1000],
+      "webhookId": "waitlist-calendly-booked-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse Calendly invitee.created webhook payload and extract form answers\nconst input = $input.first().json;\nconst payload = input.body?.payload || input.payload || input;\n\nconst email = (payload.email || '').toLowerCase().trim();\nconst name = payload.name || '';\nconst nameParts = name.split(' ');\nconst firstName = nameParts[0] || '';\nconst lastName = nameParts.slice(1).join(' ') || '';\n\n// Parse tracking data for attribution\nconst tracking = payload.tracking || {};\nconst utmSource = tracking.utm_source || '';\n\n// Parse questions_and_answers from Calendly routing form\nconst qAndA = payload.questions_and_answers || [];\nlet company = '';\nlet cityState = '';\nlet city = '';\nlet state = '';\nlet phone = '';\nlet reasonForInterest = '';\n\nfor (const qa of qAndA) {\n  const q = (qa.question || '').toLowerCase();\n  const a = qa.answer || '';\n\n  if (q.includes('company')) {\n    company = a;\n  } else if (q.includes('city') || q.includes('location')) {\n    cityState = a;\n    const parts = a.split(',').map(s => s.trim());\n    city = parts[0] || '';\n    state = parts[1] || '';\n  } else if (q.includes('phone')) {\n    phone = a;\n  } else if (q.includes('interest') || q.includes('bring') || q.includes('reason')) {\n    reasonForInterest = a;\n  }\n}\n\n// Normalize phone to E.164 for Linq (strip non-digits, prepend +1 if 10 digits)\nlet phoneNormalized = phone.replace(/[^0-9+]/g, '');\nif (phoneNormalized.length === 10) {\n  phoneNormalized = '+1' + phoneNormalized;\n} else if (phoneNormalized.length === 11 && phoneNormalized.startsWith('1')) {\n  phoneNormalized = '+' + phoneNormalized;\n} else if (!phoneNormalized.startsWith('+') && phoneNormalized.length > 0) {\n  phoneNormalized = '+' + phoneNormalized;\n}\n\n// Get event details\nconst eventUri = payload.scheduled_event?.uri || payload.uri || '';\nconst cancelUrl = payload.cancel_url || '';\nconst rescheduleUrl = payload.reschedule_url || '';\n\n// Determine if this is a waitlist lead (utm_source=waitlist OR has routing form answers)\nconst isWaitlist = utmSource === 'waitlist' || reasonForInterest !== '' || company !== '';\n\nreturn [{\n  json: {\n    email,\n    firstName,\n    lastName,\n    name,\n    company,\n    city,\n    state,\n    cityState,\n    phone,\n    phoneNormalized,\n    reasonForInterest,\n    eventUri,\n    cancelUrl,\n    rescheduleUrl,\n    utmSource,\n    isWaitlist,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "parse-calendly-payload",
+      "name": "Parse Calendly Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-1740, 1000]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, message: 'Calendly webhook received' }) }}"
+      },
+      "id": "respond-to-calendly",
+      "name": "Respond to Calendly",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [-1480, 1000]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "is-waitlist",
+              "leftValue": "={{ $json.isWaitlist }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "is-waitlist-lead",
+      "name": "Is Waitlist Lead?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [-1220, 1000]
+    },
+    {
+      "parameters": {
+        "url": "https://api.doppler.com/v3/configs/config/secrets",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "project", "value": "chrt" },
+            { "name": "config", "value": "prd" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "fetch-doppler-secrets",
+      "name": "Fetch Doppler Secrets",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-960, 1000],
+      "notesInFlow": true,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "dz2vX61Mpayywfq1",
+          "name": "Doppler API"
+        }
+      },
+      "notes": "Fetches LINQ_INTEGRATION_TOKEN from Doppler (chrt/prd)."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/contacts/search",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ filterGroups: [{ filters: [{ propertyName: 'email', operator: 'EQ', value: $('Parse Calendly Payload').first().json.email }] }], properties: ['firstname', 'lastname', 'email', 'lifecyclestage', 'waitlist_status'] }) }}",
+        "options": {}
+      },
+      "id": "search-hubspot-contact",
+      "name": "Search HubSpot Contact",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-700, 1000],
+      "credentials": {
+        "hubspotOAuth2Api": {
+          "id": "3JZVnZQkHgMfXMRx",
+          "name": "HubSpot account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "contact-found",
+              "leftValue": "={{ $json.total }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "contact-found-check",
+      "name": "Contact Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [-440, 1000]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ 'https://api.hubapi.com/crm/v3/objects/contacts/' + $json.results[0].id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ properties: { firstname: $('Parse Calendly Payload').first().json.firstName || undefined, lastname: $('Parse Calendly Payload').first().json.lastName || undefined, phone: $('Parse Calendly Payload').first().json.phone, company: $('Parse Calendly Payload').first().json.company, city: $('Parse Calendly Payload').first().json.city, state: $('Parse Calendly Payload').first().json.state, reason_for_interest: $('Parse Calendly Payload').first().json.reasonForInterest, qualification_form_completed: 'true', qualification_form_date: new Date().toISOString().split('T')[0], waitlist_status: 'booked', calendly_event_url: $('Parse Calendly Payload').first().json.eventUri, lifecyclestage: 'marketingqualifiedlead' } }) }}",
+        "options": {}
+      },
+      "id": "update-hubspot-contact",
+      "name": "Update HubSpot Contact",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-180, 900],
+      "credentials": {
+        "hubspotOAuth2Api": {
+          "id": "3JZVnZQkHgMfXMRx",
+          "name": "HubSpot account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/contacts",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ properties: { email: $('Parse Calendly Payload').first().json.email, firstname: $('Parse Calendly Payload').first().json.firstName, lastname: $('Parse Calendly Payload').first().json.lastName, phone: $('Parse Calendly Payload').first().json.phone, company: $('Parse Calendly Payload').first().json.company, city: $('Parse Calendly Payload').first().json.city, state: $('Parse Calendly Payload').first().json.state, reason_for_interest: $('Parse Calendly Payload').first().json.reasonForInterest, qualification_form_completed: 'true', qualification_form_date: new Date().toISOString().split('T')[0], waitlist_status: 'booked', calendly_event_url: $('Parse Calendly Payload').first().json.eventUri, lifecyclestage: 'marketingqualifiedlead' } }) }}",
+        "options": {}
+      },
+      "id": "create-fallback-contact",
+      "name": "Create Fallback Contact",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-180, 1100],
+      "credentials": {
+        "hubspotOAuth2Api": {
+          "id": "3JZVnZQkHgMfXMRx",
+          "name": "HubSpot account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch"
+      },
+      "id": "merge-contact-results",
+      "name": "Merge Contact Results",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [80, 1000]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/tasks",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ properties: { hs_task_subject: 'Text ' + $('Parse Calendly Payload').first().json.name + ' - Waitlist Qualified', hs_task_body: 'Waitlist lead booked a demo via Calendly.\\n\\nCompany: ' + $('Parse Calendly Payload').first().json.company + '\\nPhone: ' + $('Parse Calendly Payload').first().json.phone + '\\nLocation: ' + $('Parse Calendly Payload').first().json.cityState + '\\nReason: ' + $('Parse Calendly Payload').first().json.reasonForInterest + '\\nCalendly: ' + $('Parse Calendly Payload').first().json.eventUri, hs_task_priority: 'HIGH', hs_task_status: 'WAITING', hs_timestamp: new Date().toISOString() }, associations: [{ to: { id: $json.id }, types: [{ associationCategory: 'HUBSPOT_DEFINED', associationTypeId: 204 }] }] }) }}",
+        "options": {}
+      },
+      "id": "create-hubspot-task",
+      "name": "Create HubSpot Task",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [340, 1000],
+      "credentials": {
+        "hubspotOAuth2Api": {
+          "id": "3JZVnZQkHgMfXMRx",
+          "name": "HubSpot account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare notification data and check for Linq token\nconst calendly = $('Parse Calendly Payload').first().json;\nconst doppler = $('Fetch Doppler Secrets').first().json;\nconst secrets = doppler.secrets || doppler;\n\nfunction sec(val) {\n  if (!val) return '';\n  if (typeof val === 'string') return val;\n  return val.computed || val.raw || '';\n}\n\nconst linqToken = sec(secrets.LINQ_INTEGRATION_TOKEN);\nconst contactId = $('Merge Contact Results').first().json.id || '';\n\nconst message = `Hey ${calendly.firstName || calendly.name}! This is the Chrt team. Excited to connect — looking forward to our upcoming call. Let us know if anything comes up before then!`;\n\nconst slackMessage = `🔥 *Waitlist Lead Booked Demo*\\n\\n*Name:* ${calendly.name}\\n*Email:* ${calendly.email}\\n*Company:* ${calendly.company}\\n*Phone:* ${calendly.phone}\\n*Location:* ${calendly.cityState}\\n*Reason:* ${calendly.reasonForInterest}\\n*Calendly:* ${calendly.eventUri}\\n*HubSpot Contact:* ${contactId}`;\n\nreturn [{\n  json: {\n    hasLinqToken: !!linqToken,\n    linqToken,\n    phoneNormalized: calendly.phoneNormalized,\n    message,\n    slackMessage,\n    contactId,\n    name: calendly.name,\n    email: calendly.email\n  }\n}];"
+      },
+      "id": "prepare-notification",
+      "name": "Prepare Notification",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [600, 1000]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "has-linq-token",
+              "leftValue": "={{ $json.hasLinqToken }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "has-linq-token",
+      "name": "Has Linq Token?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [860, 1000]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.linqapp.com/api/partner/v2/chats",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-LINQ-INTEGRATION-TOKEN",
+              "value": "={{ $json.linqToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ participants: [$json.phoneNormalized], message: { body: $json.message } }) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "send-linq-sms",
+      "name": "Send Linq SMS",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1120, 900],
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C0A6ES56MU2",
+          "mode": "list",
+          "cachedResultName": "automation"
+        },
+        "text": "={{ $json.slackMessage }}",
+        "otherOptions": {}
+      },
+      "id": "slack-fallback",
+      "name": "Slack Fallback",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [1120, 1100],
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "EBe7rpazmQ7oFc5K",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C0A6ES56MU2",
+          "mode": "list",
+          "cachedResultName": "automation"
+        },
+        "text": "={{ $('Prepare Notification').first().json.slackMessage }}",
+        "otherOptions": {}
+      },
+      "id": "slack-also-notify",
+      "name": "Slack Also Notify",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [1380, 900],
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "EBe7rpazmQ7oFc5K",
+          "name": "Slack account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Calendly Booking Webhook": {
+      "main": [
+        [
+          { "node": "Parse Calendly Payload", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Parse Calendly Payload": {
+      "main": [
+        [
+          { "node": "Respond to Calendly", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Respond to Calendly": {
+      "main": [
+        [
+          { "node": "Is Waitlist Lead?", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Is Waitlist Lead?": {
+      "main": [
+        [
+          { "node": "Fetch Doppler Secrets", "type": "main", "index": 0 }
+        ],
+        []
+      ]
+    },
+    "Fetch Doppler Secrets": {
+      "main": [
+        [
+          { "node": "Search HubSpot Contact", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Search HubSpot Contact": {
+      "main": [
+        [
+          { "node": "Contact Found?", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Contact Found?": {
+      "main": [
+        [
+          { "node": "Update HubSpot Contact", "type": "main", "index": 0 }
+        ],
+        [
+          { "node": "Create Fallback Contact", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Update HubSpot Contact": {
+      "main": [
+        [
+          { "node": "Merge Contact Results", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Create Fallback Contact": {
+      "main": [
+        [
+          { "node": "Merge Contact Results", "type": "main", "index": 1 }
+        ]
+      ]
+    },
+    "Merge Contact Results": {
+      "main": [
+        [
+          { "node": "Create HubSpot Task", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Create HubSpot Task": {
+      "main": [
+        [
+          { "node": "Prepare Notification", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Prepare Notification": {
+      "main": [
+        [
+          { "node": "Has Linq Token?", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Has Linq Token?": {
+      "main": [
+        [
+          { "node": "Send Linq SMS", "type": "main", "index": 0 }
+        ],
+        [
+          { "node": "Slack Fallback", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Send Linq SMS": {
+      "main": [
+        [
+          { "node": "Slack Also Notify", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "YWP69Qgq0ZlCN7Gj"
+  }
+}

@@ -1,0 +1,78 @@
+{
+  "_comment": "Example outputs from Lead Pipeline Monitor (4) PhantomBuster Search Export flow. No live execution recently reached the Phantom path (recent runs hit Done). These shapes are inferred from the workflow and PhantomBuster API.",
+  "Launch Search Export Phantom": {
+    "description": "Output of the HTTP Request node that POSTs to https://api.phantombuster.com/api/v2/agents/launch. The workflow uses .containerId in the next node (Check Phantom Status / fetch-output URL).",
+    "example": {
+      "containerId": "abc123xyz",
+      "id": "4606663815675720",
+      "status": "running",
+      "statusInfo": "Agent launched"
+    }
+  },
+  "Get Phantom Output": {
+    "description": "Output of the PhantomBuster node (getOutput, agentId 4606663815675720). The workflow uses .jsonUrl in Fetch Phantom JSON. Check Phantom Status uses .status === 'running'.",
+    "example": {
+      "status": "finished",
+      "jsonUrl": "https://phantombuster.s3.amazonaws.com/.../output.json",
+      "containerId": "abc123xyz",
+      "output": []
+    }
+  },
+  "Fetch Phantom JSON (profile list)": {
+    "description": "The HTTP Request fetches the URL from Get Phantom Output (.jsonUrl). The response is a JSON array of profile objects. Parse Phantom Output expects each item to have linkedinProfileUrl or profileUrl; Prepare for Append maps these fields.",
+    "example_profiles": [
+      {
+        "linkedinProfileUrl": "https://www.linkedin.com/in/jane-doe",
+        "profileUrl": "https://linkedin.com/in/jane-doe",
+        "fullName": "Jane Doe",
+        "firstName": "Jane",
+        "lastName": "Doe",
+        "title": "Head of Operations",
+        "headline": "Head of Operations at Acme Corp",
+        "location": "San Francisco Bay Area",
+        "companyName": "Acme Corp",
+        "companyUrl": "https://www.linkedin.com/company/acme",
+        "industry": "Healthcare",
+        "summary": "...",
+        "profileImageUrl": "https://..."
+      }
+    ],
+    "fields_used_in_Prepare_for_Append": [
+      "profileUrl",
+      "linkedInProfileUrl",
+      "fullName",
+      "firstName",
+      "lastName",
+      "title",
+      "headline",
+      "jobTitle",
+      "titleDescription",
+      "summary",
+      "location",
+      "companyName",
+      "company",
+      "companyUrl",
+      "companyId",
+      "regularCompanyUrl",
+      "companyLocation",
+      "industry",
+      "durationInRole",
+      "durationInCompany",
+      "pastExperienceCompanyName",
+      "pastExperienceCompanyUrl",
+      "pastExperienceCompanyTitle",
+      "pastExperienceDate",
+      "pastExperienceDuration",
+      "connectionDegree",
+      "sharedConnectionsCount",
+      "profileImageUrl",
+      "vmid",
+      "isPremium",
+      "isOpenLink",
+      "defaultProfileUrl",
+      "timestamp",
+      "query",
+      "searchAccountProfileId"
+    ]
+  }
+}

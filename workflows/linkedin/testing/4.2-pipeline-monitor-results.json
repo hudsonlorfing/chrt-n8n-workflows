@@ -1,0 +1,656 @@
+{
+  "updatedAt": "2026-02-07T01:25:09.079Z",
+  "createdAt": "2026-02-06T00:40:41.897Z",
+  "id": "A35Yu92OFuYKvEtR",
+  "name": "4.2 Pipeline Monitor - Results [V2]",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "pipeline-results",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wf4v2r-webhook",
+      "name": "PB Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        4400,
+        1008
+      ],
+      "webhookId": "a1b2c3d4-pipeline-results-v2"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        4400,
+        1200
+      ],
+      "id": "wf4v2r-manual",
+      "name": "When clicking 'Execute workflow'"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nreturn items.map((item, index) => {\n  // 1. Access the 'body' property\n  const body = item.json.body || {};\n  const agentName = body.agentName || \"\";\n  console.log(`--- Processing Webhook Item ${index} ---`);\n\n  // 2. Extract and Parse resultObject\n  // Note: Based on your input, resultObject is a stringified OBJECT, not an array.\n  let parsedResults = {};\n  try {\n    parsedResults = JSON.parse(body.resultObject || \"{}\");\n  } catch (e) {\n    console.error(\"JSON Parse Error:\", e.message);\n  }\n\n  // 3. Determine profileKey by searching the agentName string\n  let profileKey = 'kyle'; // Default fallback\n  const searchName = agentName.toLowerCase();\n\n  if (searchName.includes('hudson')) {\n    profileKey = 'hudson';\n  } else if (searchName.includes('kyle')) {\n    profileKey = 'kyle';\n  }\n\n  console.log(`Agent Name: \"${agentName}\" -> Profile Key: \"${profileKey}\"`);\n\n  // 4. Return the formatted result\n  return {\n    json: {\n      profile: profileKey,\n      agentName: agentName,\n      agentId: body.agentId || '',\n      containerId: body.containerId || '',\n      // Since resultObject contains URLs and not a list, \n      // we check if we successfully got the csvURL.\n      hasResults: !!parsedResults.csvURL,\n      csvURL: parsedResults.csvURL || ''\n    }\n  };\n});"
+      },
+      "id": "wf4v2r-parse-webhook",
+      "name": "Parse Webhook Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4640,
+        1008
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getOutput",
+        "agentId": "={{ $json.agentId }}",
+        "additionalFields": {}
+      },
+      "id": "wf4v2r-get-output",
+      "name": "Get Phantom Output",
+      "type": "n8n-nodes-base.phantombuster",
+      "typeVersion": 1,
+      "position": [
+        4880,
+        1008
+      ],
+      "credentials": {
+        "phantombusterApi": {
+          "id": "UYQpQC8SBIqIkifM",
+          "name": "Phantombuster account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "has-url",
+              "leftValue": "={{ !!$json.jsonUrl }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "wf4v2r-if-url",
+      "name": "Has JSON URL?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        5120,
+        1008
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.jsonUrl }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "wf4v2r-fetch-json",
+      "name": "Fetch Phantom JSON",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        5360,
+        944
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse PhantomBuster JSON \u2014 collect all profiles with ALL fields\n// Also extract searchUrl (Sales Nav query URL) for conference tag resolution\nconst allItems = $input.all();\nconst context = $('Parse Webhook Context').first().json;\n\nconst profiles = allItems\n  .filter(item => {\n    const j = item.json || {};\n    return j.linkedinProfileUrl || j.profileUrl || j.defaultProfileUrl;\n  })\n  .map(item => ({ ...item.json }));\n\n// Extract the search URL from the first profile's query field (PB includes the Sales Nav URL used)\nconst searchUrl = (profiles.length > 0 && profiles[0].query) ? profiles[0].query : '';\n\nreturn [{ json: {\n  profiles,\n  profileCount: profiles.length,\n  profile: context.profile,\n  searchUrl\n}}];"
+      },
+      "id": "wf4v2r-parse-output",
+      "name": "Parse Phantom Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5600,
+        944
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://script.google.com/macros/s/AKfycby64slS7yjiMFPfPFd3yXziPE3NMnND5WQYg-FKT3YUMO1gf178MnEI2YDcwLHbrD_z/exec",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ profiles: $json.profiles, profile: $json.profile, searchUrl: $json.searchUrl || '' }) }}",
+        "options": {
+          "redirect": {
+            "redirect": {}
+          },
+          "timeout": 120000
+        }
+      },
+      "id": "wf4v2r-process-script",
+      "name": "Process via Apps Script",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        5840,
+        944
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse the all-in-one Apps Script response\nconst resp = $input.first().json;\n\nif (!resp.ok) {\n  throw new Error('Pipeline Apps Script error: ' + (resp.error || 'unknown'));\n}\n\nconst stats = resp.stats || {};\n\nreturn [{ json: {\n  ok: true,\n  profile: resp.profile || '',\n  totalScraped: stats.phantom || 0,\n  uniqueCount: stats.unique || 0,\n  duplicatesRemoved: stats.duplicates || 0,\n  appended: stats.appended || 0,\n  connectionFromUpdated: stats.updated || 0,\n  masterListSize: stats.masterListSize || 0,\n  newLeadsSize: stats.newLeadsSize || 0,\n  elapsedMs: stats.elapsedMs || 0\n}}];"
+      },
+      "id": "wf4v2r-parse-results",
+      "name": "Parse Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6080,
+        944
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: $json.ok, profile: $json.profile, totalScraped: $json.totalScraped, uniqueCount: $json.uniqueCount, appended: $json.appended, connectionFromUpdated: $json.connectionFromUpdated, elapsedMs: $json.elapsedMs }) }}",
+        "options": {}
+      },
+      "id": "wf4v2r-respond",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        6320,
+        1008
+      ]
+    }
+  ],
+  "connections": {
+    "PB Webhook": {
+      "main": [
+        [
+          {
+            "node": "Parse Webhook Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking 'Execute workflow'": {
+      "main": [
+        []
+      ]
+    },
+    "Parse Webhook Context": {
+      "main": [
+        [
+          {
+            "node": "Get Phantom Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Phantom Output": {
+      "main": [
+        [
+          {
+            "node": "Has JSON URL?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has JSON URL?": {
+      "main": [
+        [
+          {
+            "node": "Fetch Phantom JSON",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Parse Phantom Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Phantom JSON": {
+      "main": [
+        [
+          {
+            "node": "Parse Phantom Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Phantom Output": {
+      "main": [
+        [
+          {
+            "node": "Process via Apps Script",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process via Apps Script": {
+      "main": [
+        [
+          {
+            "node": "Parse Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Results": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": {},
+  "versionId": "b62a6db9-3793-4ba7-b7ce-0ad821a44e1f",
+  "activeVersionId": "b62a6db9-3793-4ba7-b7ce-0ad821a44e1f",
+  "versionCounter": 46,
+  "triggerCount": 1,
+  "shared": [
+    {
+      "updatedAt": "2026-02-06T00:40:42.279Z",
+      "createdAt": "2026-02-06T00:40:42.279Z",
+      "role": "workflow:owner",
+      "workflowId": "A35Yu92OFuYKvEtR",
+      "projectId": "O7lTivDfRl72aS23",
+      "project": {
+        "updatedAt": "2025-12-24T03:17:11.000Z",
+        "createdAt": "2025-12-23T21:24:31.508Z",
+        "id": "O7lTivDfRl72aS23",
+        "name": "ChrtWorkflows",
+        "type": "team",
+        "icon": {
+          "type": "icon",
+          "value": "layers"
+        },
+        "description": "",
+        "creatorId": null,
+        "projectRelations": [
+          {
+            "updatedAt": "2025-12-23T21:24:31.510Z",
+            "createdAt": "2025-12-23T21:24:31.510Z",
+            "userId": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4",
+            "projectId": "O7lTivDfRl72aS23",
+            "user": {
+              "updatedAt": "2026-02-07T08:00:55.000Z",
+              "createdAt": "2025-12-17T12:51:53.118Z",
+              "id": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4",
+              "email": "hudson@chrt.com",
+              "firstName": "Hudson",
+              "lastName": "Lorfing",
+              "personalizationAnswers": null,
+              "settings": {
+                "userActivated": true,
+                "userClaimedAiCredits": true,
+                "easyAIWorkflowOnboarded": true,
+                "firstSuccessfulWorkflowId": "kjjYKQEXv67Vl5MS",
+                "userActivatedAt": 1766099344758,
+                "npsSurvey": {
+                  "responded": true,
+                  "lastShownAt": 1768855960435
+                }
+              },
+              "disabled": false,
+              "mfaEnabled": false,
+              "lastActiveAt": "2026-02-07",
+              "isPending": false
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": {
+    "updatedAt": "2026-02-07T01:25:10.000Z",
+    "createdAt": "2026-02-07T01:22:57.408Z",
+    "versionId": "b62a6db9-3793-4ba7-b7ce-0ad821a44e1f",
+    "workflowId": "A35Yu92OFuYKvEtR",
+    "nodes": [
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "pipeline-results",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "wf4v2r-webhook",
+        "name": "PB Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          4400,
+          1008
+        ],
+        "webhookId": "a1b2c3d4-pipeline-results-v2"
+      },
+      {
+        "parameters": {},
+        "type": "n8n-nodes-base.manualTrigger",
+        "typeVersion": 1,
+        "position": [
+          4400,
+          1200
+        ],
+        "id": "wf4v2r-manual",
+        "name": "When clicking 'Execute workflow'"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\n\nreturn items.map((item, index) => {\n  // 1. Access the 'body' property\n  const body = item.json.body || {};\n  const agentName = body.agentName || \"\";\n  console.log(`--- Processing Webhook Item ${index} ---`);\n\n  // 2. Extract and Parse resultObject\n  // Note: Based on your input, resultObject is a stringified OBJECT, not an array.\n  let parsedResults = {};\n  try {\n    parsedResults = JSON.parse(body.resultObject || \"{}\");\n  } catch (e) {\n    console.error(\"JSON Parse Error:\", e.message);\n  }\n\n  // 3. Determine profileKey by searching the agentName string\n  let profileKey = 'kyle'; // Default fallback\n  const searchName = agentName.toLowerCase();\n\n  if (searchName.includes('hudson')) {\n    profileKey = 'hudson';\n  } else if (searchName.includes('kyle')) {\n    profileKey = 'kyle';\n  }\n\n  console.log(`Agent Name: \"${agentName}\" -> Profile Key: \"${profileKey}\"`);\n\n  // 4. Return the formatted result\n  return {\n    json: {\n      profile: profileKey,\n      agentName: agentName,\n      agentId: body.agentId || '',\n      containerId: body.containerId || '',\n      // Since resultObject contains URLs and not a list, \n      // we check if we successfully got the csvURL.\n      hasResults: !!parsedResults.csvURL,\n      csvURL: parsedResults.csvURL || ''\n    }\n  };\n});"
+        },
+        "id": "wf4v2r-parse-webhook",
+        "name": "Parse Webhook Context",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          4640,
+          1008
+        ]
+      },
+      {
+        "parameters": {
+          "operation": "getOutput",
+          "agentId": "={{ $json.agentId }}",
+          "additionalFields": {}
+        },
+        "id": "wf4v2r-get-output",
+        "name": "Get Phantom Output",
+        "type": "n8n-nodes-base.phantombuster",
+        "typeVersion": 1,
+        "position": [
+          4880,
+          1008
+        ],
+        "credentials": {
+          "phantombusterApi": {
+            "id": "UYQpQC8SBIqIkifM",
+            "name": "Phantombuster account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "has-url",
+                "leftValue": "={{ !!$json.jsonUrl }}",
+                "rightValue": true,
+                "operator": {
+                  "type": "boolean",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "wf4v2r-if-url",
+        "name": "Has JSON URL?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          5120,
+          1008
+        ]
+      },
+      {
+        "parameters": {
+          "url": "={{ $json.jsonUrl }}",
+          "options": {
+            "timeout": 60000
+          }
+        },
+        "id": "wf4v2r-fetch-json",
+        "name": "Fetch Phantom JSON",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          5360,
+          944
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "// Parse PhantomBuster JSON \u2014 collect all profiles with ALL fields\n// Also extract searchUrl (Sales Nav query URL) for conference tag resolution\nconst allItems = $input.all();\nconst context = $('Parse Webhook Context').first().json;\n\nconst profiles = allItems\n  .filter(item => {\n    const j = item.json || {};\n    return j.linkedinProfileUrl || j.profileUrl || j.defaultProfileUrl;\n  })\n  .map(item => ({ ...item.json }));\n\n// Extract the search URL from the first profile's query field (PB includes the Sales Nav URL used)\nconst searchUrl = (profiles.length > 0 && profiles[0].query) ? profiles[0].query : '';\n\nreturn [{ json: {\n  profiles,\n  profileCount: profiles.length,\n  profile: context.profile,\n  searchUrl\n}}];"
+        },
+        "id": "wf4v2r-parse-output",
+        "name": "Parse Phantom Output",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          5600,
+          944
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://script.google.com/macros/s/AKfycby64slS7yjiMFPfPFd3yXziPE3NMnND5WQYg-FKT3YUMO1gf178MnEI2YDcwLHbrD_z/exec",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ profiles: $json.profiles, profile: $json.profile, searchUrl: $json.searchUrl || '' }) }}",
+          "options": {
+            "redirect": {
+              "redirect": {}
+            },
+            "timeout": 120000
+          }
+        },
+        "id": "wf4v2r-process-script",
+        "name": "Process via Apps Script",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          5840,
+          944
+        ],
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Parse the all-in-one Apps Script response\nconst resp = $input.first().json;\n\nif (!resp.ok) {\n  throw new Error('Pipeline Apps Script error: ' + (resp.error || 'unknown'));\n}\n\nconst stats = resp.stats || {};\n\nreturn [{ json: {\n  ok: true,\n  profile: resp.profile || '',\n  totalScraped: stats.phantom || 0,\n  uniqueCount: stats.unique || 0,\n  duplicatesRemoved: stats.duplicates || 0,\n  appended: stats.appended || 0,\n  connectionFromUpdated: stats.updated || 0,\n  masterListSize: stats.masterListSize || 0,\n  newLeadsSize: stats.newLeadsSize || 0,\n  elapsedMs: stats.elapsedMs || 0\n}}];"
+        },
+        "id": "wf4v2r-parse-results",
+        "name": "Parse Results",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          6080,
+          944
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ JSON.stringify({ ok: $json.ok, profile: $json.profile, totalScraped: $json.totalScraped, uniqueCount: $json.uniqueCount, appended: $json.appended, connectionFromUpdated: $json.connectionFromUpdated, elapsedMs: $json.elapsedMs }) }}",
+          "options": {}
+        },
+        "id": "wf4v2r-respond",
+        "name": "Respond to Webhook",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [
+          6320,
+          1008
+        ]
+      }
+    ],
+    "connections": {
+      "PB Webhook": {
+        "main": [
+          [
+            {
+              "node": "Parse Webhook Context",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "When clicking 'Execute workflow'": {
+        "main": [
+          []
+        ]
+      },
+      "Parse Webhook Context": {
+        "main": [
+          [
+            {
+              "node": "Get Phantom Output",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Get Phantom Output": {
+        "main": [
+          [
+            {
+              "node": "Has JSON URL?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Has JSON URL?": {
+        "main": [
+          [
+            {
+              "node": "Fetch Phantom JSON",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Parse Phantom Output",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Fetch Phantom JSON": {
+        "main": [
+          [
+            {
+              "node": "Parse Phantom Output",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Parse Phantom Output": {
+        "main": [
+          [
+            {
+              "node": "Process via Apps Script",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Process via Apps Script": {
+        "main": [
+          [
+            {
+              "node": "Parse Results",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Parse Results": {
+        "main": [
+          [
+            {
+              "node": "Respond to Webhook",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "authors": "Hudson Lorfing",
+    "name": "Version b62a6db9",
+    "description": "",
+    "autosaved": true,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-02-07T01:25:10.956Z",
+        "id": 473,
+        "workflowId": "A35Yu92OFuYKvEtR",
+        "versionId": "b62a6db9-3793-4ba7-b7ce-0ad821a44e1f",
+        "event": "activated",
+        "userId": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4"
+      }
+    ]
+  }
+}

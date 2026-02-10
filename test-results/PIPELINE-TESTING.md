@@ -8,6 +8,15 @@
 | 1. Lead Ingestion & ICP Scoring | `aLxwvqoSTkZAQ3fq` | Active |
 | 4. Lead Pipeline Monitor | `dWFsEXELFTJU0W01` | Inactive (#testing) |
 
+## Recent successful test executions
+
+| Execution | Workflow | Test workflow ID | Status |
+|-----------|----------|------------------|--------|
+| 1149 | 1. Lead Ingestion & ICP Scoring (TEST) | `MQantT1gLLP8NEn4` | success |
+| 1145 | 4. Lead Pipeline Monitor (TEST) | `atJokUdeDsap4lJO` | success |
+
+To pull full execution data: `./scripts/n8n-ops/debug.sh full 1149` and `./scripts/n8n-ops/debug.sh full 1145` (with `N8N_API_KEY` set).
+
 ## Pipeline Monitor Paths to Test
 
 ### Path 1: D5 < 240 - Trigger Lead Ingestion
@@ -43,7 +52,7 @@ cd /Users/hudsonlorfing/Documents/Business/Chrt/workflows/chrt-n8n-workflows
 source .env
 
 # Activate Pipeline Monitor for testing
-./scripts/n8n-debug.sh activate dWFsEXELFTJU0W01
+./scripts/n8n-ops/debug.sh activate dWFsEXELFTJU0W01
 
 # Trigger via webhook
 curl -X POST "https://chrt.app.n8n.cloud/webhook/pipeline-monitor" \
@@ -55,7 +64,7 @@ curl -s "https://chrt.app.n8n.cloud/api/v1/executions?workflowId=dWFsEXELFTJU0W0
   -H "X-N8N-API-KEY: $N8N_API_KEY" | jq '.data[] | {id, status}'
 
 # Deactivate after testing
-./scripts/n8n-debug.sh deactivate dWFsEXELFTJU0W01
+./scripts/n8n-ops/debug.sh deactivate dWFsEXELFTJU0W01
 ```
 
 ## Known Issues

@@ -1,0 +1,3941 @@
+{
+  "updatedAt": "2026-02-09T15:35:46.547Z",
+  "createdAt": "2026-02-06T00:40:42.073Z",
+  "id": "wKYz16GbzqWTh2DK",
+  "name": "Test - 3.3 Connection Sync - HubSpot [V2]",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "test-connection-sync-hubspot",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wf3v2h-webhook",
+      "name": "PB Webhook (Email Scraper)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        2224,
+        1008
+      ],
+      "webhookId": "test-connection-sync-hubspot-v2"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        2208,
+        1200
+      ],
+      "id": "wf3v2h-manual",
+      "name": "When clicking 'Execute workflow'"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst body = input.body || input;\nreturn [{ json: {\n  containerId: body.containerId || '',\n  agentId: body.agentId || '5768405047812127',\n  profile: body.profile || 'kyle'\n}}];"
+      },
+      "id": "wf3v2h-parse",
+      "name": "Parse Webhook Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2608,
+        1008
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getOutput",
+        "agentId": "={{ $json.agentId }}",
+        "additionalFields": {}
+      },
+      "id": "wf3v2h-get-output",
+      "name": "Get Email Scraper Output",
+      "type": "n8n-nodes-base.phantombuster",
+      "typeVersion": 1,
+      "position": [
+        2800,
+        1008
+      ],
+      "credentials": {
+        "phantombusterApi": {
+          "id": "UYQpQC8SBIqIkifM",
+          "name": "Phantombuster account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "has-json",
+              "leftValue": "={{ !!$json.jsonUrl }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "wf3v2h-has-json",
+      "name": "Has jsonUrl?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3008,
+        1008
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.jsonUrl }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "wf3v2h-fetch-json",
+      "name": "Fetch Email Scraper JSON",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3200,
+        944
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merge connection data with email scraper data\n// The email scraper adds email addresses to profiles\nconst items = $input.all();\nconst context = $('Parse Webhook Context').first().json;\n\nreturn items.map(item => {\n  const p = item.json;\n  const profileUrl = (p.linkedinProfileUrl || p.profileUrl || p.linkedinProfileUrl || '').trim();\n  const email = p.email || p.mail || '';\n  const hasRealEmail = !!email && !email.includes('linkedin.com');\n  \n  return {\n    json: {\n      profileUrl,\n      fullName: p.fullName || ((p.firstName || '') + ' ' + (p.lastName || '')).trim(),\n      firstName: p.firstName || '',\n      lastName: p.lastName || '',\n      email,\n      hasRealEmail,\n      personalHeadLine: p.linkedinHeadline || '',\n      schoolUrl: p.linkedinSchoolUrl || '',\n      schoolDegree: p.linkedinSchoolDegree || '',\n      schoolName: p.linkedinSchoolName || '',\n      previousSchoolUrl: p.linkedinPreviousSchoolUrl || '',\n      previousSchoolDegree: p.linkedinPreviousSchoolDegree || '',\n      previousSchoolName: p.linkedinPreviousSchoolName || '',\n      personallocation: p.location || '',\n      jobLocation: p.linkedinJobLocation || '',\n      connectionDegree: p.connectionDegree || '1st',\n      jobTitle: p.linkedinJobTitle || p.jobTitle || '',\n      companyName: p.companyName || p.company || '',\n      companyDescription: p.linkedinCompanyDescription || '',\n      companySize: p.linkedinCompanySize || '',\n      companyHQ: p.linkedinCompanyHeadquarter || '',\n      companyTagline: p.linkedinCompanyTagline || '',\n      companySlug: p.linkedinCompanySlug || '',\n      companyIndustry: p.companyIndustry || '',\n      companyWebsite: p.companyWebsite || '',\n      previousCompanyName: p.previousCompanyName || '',\n      previousCompanySlug: p.linkedinPreviousCompanySlug|| '',\n      previousCompanyPosition: p.linkedinPreviousJobTitle || '',\n      profile: context.profile\n    }\n  };\n});"
+      },
+      "id": "wf3v2h-merge-data",
+      "name": "Merge Connection + Email Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3408,
+        944
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare HubSpot data from merged connection + email data\nconst items = $input.all();\nconst today = new Date().toISOString().split('T')[0];\n\nfunction parseLocation(loc) {\n  if (!loc) return { city: '', state: '', country: '' };\n  const parts = loc.split(',').map(s => s.trim());\n  if (parts.length >= 3) return { city: parts[0], state: parts[parts.length - 2], country: parts[parts.length - 1] };\n  if (parts.length === 2) return { city: parts[0], state: parts[1], country: '' };\n  return { city: loc, state: '', country: '' };\n}\n\n// Map LinkedIn industry to HubSpot enum\nconst INDUSTRY_MAP = {\n  'accounting': 'ACCOUNTING',\n  'airlines/aviation': 'AIRLINES_AVIATION',\n  'aviation & aerospace': 'AVIATION_AEROSPACE',\n  'aviation/aerospace': 'AVIATION_AEROSPACE',\n  'banking': 'BANKING',\n  'biotechnology': 'BIOTECHNOLOGY',\n  'broadcast media': 'BROADCAST_MEDIA',\n  'building materials': 'BUILDING_MATERIALS',\n  'chemicals': 'CHEMICALS',\n  'computer software': 'COMPUTER_SOFTWARE',\n  'construction': 'CONSTRUCTION',\n  'consumer electronics': 'CONSUMER_ELECTRONICS',\n  'consumer goods': 'CONSUMER_GOODS',\n  'consumer services': 'CONSUMER_SERVICES',\n  'cosmetics': 'COSMETICS',\n  'defense & space': 'DEFENSE_SPACE',\n  'defense/space': 'DEFENSE_SPACE',\n  'design': 'DESIGN',\n  'education management': 'EDUCATION_MANAGEMENT',\n  'electrical/electronic manufacturing': 'ELECTRICAL_ELECTRONIC_MANUFACTURING',\n  'entertainment': 'ENTERTAINMENT',\n  'environmental services': 'ENVIRONMENTAL_SERVICES',\n  'events services': 'EVENTS_SERVICES',\n  'facilities services': 'FACILITIES_SERVICES',\n  'financial services': 'FINANCIAL_SERVICES',\n  'food & beverages': 'FOOD_BEVERAGES',\n  'food production': 'FOOD_PRODUCTION',\n  'government administration': 'GOVERNMENT_ADMINISTRATION',\n  'health, wellness and fitness': 'HEALTH_WELLNESS_AND_FITNESS',\n  'health/wellness/fitness': 'HEALTH_WELLNESS_AND_FITNESS',\n  'wellness and fitness services': 'HEALTH_WELLNESS_AND_FITNESS',\n  'higher education': 'HIGHER_EDUCATION',\n  'hospital & health care': 'HOSPITAL_HEALTH_CARE',\n  'hospitals and health care': 'HOSPITAL_HEALTH_CARE',\n  'hospitality': 'HOSPITALITY',\n  'human resources': 'HUMAN_RESOURCES',\n  'import and export': 'IMPORT_AND_EXPORT',\n  'import/export': 'IMPORT_AND_EXPORT',\n  'industrial automation': 'INDUSTRIAL_AUTOMATION',\n  'information services': 'INFORMATION_SERVICES',\n  'information technology and services': 'INFORMATION_TECHNOLOGY_AND_SERVICES',\n  'information technology & services': 'INFORMATION_TECHNOLOGY_AND_SERVICES',\n  'insurance': 'INSURANCE',\n  'international trade and development': 'INTERNATIONAL_TRADE_AND_DEVELOPMENT',\n  'internet': 'INTERNET',\n  'legal services': 'LEGAL_SERVICES',\n  'logistics and supply chain': 'LOGISTICS_AND_SUPPLY_CHAIN',\n  'logistics/supply chain': 'LOGISTICS_AND_SUPPLY_CHAIN',\n  'machinery': 'MACHINERY',\n  'management consulting': 'MANAGEMENT_CONSULTING',\n  'maritime': 'MARITIME',\n  'market research': 'MARKET_RESEARCH',\n  'marketing and advertising': 'MARKETING_AND_ADVERTISING',\n  'mechanical or industrial engineering': 'MECHANICAL_OR_INDUSTRIAL_ENGINEERING',\n  'mechanical/industrial engineering': 'MECHANICAL_OR_INDUSTRIAL_ENGINEERING',\n  'media production': 'MEDIA_PRODUCTION',\n  'medical devices': 'MEDICAL_DEVICES',\n  'medical device': 'MEDICAL_DEVICES',\n  'medical practice': 'MEDICAL_PRACTICE',\n  'mental health care': 'MENTAL_HEALTH_CARE',\n  'military': 'MILITARY',\n  'mining & metals': 'MINING_METALS',\n  'oil & energy': 'OIL_ENERGY',\n  'oil/energy': 'OIL_ENERGY',\n  'package/freight delivery': 'PACKAGE_FREIGHT_DELIVERY',\n  'packaging and containers': 'PACKAGING_AND_CONTAINERS',\n  'pharmaceuticals': 'PHARMACEUTICALS',\n  'pharmaceutical manufacturing': 'PHARMACEUTICALS',\n  'plastics': 'PLASTICS',\n  'professional training & coaching': 'PROFESSIONAL_TRAINING_COACHING',\n  'public safety': 'PUBLIC_SAFETY',\n  'publishing': 'PUBLISHING',\n  'railroads': 'TRANSPORTATION_TRUCKING_RAILROAD',\n  'real estate': 'REAL_ESTATE',\n  'renewables & environment': 'RENEWABLES_ENVIRONMENT',\n  'research': 'RESEARCH',\n  'restaurants': 'RESTAURANTS',\n  'retail': 'RETAIL',\n  'security and investigations': 'SECURITY_AND_INVESTIGATIONS',\n  'semiconductors': 'SEMICONDUCTORS',\n  'sporting goods': 'SPORTING_GOODS',\n  'staffing and recruiting': 'STAFFING_AND_RECRUITING',\n  'telecommunications': 'TELECOMMUNICATIONS',\n  'textiles': 'TEXTILES',\n  'transportation/trucking/railroad': 'TRANSPORTATION_TRUCKING_RAILROAD',\n  'truck transportation': 'TRANSPORTATION_TRUCKING_RAILROAD',\n  'utilities': 'UTILITIES',\n  'veterinary': 'VETERINARY',\n  'warehousing': 'WAREHOUSING',\n  'wholesale': 'WHOLESALE',\n  'wireless': 'WIRELESS',\n};\n\nfunction mapIndustry(linkedinIndustry) {\n  if (!linkedinIndustry) return '';\n  const key = linkedinIndustry.toLowerCase().trim();\n  if (INDUSTRY_MAP[key]) return INDUSTRY_MAP[key];\n  // Fallback: try converting to enum format\n  const enumAttempt = key.replace(/[\\s&/]+/g, '_').replace(/_+/g, '_').toUpperCase();\n  return enumAttempt;\n}\n\nreturn items.map(item => {\n  const p = item.json;\n  const loc = parseLocation(p.personallocation || p.location || '');\n  const rawIndustry = p.companyIndustry || p.industry || '';\n\n  return {\n    json: {\n      // Reference fields for downstream nodes (Format Output, Update Sheet)\n      profileUrl: p.profileUrl || '',\n      fullName: p.fullName || '',\n      profile: p.profile || '',\n      // All HubSpot data in _hs\n      _hs: {\n        firstName: p.firstName || '',\n        lastName: p.lastName || '',\n        email: p.email || '',\n        hasRealEmail: p.hasRealEmail || false,\n        companyName: p.companyName || '',\n        jobTitle: p.jobTitle || '',\n        industry: rawIndustry,\n        hubspotIndustry: mapIndustry(rawIndustry),\n        location: p.personallocation || p.location || '',\n        city: loc.city,\n        state: loc.state,\n        country: loc.country,\n        linkedinUrl: p.profileUrl || '',\n        syncDate: today,\n        // Contact enrichment fields\n        linkedinHeadline: p.personalHeadLine || '',\n        schoolName: p.schoolName || '',\n        schoolDegree: p.schoolDegree || '',\n        previousCompanyName: p.previousCompanyName || '',\n        previousCompanyPosition: p.previousCompanyPosition || '',\n        jobLocation: p.jobLocation || '',\n        companySlug: p.companySlug || '',\n        // Company-record fields\n        companyDescription: p.companyDescription || '',\n        companySize: p.companySize || '',\n        companyHQ: p.companyHQ || '',\n        companyWebsite: p.companyWebsite || '',\n        companyTagline: p.companyTagline || '',\n      }\n    }\n  };\n});"
+      },
+      "id": "wf3v2h-prepare",
+      "name": "Prepare HubSpot Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3600,
+        944
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, message: 'HubSpot sync started', profileCount: $input.all().length }) }}",
+        "options": {}
+      },
+      "id": "wf3v2h-respond",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        3808,
+        944
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "wf3v2h-loop",
+      "name": "Loop Over Items",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        4000,
+        944
+      ],
+      "notesInFlow": false
+    },
+    {
+      "parameters": {
+        "jsCode": "// Loop complete — summary\nreturn [{ json: { done: true, message: 'HubSpot sync complete' } }];"
+      },
+      "id": "wf3v2h-sync-complete",
+      "name": "Sync Complete",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4240,
+        784
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "wf3v2h-start-item",
+      "name": "Process Item",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        4208,
+        944
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "has-company",
+              "leftValue": "={{ !!($json._hs && $json._hs.companyName) }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "wf3v2h-has-company",
+      "name": "Has Company Name?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        4400,
+        944
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Skip company processing — no company name provided\nconst preparedData = $('Prepare HubSpot Data').item.json;\nreturn [{ json: { ...preparedData, _hs: { ...preparedData._hs, companyId: null, companyCreated: false, companySkipped: true } } }];"
+      },
+      "id": "wf3v2h-skip-company",
+      "name": "Skip Company",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4608,
+        1152
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/companies/search",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ filterGroups: [{ filters: [{ propertyName: 'name', operator: 'EQ', value: $json._hs.companyName || '' }] }], properties: ['name', 'domain', 'industry', 'description', 'website', 'linkedin_company_page'] }) }}",
+        "options": {}
+      },
+      "id": "wf3v2h-search-company",
+      "name": "Search Company",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4608,
+        944
+      ],
+      "credentials": {
+        "hubspotOAuth2Api": {
+          "id": "3JZVnZQkHgMfXMRx",
+          "name": "HubSpot account"
+        }
+      },
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "company-exists",
+              "leftValue": "={{ $json.total }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "wf3v2h-company-exists",
+      "name": "Company Exists?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        4800,
+        944
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const searchResult = $('Search Company').item.json;\nconst preparedData = $('Prepare HubSpot Data').item.json;\nconst existingCompany = searchResult.results[0];\nconst ep = existingCompany.properties || {};\nconst hs = preparedData._hs;\n\n// Determine what company fields need updating\nconst companyUpdates = {};\nif (!ep.description && hs.companyDescription) companyUpdates.description = hs.companyDescription;\nif (!ep.website && hs.companyWebsite) companyUpdates.website = hs.companyWebsite;\nif (!ep.linkedin_company_page && hs.companySlug) companyUpdates.linkedin_company_page = 'https://www.linkedin.com/company/' + hs.companySlug;\nif (!ep.industry && hs.hubspotIndustry) companyUpdates.industry = hs.hubspotIndustry;\n\nreturn [{ json: { ...preparedData, _hs: { ...hs, companyId: existingCompany.id, companyCreated: false, companyUpdates, hasCompanyUpdates: Object.keys(companyUpdates).length > 0 } } }];"
+      },
+      "id": "wf3v2h-use-existing",
+      "name": "Use Existing Company",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5008,
+        864
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/companies",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ properties: { name: $('Prepare HubSpot Data').item.json._hs.companyName || '', industry: $('Prepare HubSpot Data').item.json._hs.hubspotIndustry || '', description: $('Prepare HubSpot Data').item.json._hs.companyDescription || '', website: $('Prepare HubSpot Data').item.json._hs.companyWebsite || '', linkedin_company_page: $('Prepare HubSpot Data').item.json._hs.companySlug ? 'https://www.linkedin.com/company/' + $('Prepare HubSpot Data').item.json._hs.companySlug : '' } }) }}",
+        "options": {}
+      },
+      "id": "wf3v2h-create-company",
+      "name": "Create Company",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        5008,
+        1072
+      ],
+      "credentials": {
+        "hubspotOAuth2Api": {
+          "id": "3JZVnZQkHgMfXMRx",
+          "name": "HubSpot account"
+        }
+      },
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const createResult = $('Create Company').item.json;\nconst preparedData = $('Prepare HubSpot Data').item.json;\nreturn [{ json: { ...preparedData, _hs: { ...preparedData._hs, companyId: createResult.id, companyCreated: true } } }];"
+      },
+      "id": "wf3v2h-store-company",
+      "name": "Store New Company ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5200,
+        1072
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "wf3v2h-merge-company",
+      "name": "Merge Company Results",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        5808,
+        944
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ 'https://api.hubapi.com/crm/v3/objects/contacts/' + $('Merge Search Results').item.json._matchedContact.id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ properties: { jobtitle: $('Merge Search Results').item.json._hs.jobTitle || '', company: $('Merge Search Results').item.json._hs.companyName || '', industry: $('Merge Search Results').item.json._hs.hubspotIndustry || $('Merge Search Results').item.json._hs.industry || '', hs_lead_status: 'CONNECTED', hs_linkedin_url: $('Merge Search Results').item.json._hs.linkedinUrl || '', city: $('Merge Search Results').item.json._hs.city || $('Merge Search Results').item.json._hs.location || '', state: $('Merge Search Results').item.json._hs.state || '', country: $('Merge Search Results').item.json._hs.country || '', linkedin_headline: $('Merge Search Results').item.json._hs.linkedinHeadline || '', school_name: $('Merge Search Results').item.json._hs.schoolName || '', school_degree: $('Merge Search Results').item.json._hs.schoolDegree || '', previous_company_name: $('Merge Search Results').item.json._hs.previousCompanyName || '', previous_company_position: $('Merge Search Results').item.json._hs.previousCompanyPosition || '', job_location: $('Merge Search Results').item.json._hs.jobLocation || '', linkedin_company_slug: $('Merge Search Results').item.json._hs.companySlug || '' } }) }}",
+        "options": {}
+      },
+      "id": "wf3v2h-update-contact",
+      "name": "Update Contact",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        7392,
+        784
+      ],
+      "credentials": {
+        "hubspotOAuth2Api": {
+          "id": "3JZVnZQkHgMfXMRx",
+          "name": "HubSpot account"
+        }
+      },
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/contacts",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ properties: { email: $('Merge Company Results').item.json._hs.hasRealEmail ? $('Merge Company Results').item.json._hs.email : undefined, firstname: $('Merge Company Results').item.json._hs.firstName, lastname: $('Merge Company Results').item.json._hs.lastName, jobtitle: $('Merge Company Results').item.json._hs.jobTitle || '', company: $('Merge Company Results').item.json._hs.companyName || '', industry: $('Merge Company Results').item.json._hs.hubspotIndustry || $('Merge Company Results').item.json._hs.industry || '', hs_lead_status: 'CONNECTED', hs_linkedin_url: $('Merge Company Results').item.json._hs.linkedinUrl || '', city: $('Merge Company Results').item.json._hs.city || $('Merge Company Results').item.json._hs.location || '', state: $('Merge Company Results').item.json._hs.state || '', country: $('Merge Company Results').item.json._hs.country || '', linkedin_headline: $('Merge Company Results').item.json._hs.linkedinHeadline || '', school_name: $('Merge Company Results').item.json._hs.schoolName || '', school_degree: $('Merge Company Results').item.json._hs.schoolDegree || '', previous_company_name: $('Merge Company Results').item.json._hs.previousCompanyName || '', previous_company_position: $('Merge Company Results').item.json._hs.previousCompanyPosition || '', job_location: $('Merge Company Results').item.json._hs.jobLocation || '', linkedin_company_slug: $('Merge Company Results').item.json._hs.companySlug || '' } }) }}",
+        "options": {}
+      },
+      "id": "wf3v2h-create-contact",
+      "name": "Create Contact",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        7328,
+        1360
+      ],
+      "credentials": {
+        "hubspotOAuth2Api": {
+          "id": "3JZVnZQkHgMfXMRx",
+          "name": "HubSpot account"
+        }
+      },
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const updateResult = $('Update Contact').item.json;\nconst mergedData = $('Merge Search Results').item.json;\nreturn [{ json: { ...mergedData, _hs: { ...mergedData._hs, contactId: updateResult.id, contactCreated: false } } }];"
+      },
+      "id": "wf3v2h-store-updated",
+      "name": "Store Updated Contact ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7584,
+        784
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const createResult = $('Create Contact').item.json;\nconst mergedData = $('Merge Company Results').item.json;\nreturn [{ json: { ...mergedData, _hs: { ...mergedData._hs, contactId: createResult.id, contactCreated: true } } }];"
+      },
+      "id": "wf3v2h-store-new",
+      "name": "Store New Contact ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7552,
+        1360
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "wf3v2h-merge-contact",
+      "name": "Merge Contact Results",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        7744,
+        976
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "={{ 'https://api.hubapi.com/crm/v3/objects/contacts/' + $json._hs.contactId + '/associations/company/' + $json._hs.companyId + '/contact_to_company' }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotOAuth2Api",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "wf3v2h-associate",
+      "name": "Associate Contact → Company",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        7936,
+        976
+      ],
+      "credentials": {
+        "hubspotOAuth2Api": {
+          "id": "3JZVnZQkHgMfXMRx",
+          "name": "HubSpot account"
+        }
+      },
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format output for logging / sheet update + pass data to 3.4\n// Reference Merge Contact Results (not $input which comes from the Associate HTTP call)\nconst contactData = $('Merge Contact Results').item.json;\nconst hs = contactData._hs || {};\nreturn [{ json: {\n  defaultProfileUrl: contactData.profileUrl || hs.linkedinUrl || '',\n  fullName: contactData.fullName || ((hs.firstName || '') + ' ' + (hs.lastName || '')).trim(),\n  firstName: hs.firstName || contactData.firstName || '',\n  lastName: hs.lastName || contactData.lastName || '',\n  title: hs.jobTitle || contactData.title || '',\n  company: hs.companyName || contactData.company || '',\n  linkedInProfileUrl: contactData.profileUrl || hs.linkedinUrl || '',\n  hubspotContactId: hs.contactId || '',\n  contactId: hs.contactId || '',\n  companyId: hs.companyId || '',\n  contactCreated: hs.contactCreated || false,\n  companyCreated: hs.companyCreated || false,\n  companySkipped: hs.companySkipped || false,\n  syncDate: hs.syncDate || ''\n}}];"
+      },
+      "id": "wf3v2h-format",
+      "name": "Format Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        8144,
+        976
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Master List"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "hubspotSync": "={{ $json.syncDate }}",
+            "row_number": 0,
+            "defaultProfileUrl": "={$input.defaultProfileUrl}"
+          },
+          "matchingColumns": [
+            "defaultProfileUrl"
+          ],
+          "schema": [
+            {
+              "id": "defaultProfileUrl",
+              "displayName": "defaultProfileUrl",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "fullName",
+              "displayName": "fullName",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "firstName",
+              "displayName": "firstName",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "lastName",
+              "displayName": "lastName",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "school",
+              "displayName": "school",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "schoolDegree",
+              "displayName": "schoolDegree",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "company",
+              "displayName": "company",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "companyUrl",
+              "displayName": "companyUrl",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "companyId",
+              "displayName": "companyId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "jobTitle",
+              "displayName": "jobTitle",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "jobDateRange",
+              "displayName": "jobDateRange",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "hsIndustry",
+              "displayName": "hsIndustry",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "headline",
+              "displayName": "headline",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "location",
+              "displayName": "location",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "company2",
+              "displayName": "company2",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "companyUrl2",
+              "displayName": "companyUrl2",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "companyId2",
+              "displayName": "companyId2",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "jobTitle2",
+              "displayName": "jobTitle2",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "jobDateRange2",
+              "displayName": "jobDateRange2",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "score",
+              "displayName": "score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "segment",
+              "displayName": "segment",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "reason",
+              "displayName": "reason",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "added",
+              "displayName": "added",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "kyleSentDate",
+              "displayName": "kyleSentDate",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "kyleConnectDate",
+              "displayName": "kyleConnectDate",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "hudsonSentDate",
+              "displayName": "hudsonSentDate",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "hudsonConnectDate",
+              "displayName": "hudsonConnectDate",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "hubspotSync",
+              "displayName": "hubspotSync",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "hudsonNotes",
+              "displayName": "hudsonNotes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "inviteResults",
+              "displayName": "inviteResults",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "connectionDegree",
+              "displayName": "connectionDegree",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "previousRole",
+              "displayName": "previousRole",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "industry",
+              "displayName": "industry",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "adj industry",
+              "displayName": "adj industry",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "summary",
+              "displayName": "summary",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "companyLocation",
+              "displayName": "companyLocation",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "durationInCompany",
+              "displayName": "durationInCompany",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "pastExperienceDuration",
+              "displayName": "pastExperienceDuration",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "sharedConnectionsCount",
+              "displayName": "sharedConnectionsCount",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "isPremium",
+              "displayName": "isPremium",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "isOpenLink",
+              "displayName": "isOpenLink",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "connectionFrom",
+              "displayName": "connectionFrom",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "profileUrl",
+              "displayName": "profileUrl",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "wf3v2h-update-sheet",
+      "name": "Update HubSpot Status",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        8336,
+        976
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "hf9VoWnqYNXhUZsn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "clear",
+        "documentId": {
+          "__rl": true,
+          "value": "1xPgob7BwDoDGAOtDPBTvKzhQHl2FUZkJhJG0gEHWdgo",
+          "mode": "list",
+          "cachedResultName": "HoldingSheet",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1xPgob7BwDoDGAOtDPBTvKzhQHl2FUZkJhJG0gEHWdgo/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1xPgob7BwDoDGAOtDPBTvKzhQHl2FUZkJhJG0gEHWdgo/edit#gid=0"
+        },
+        "clear": "specificRange",
+        "range": "A2:A"
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2432,
+        1008
+      ],
+      "id": "a0577054-1024-4d9e-bd44-7b8b2fbd09cc",
+      "name": "Clear sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "hf9VoWnqYNXhUZsn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "company-updates-check",
+              "leftValue": "={{ $json._hs.hasCompanyUpdates }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "wf3v2h-has-company-updates",
+      "name": "Has Company Updates?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        5216,
+        864
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ 'https://api.hubapi.com/crm/v3/objects/companies/' + $json._hs.companyId }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ properties: $json._hs.companyUpdates }) }}",
+        "options": {}
+      },
+      "id": "wf3v2h-update-company",
+      "name": "Update Company",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        5408,
+        864
+      ],
+      "credentials": {
+        "hubspotOAuth2Api": {
+          "id": "3JZVnZQkHgMfXMRx",
+          "name": "HubSpot account"
+        }
+      },
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "id": "wf3v2h-pass-company",
+      "name": "Pass Through Company",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        5632,
+        1024
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/contacts/search",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ filterGroups: [{ filters: [{ propertyName: 'hs_linkedin_url', operator: 'EQ', value: $json._hs.linkedinUrl || '' }] }], properties: ['firstname', 'lastname', 'email', 'jobtitle', 'hs_linkedin_url', 'hs_lead_status'], limit: 5 }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        6016,
+        944
+      ],
+      "id": "wf3v2h-search-url",
+      "name": "Search by LinkedIn URL",
+      "credentials": {
+        "hubspotOAuth2Api": {
+          "id": "3JZVnZQkHgMfXMRx",
+          "name": "HubSpot account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "found-by-url",
+              "leftValue": "={{ $json.total }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        6192,
+        944
+      ],
+      "id": "wf3v2h-found-url",
+      "name": "Found by URL?"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/contacts/search",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ filterGroups: [{ filters: [{ propertyName: 'firstname', operator: 'EQ', value: $('Prepare HubSpot Data').item.json._hs.firstName || '' }, { propertyName: 'lastname', operator: 'EQ', value: $('Prepare HubSpot Data').item.json._hs.lastName || '' }] }], properties: ['firstname', 'lastname', 'email', 'jobtitle', 'hs_linkedin_url', 'hs_lead_status'], limit: 10 }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        6448,
+        1152
+      ],
+      "id": "wf3v2h-search-name",
+      "name": "Search by Name",
+      "credentials": {
+        "hubspotOAuth2Api": {
+          "id": "3JZVnZQkHgMfXMRx",
+          "name": "HubSpot account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Evaluate name search results for best contact match\nconst nameResults = $('Search by Name').item.json;\nconst prepared = $('Prepare HubSpot Data').item.json;\nconst hs = prepared._hs;\nconst results = nameResults.results || [];\n\nif (results.length === 0) {\n  // No match — will create new contact\n  return [{ json: { ...prepared, _matchResult: 'create', _matchedContact: null } }];\n}\n\nif (results.length === 1) {\n  // Exact single match — will update\n  return [{ json: { ...prepared, _matchResult: 'update', _matchedContact: results[0] } }];\n}\n\n// Multiple results — try email tiebreaker\nif (hs.email && hs.hasRealEmail) {\n  const emailMatch = results.find(r =>\n    (r.properties.email || '').toLowerCase() === hs.email.toLowerCase()\n  );\n  if (emailMatch) {\n    return [{ json: { ...prepared, _matchResult: 'update', _matchedContact: emailMatch } }];\n  }\n}\n\n// Still ambiguous — send to Slack, skip this contact\nconst names = results.map(r =>\n  (r.properties.firstname || '') + ' ' + (r.properties.lastname || '') + ' (ID: ' + r.id + ', email: ' + (r.properties.email || 'none') + ')'\n).join(', ');\nreturn [{ json: { ...prepared, _matchResult: 'ambiguous', _matchedContact: null, _ambiguousDetails: names, _ambiguousCount: results.length } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6656,
+        1152
+      ],
+      "id": "wf3v2h-resolve-match",
+      "name": "Resolve Contact Match"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "is-update",
+              "leftValue": "={{ $json._matchResult }}",
+              "rightValue": "update",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        6848,
+        1152
+      ],
+      "id": "wf3v2h-match-router",
+      "name": "Name Match Found?"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "is-ambiguous",
+              "leftValue": "={{ $json._matchResult }}",
+              "rightValue": "ambiguous",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        7072,
+        1280
+      ],
+      "id": "wf3v2h-route-ambiguous",
+      "name": "Is Ambiguous?"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SLACK_WEBHOOK_URL }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: ':warning: *Ambiguous HubSpot Contact Match*\\n' + 'Incoming: ' + $json.fullName + ' (' + ($json._hs.linkedinUrl || 'no URL') + ')\\n' + 'Found ' + $json._ambiguousCount + ' possible matches: ' + $json._ambiguousDetails + '\\n' + 'Skipping auto-sync — please resolve manually in HubSpot.' }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        7328,
+        1200
+      ],
+      "id": "wf3v2h-notify-slack",
+      "name": "Notify Slack (Ambiguous)"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Pass the URL-matched contact to the Update Contact path\nconst urlResults = $('Search by LinkedIn URL').item.json;\nconst prepared = $('Prepare HubSpot Data').item.json;\nconst matched = urlResults.results[0];\nreturn [{ json: { ...prepared, _matchedContact: matched } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6976,
+        784
+      ],
+      "id": "wf3v2h-prep-url-match",
+      "name": "Prep URL Match"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Pass the name-matched contact to the Update Contact path\nconst item = $input.first().json;\nreturn [{ json: item }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7072,
+        1120
+      ],
+      "id": "wf3v2h-prep-name-match",
+      "name": "Prep Name Match"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        7184,
+        784
+      ],
+      "id": "wf3v2h-merge-search",
+      "name": "Merge Search Results"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Skip this contact — ambiguous match logged to Slack\nconst item = $input.first().json;\nreturn [{ json: {\n  defaultProfileUrl: item.profileUrl || item._hs?.linkedinUrl || '',\n  fullName: item.fullName || '',\n  contactId: 'SKIPPED_AMBIGUOUS',\n  companyId: item._hs?.companyId || '',\n  contactCreated: false,\n  companyCreated: item._hs?.companyCreated || false,\n  companySkipped: item._hs?.companySkipped || false,\n  syncDate: item._hs?.syncDate || ''\n} }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7552,
+        1200
+      ],
+      "id": "wf3v2h-skip-ambiguous",
+      "name": "Skip Ambiguous Contact"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Restore prepared data after HubSpot company update API call\nconst preparedData = $('Has Company Updates?').item.json;\nreturn [{ json: preparedData }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5632,
+        864
+      ],
+      "id": "wf3v2h-restore-company-update",
+      "name": "Restore After Company Update"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "vhTOB4xc7mxRgCiw"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        8544,
+        1136
+      ],
+      "id": "wf3v2h-call-34",
+      "name": "Call 3.4 Conference Follow-Up",
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "PB Webhook (Email Scraper)": {
+      "main": [
+        [
+          {
+            "node": "Clear sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking 'Execute workflow'": {
+      "main": [
+        []
+      ]
+    },
+    "Parse Webhook Context": {
+      "main": [
+        [
+          {
+            "node": "Get Email Scraper Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Email Scraper Output": {
+      "main": [
+        [
+          {
+            "node": "Has jsonUrl?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has jsonUrl?": {
+      "main": [
+        [
+          {
+            "node": "Fetch Email Scraper JSON",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Merge Connection + Email Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Email Scraper JSON": {
+      "main": [
+        [
+          {
+            "node": "Merge Connection + Email Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Connection + Email Data": {
+      "main": [
+        [
+          {
+            "node": "Prepare HubSpot Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare HubSpot Data": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond to Webhook": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "Sync Complete",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Process Item",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Item": {
+      "main": [
+        [
+          {
+            "node": "Has Company Name?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Company Name?": {
+      "main": [
+        [
+          {
+            "node": "Search Company",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Skip Company",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip Company": {
+      "main": [
+        [
+          {
+            "node": "Merge Company Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Company": {
+      "main": [
+        [
+          {
+            "node": "Company Exists?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Company Exists?": {
+      "main": [
+        [
+          {
+            "node": "Use Existing Company",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Company",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Use Existing Company": {
+      "main": [
+        [
+          {
+            "node": "Has Company Updates?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Company": {
+      "main": [
+        [
+          {
+            "node": "Store New Company ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store New Company ID": {
+      "main": [
+        [
+          {
+            "node": "Merge Company Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Company Results": {
+      "main": [
+        [
+          {
+            "node": "Search by LinkedIn URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Contact": {
+      "main": [
+        [
+          {
+            "node": "Store Updated Contact ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Contact": {
+      "main": [
+        [
+          {
+            "node": "Store New Contact ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Updated Contact ID": {
+      "main": [
+        [
+          {
+            "node": "Merge Contact Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store New Contact ID": {
+      "main": [
+        [
+          {
+            "node": "Merge Contact Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Contact Results": {
+      "main": [
+        [
+          {
+            "node": "Associate Contact → Company",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Associate Contact → Company": {
+      "main": [
+        [
+          {
+            "node": "Format Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Output": {
+      "main": [
+        [
+          {
+            "node": "Update HubSpot Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update HubSpot Status": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Call 3.4 Conference Follow-Up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clear sheet": {
+      "main": [
+        [
+          {
+            "node": "Parse Webhook Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Company Updates?": {
+      "main": [
+        [
+          {
+            "node": "Update Company",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Pass Through Company",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Company": {
+      "main": [
+        [
+          {
+            "node": "Restore After Company Update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pass Through Company": {
+      "main": [
+        [
+          {
+            "node": "Merge Company Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search by LinkedIn URL": {
+      "main": [
+        [
+          {
+            "node": "Found by URL?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Found by URL?": {
+      "main": [
+        [
+          {
+            "node": "Prep URL Match",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Search by Name",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep URL Match": {
+      "main": [
+        [
+          {
+            "node": "Merge Search Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search by Name": {
+      "main": [
+        [
+          {
+            "node": "Resolve Contact Match",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve Contact Match": {
+      "main": [
+        [
+          {
+            "node": "Name Match Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Name Match Found?": {
+      "main": [
+        [
+          {
+            "node": "Prep Name Match",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Is Ambiguous?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep Name Match": {
+      "main": [
+        [
+          {
+            "node": "Merge Search Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Search Results": {
+      "main": [
+        [
+          {
+            "node": "Update Contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Ambiguous?": {
+      "main": [
+        [
+          {
+            "node": "Notify Slack (Ambiguous)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Slack (Ambiguous)": {
+      "main": [
+        [
+          {
+            "node": "Skip Ambiguous Contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip Ambiguous Contact": {
+      "main": [
+        [
+          {
+            "node": "Update HubSpot Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restore After Company Update": {
+      "main": [
+        [
+          {
+            "node": "Merge Company Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {
+    "PB Webhook (Email Scraper)": [
+      {
+        "json": {
+          "headers": {
+            "host": "chrt.app.n8n.cloud",
+            "user-agent": "Needle/2.2.4 (Node.js v22.14.0; linux x64)",
+            "content-length": "29000",
+            "accept": "application/json",
+            "accept-encoding": "gzip, br",
+            "cdn-loop": "cloudflare; loops=1; subreqs=1",
+            "cf-connecting-ip": "51.15.183.168",
+            "cf-ew-via": "15",
+            "cf-ipcountry": "FR",
+            "cf-ray": "9caf1fe1f292468e-CDG",
+            "cf-visitor": "{\"scheme\":\"https\"}",
+            "cf-worker": "n8n.cloud",
+            "content-type": "application/json; charset=utf-8",
+            "x-forwarded-for": "51.15.183.168, 104.23.225.33",
+            "x-forwarded-host": "chrt.app.n8n.cloud",
+            "x-forwarded-port": "443",
+            "x-forwarded-proto": "https",
+            "x-forwarded-server": "traefik-prod-users-gwc-90-644db48b77-2k6cn",
+            "x-is-trusted": "yes",
+            "x-real-ip": "51.15.183.168"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "agentId": "3627182471241497",
+            "agentName": "Kyle LinkedIn Profile Scraper",
+            "containerId": "4333406897987231",
+            "script": "LinkedIn Profile Scraper.js",
+            "scriptOrg": "phantombuster",
+            "branch": "master",
+            "launchDuration": 324,
+            "runDuration": 151103,
+            "resultObject": "[{\"companyIndustry\":\"Transportation/Trucking/Railroad\",\"companyName\":\"Medical Couriers\",\"companyWebsite\":\"https://www.medicalcouriers.com/request-a-pick-up/\",\"firstName\":\"RoseMarie\",\"lastName\":\"Curcuru\",\"linkedinCompanyUrl\":\"https://www.linkedin.com/company/medical-couriers-inc/\",\"linkedinCompanySlug\":\"medical-couriers-inc\",\"linkedinCompanyId\":\"6874844\",\"linkedinDescription\":\"As a Chief Operating Officer at Medical Couriers and Moment Logistics LLC, I oversee the daily operations and strategic direction of two of the fastest-growing logistics and supply chain companies in the country. With over 25 years of experience in executive leadership roles, I have a proven track record of delivering results, driving innovation, and enhancing customer satisfaction in a highly competitive and dynamic industry.\\n\\nMy core competencies include operations management, business planning, negotiation, freight, team building, manufacturing process improvement, and new business development. I am passionate about creating efficient, scalable, and sustainable solutions that optimize the performance and profitability of both companies. My mission is to empower and support our talented and diverse teams, foster a culture of excellence and collaboration, and provide the best possible service to our clients.\",\"linkedinFollowersCount\":2674,\"linkedinHeadline\":\"Chief Operating Officer \",\"linkedinIsHiringBadge\":false,\"linkedinIsOpenToWorkBadge\":false,\"linkedinJobDateRange\":\"Feb 2024 - Present\",\"linkedinJobLocation\":\"Sacramento, California, United States\",\"linkedinJobTitle\":\"Chief Operating Officer\",\"linkedinPreviousCompanySlug\":\"moment-logistics-llc\",\"linkedinPreviousJobDateRange\":\"Feb 2024 - Present\",\"linkedinPreviousJobLocation\":\"Sacramento, California, United States\",\"linkedinPreviousJobTitle\":\"Chief Operating Officer\",\"linkedinProfileId\":\"38696197\",\"linkedinProfileSlug\":\"rosemarie-curcuru-771b6110\",\"linkedinProfileUrl\":\"https://linkedin.com/in/rosemarie-curcuru-771b6110\",\"linkedinProfileUrn\":\"ACoAAAJOdQUBPB323oAkw04JGNu0EMkkEIgHNY0\",\"linkedinProfileImageUrn\":\"urn:li:digitalmediaAsset:D5603AQGzOOTEYtAaAw\",\"linkedinProfileImageUrl\":\"https://media.licdn.com/dms/image/v2/D5603AQGzOOTEYtAaAw/profile-displayphoto-shrink_800_800/profile-displayphoto-shrink_800_800/0/1731734646766?e=1772064000&v=beta&t=IKfom1F7tPnwxpq3KvIHb95BerJBO3zfkZEcmUHu688\",\"linkedinSchoolUrl\":\"https://linkedin.com/school/buttecollege\",\"linkedinSchoolCompanySlug\":\"buttecollege\",\"linkedinSchoolDateRange\":\"Sep 1982 - Jun 1984\",\"linkedinSchoolDegree\":\"Business Administration\",\"linkedinSchoolName\":\"Butte College\",\"linkedinSkillsLabel\":\"Account Management, Analytical Skills, Financial Analysis, Logistics, 3PL, Transportation, Freight, Transportation Management, Supply Chain, Shipping, Operations Management, Logistics Management, Supply Chain Management, Team Building, Air Freight, Warehousing, Trucking, Inventory Management, Truckload, Income Statement\",\"location\":\"Sacramento, California, United States\",\"previousCompanyName\":\"Moment Logistics LLC\",\"professionalEmail\":\"rosemarie.curcuru@medicalcouriers.com\",\"connectionDegree\":\"1st\",\"refreshedAt\":\"2026-02-09T00:05:14.257Z\",\"mutualConnectionsUrl\":\"https://www.linkedin.com/search/results/people/?facetNetwork=%5B%22F%22%5D&facetConnectionOf=%5B%22ACoAAAJOdQUBPB323oAkw04JGNu0EMkkEIgHNY0%22%5D&origin=MEMBER_PROFILE_CANNED_SEARCH&RESULT_TYPE=PEOPLE\",\"connectionsUrl\":\"https://www.linkedin.com/search/results/people/?facetConnectionOf=%5B%22ACoAAAJOdQUBPB323oAkw04JGNu0EMkkEIgHNY0%22%5D&facetNetwork=%5B%22F%22%2C%22S%22%5D&origin=MEMBER_PROFILE_CANNED_SEARCH\",\"linkedinConnectionsCount\":2580,\"profileUrl\":\"https://www.linkedin.com/in/rosemarie-curcuru-771b6110/\",\"linkedinCompanyName\":\"Medical Couriers\",\"linkedinCompanyDescription\":\"Medical Couriers, Inc. is a 50+ year old medical-only delivery service that transports over ten million specimens a year across the United States for labs, clinics, hospitals, and universities.\\n\\nWe apply our lifetime of logistics experience to your courier needs to efficiently plan routes, consolidate service and get specimens to where you need them to be on time and in perfect condition.\\n\\nUnlike other medical-only delivery companies, we train our employee drivers to care. That’s why we prepare our drivers with strict protocols to protect the patient, deliver CARE training to convey the human consequence of the work, and execute an 8 point driver checklist before going out the door so they can confidently represent your brand in the field.\\n\\nCall us at 800-652-1147 to experience the Medical Couriers difference.\",\"linkedinCompanyTagline\":\"55 Years of Delivery Integrity\",\"linkedinCompanyFollowerCount\":2317,\"linkedinCompanyWebsite\":\"https://www.medicalcouriers.com/request-a-pick-up/\",\"linkedinCompanyEmployeesCount\":54,\"linkedinCompanySize\":\"51-200 employees\",\"linkedinCompanyHeadquarter\":\"176 Otto Circle, California 95822, US\",\"linkedinCompanyIndustry\":\"Transportation, Logistics, Supply Chain and Storage\",\"linkedinCompanyFounded\":\"1969\",\"linkedinCompanySpecialities\":\"Medical Specimen Transport, Logistics\",\"scraperProfileId\":\"455099309\",\"scraperFullName\":\"Kyle Reagan\"},{\"companyIndustry\":\"Hospital & Health Care\",\"companyName\":\"Orlando Health\",\"companyWebsite\":\"http://www.orlandohealth.com\",\"firstName\":\"Cairo\",\"lastName\":\"Wasfy\",\"linkedinCompanyUrl\":\"https://www.linkedin.com/company/orlando-health/\",\"linkedinCompanySlug\":\"orlando-health\",\"linkedinCompanyId\":\"11083\",\"linkedinDescription\":\" Supply Chain Systems\\n Business Conversions\\n Operational Effectiveness\\n Financial Analysis/Modeling\\n Competitive Analysis\\n MDM\\n Pyxis\\n Supply Chain People Soft \\n Excel, and Excess\\n Business Development      \\n Project Management\",\"linkedinFollowersCount\":3046,\"linkedinHeadline\":\"Chief Supply Chain Officer\\nOrlando Health\",\"linkedinIsHiringBadge\":false,\"linkedinIsOpenToWorkBadge\":false,\"linkedinJobDateRange\":\"Apr 2024 - Present\",\"linkedinJobLocation\":\"United States\",\"linkedinJobTitle\":\"Chief Supply Chain Officer\",\"linkedinPreviousCompanySlug\":\"ardenthealth\",\"linkedinPreviousJobDateRange\":\"Jun 2022 - Apr 2024\",\"linkedinPreviousJobLocation\":\"Nashville, Tennessee, United States\",\"linkedinPreviousJobTitle\":\"Chief Resource Officer\",\"linkedinProfileId\":\"130610263\",\"linkedinProfileSlug\":\"cairo-wasfy-7878a837\",\"linkedinProfileUrl\":\"https://linkedin.com/in/cairo-wasfy-7878a837\",\"linkedinProfileUrn\":\"ACoAAAfI9FcBpv15IwzgAAdvM7XUPvZ91fe4mu0\",\"linkedinProfileImageUrn\":\"urn:li:digitalmediaAsset:C4E03AQGTIkqMgabUAw\",\"linkedinProfileImageUrl\":\"https://media.licdn.com/dms/image/v2/C4E03AQGTIkqMgabUAw/profile-displayphoto-shrink_800_800/profile-displayphoto-shrink_800_800/0/1580221408483?e=1772064000&v=beta&t=8_W7a-rLz0ntvN-0iO6Z_ASZ7YRwCPKxoElzMtO9Clo\",\"linkedinSchoolUrl\":\"https://linkedin.com/school/uwf\",\"linkedinSchoolCompanySlug\":\"uwf\",\"linkedinSchoolDateRange\":\"1996 - 2001\",\"linkedinSchoolDegree\":\"Master of Business Administration (MBA)\",\"linkedinSchoolName\":\"University of West Florida\",\"linkedinSkillsLabel\":\"Microsoft Office, Microsoft Excel, Microsoft Word, Customer Service, PowerPoint, English, Windows, Research, Outlook, Teaching, Public Speaking, HTML, Strategic Planning, Budgets\",\"location\":\"United States\",\"previousCompanyName\":\"Ardent Health\",\"connectionDegree\":\"1st\",\"refreshedAt\":\"2026-02-09T00:05:39.468Z\",\"mutualConnectionsUrl\":\"https://www.linkedin.com/search/results/people/?facetNetwork=%5B%22F%22%5D&facetConnectionOf=%5B%22ACoAAAfI9FcBpv15IwzgAAdvM7XUPvZ91fe4mu0%22%5D&origin=MEMBER_PROFILE_CANNED_SEARCH&RESULT_TYPE=PEOPLE\",\"connectionsUrl\":\"https://www.linkedin.com/search/results/people/?facetConnectionOf=%5B%22ACoAAAfI9FcBpv15IwzgAAdvM7XUPvZ91fe4mu0%22%5D&facetNetwork=%5B%22F%22%2C%22S%22%5D&origin=MEMBER_PROFILE_CANNED_SEARCH\",\"linkedinConnectionsCount\":2990,\"profileUrl\":\"https://www.linkedin.com/in/cairo-wasfy-7878a837/\",\"linkedinCompanyName\":\"Orlando Health\",\"linkedinCompanyDescription\":\"Orlando Health is a not-for-profit healthcare organization with $7.6 billion of assets under management that serves the southeastern United States. Headquartered in Orlando, Florida, the system was founded more than 100 years ago.\",\"linkedinCompanyTagline\":\"A trusted leader inspiring hope through the advancement of health.\",\"linkedinCompanyFollowerCount\":116274,\"linkedinCompanyWebsite\":\"http://www.orlandohealth.com\",\"linkedinCompanyEmployeesCount\":17895,\"linkedinCompanySize\":\"10001 employees\",\"linkedinCompanyHeadquarter\":\"1414 Kuhl Ave, FL 32806, US\",\"linkedinCompanyIndustry\":\"Hospitals and Health Care\",\"linkedinCompanyFounded\":\"1918\",\"scraperProfileId\":\"455099309\",\"scraperFullName\":\"Kyle Reagan\"},{\"companyIndustry\":\"Hospital & Health Care\",\"companyName\":\"Cedars-Sinai\",\"companyWebsite\":\"https://careers.cshs.org/\",\"firstName\":\"Motz\",\"lastName\":\"Feinberg\",\"linkedinCompanyUrl\":\"https://www.linkedin.com/company/cedars-sinai-medical-center/\",\"linkedinCompanySlug\":\"cedars-sinai-medical-center\",\"linkedinCompanyId\":\"7508\",\"linkedinDescription\":\"Motz Feinberg is a supply chain executive with more than 25 years of experience in industries ranging from manufacturing and consumer goods to military logistics and healthcare.   As Vice President and Chief Supply Chain Officer, Feinberg is leading a supply chain transformation at Cedars-Sinai Health System in Los Angeles.  Prior to joining Cedars-Sinai, Feinberg led Kaiser Permanente’s supply chain transformation. Motz holds three patents and has published multiple articles in healthcare publications as well as several strategic supply chain analyses for the US Air Force.\",\"linkedinFollowersCount\":9677,\"linkedinHeadline\":\"Chief Supply Chain Officer at Cedars-Sinai Health System\",\"linkedinIsHiringBadge\":false,\"linkedinIsOpenToWorkBadge\":false,\"linkedinJobDateRange\":\"Jun 2020 - Present\",\"linkedinJobLocation\":\"Los Angeles Metropolitan Area\",\"linkedinJobTitle\":\"VP & Chief Supply Chain Officer\",\"linkedinPreviousCompanySlug\":\"kaiser-permanente\",\"linkedinPreviousJobDateRange\":\"Jul 2017 - Jun 2020\",\"linkedinPreviousJobTitle\":\"VP Supply Chain Operations\",\"linkedinPreviousSchoolUrl\":\"https://linkedin.com/school/cornelljohnsonmba\",\"linkedinPreviousSchoolCompanySlug\":\"cornelljohnsonmba\",\"linkedinPreviousSchoolDegree\":\"MBA\",\"linkedinPreviousSchoolName\":\"Cornell Johnson Graduate School of Management\",\"linkedinProfileId\":\"17242847\",\"linkedinProfileSlug\":\"motz-feinberg-5bb9365\",\"linkedinProfileUrl\":\"https://linkedin.com/in/motz-feinberg-5bb9365\",\"linkedinProfileUrn\":\"ACoAAAEHGt8BB8b4kptp56Y1YJFHlepUcDOl4QI\",\"linkedinProfileImageUrn\":\"urn:li:digitalmediaAsset:C4E03AQH0neT9JB0cqw\",\"linkedinProfileImageUrl\":\"https://media.licdn.com/dms/image/v2/C4E03AQH0neT9JB0cqw/profile-displayphoto-shrink_800_800/profile-displayphoto-shrink_800_800/0/1627512690900?e=1772064000&v=beta&t=KK4I_DCsBNB2L1zmj1OTP_H_WW-w8yq_UsKwCj8_dkc\",\"linkedinSchoolUrl\":\"https://linkedin.com/school/harvard-business-school\",\"linkedinSchoolCompanySlug\":\"harvard-business-school\",\"linkedinSchoolDegree\":\"Executive Leadership Program\",\"linkedinSchoolName\":\"Harvard Business School\",\"linkedinSkillsLabel\":\"Supply Chain, Decision Support, Key Performance Indicators, MRP, Production Schedules, Supply Chain Management, P&L Accountability, Business Operations, Facilities Management, Organizational Design, Change Management, People Development, Capital Budgeting, Project Management, Six Sigma, Cross-functional Team Leadership, Process Improvement, Continuous Improvement, Lean Manufacturing, Logistics\",\"location\":\"Santa Monica, California, United States\",\"previousCompanyName\":\"Kaiser Permanente\",\"professionalEmail\":\"motz.feinberg@cshs.org\",\"connectionDegree\":\"1st\",\"refreshedAt\":\"2026-02-09T00:06:10.413Z\",\"mutualConnectionsUrl\":\"https://www.linkedin.com/search/results/people/?facetNetwork=%5B%22F%22%5D&facetConnectionOf=%5B%22ACoAAAEHGt8BB8b4kptp56Y1YJFHlepUcDOl4QI%22%5D&origin=MEMBER_PROFILE_CANNED_SEARCH&RESULT_TYPE=PEOPLE\",\"connectionsUrl\":\"https://www.linkedin.com/search/results/people/?facetConnectionOf=%5B%22ACoAAAEHGt8BB8b4kptp56Y1YJFHlepUcDOl4QI%22%5D&facetNetwork=%5B%22F%22%2C%22S%22%5D&origin=MEMBER_PROFILE_CANNED_SEARCH\",\"linkedinConnectionsCount\":9553,\"profileUrl\":\"https://www.linkedin.com/in/motz-feinberg-5bb9365/\",\"linkedinCompanyName\":\"Cedars-Sinai\",\"linkedinCompanyDescription\":\"Since its beginning in 1902, Cedars-Sinai has evolved to meet the healthcare needs of one of the most diverse regions in the nation, continually setting new standards for quality and innovation in patient care, research, teaching and community service.\\n\\nToday, Cedars-Sinai is widely known for its national leadership in transforming healthcare for the benefit of patients.\\n\\nCedars-Sinai receives consistent recognition for our excellence. Our awards include; being named one of America’s Best Hospitals by U.S. News & World Report, receiving the National Research Corporation’s Consumer Choice Award 19 years in a row for providing the highest-quality medical care in Los Angeles, achieving the longest-running Magnet designation for nursing excellence in California, and being recognized as The Advisory Board Company’s 2017 Workplace of the Year, an award Cedars-Sinai has won three years in a row. This annual award recognizes hospitals and health systems nationwide that have outstanding levels of employee engagement.\\n\\nCedars-Sinai is a leader in the clinical care and research of heart disease, cancer and brain disorders, among other areas. Pioneering research achievements include using cardiac stem cells to repair damaged hearts, developing minimally invasive surgical techniques and discovering new types of drugs to target cancer more precisely.\\n\\nCedars-Sinai also impacts the future of healthcare through education programs that encompass everything from highly competitive medical residency and fellowship programs to a biomedical science and translational medicine PhD program, advanced training for nurses and educational opportunities for allied health professionals. Most notably, Cedars-Sinai demonstrates a longstanding commitment to strengthening the Los Angeles community through wide-ranging programs that improve the health of its most vulnerable residents.\",\"linkedinCompanyTagline\":\"Make a difference every single day at Cedars-Sinai\",\"linkedinCompanyFollowerCount\":157846,\"linkedinCompanyWebsite\":\"https://careers.cshs.org/\",\"linkedinCompanyEmployeesCount\":16397,\"linkedinCompanySize\":\"10001 employees\",\"linkedinCompanyHeadquarter\":\"8700 Beverly Blvd., CA 90048, US\",\"linkedinCompanyIndustry\":\"Hospitals and Health Care\",\"scraperProfileId\":\"455099309\",\"scraperFullName\":\"Kyle Reagan\"},{\"companyIndustry\":\"Hospital & Health Care\",\"companyName\":\"Cedars-Sinai\",\"companyWebsite\":\"https://careers.cshs.org/\",\"firstName\":\"Nicholas\",\"lastName\":\"Cline, MHA\",\"linkedinCompanyUrl\":\"https://www.linkedin.com/company/cedars-sinai-medical-center/\",\"linkedinCompanySlug\":\"cedars-sinai-medical-center\",\"linkedinCompanyId\":\"7508\",\"linkedinDescription\":\"As a patient, I have seen both high and low quality healthcare and understand the impact on patients and their families. Through leading a healthcare organization, I positively influence the quality of care provided, enhancing the patient experience. \\n\\nNotable Accomplishments Include:\\nProjects\\n    •\\tEnvironmental Services (EVS) Review: Worked with the EVS Department at one of Sutter Health’s largest hospitals to identify opportunities to strengthen policies and procedures impacting the quality of their work and ultimately improving the infection control efforts. This included enhancing the shift scheduling process and formalizing the quality control audits performed on patient rooms after cleaning. (2015)\\n    •\\tBed Management and Flow Kaizen: Identified process efficiencies in moving patients from the Emergency Department to the Inpatient Floor, reducing costs and enhancing patient experience. This included establishing a process for Inpatient Floor nurses to proactively initiate patient transfers from the Emergency Department and study the patient’s chart before transfer to reduce handoff time. (2016)\\n\\nAwards\\n    •\\tAssociation of Local Government Auditors (ALGA) Gold Knighton Award for Best Audit in 2013 – Small Audit Shop Category (April 2014)\\n    •\\tCalifornia Association of Certified Public Accountants (CalCPA) – CalCPA’s leadership certificate program in (January 2011)\\n    •\\tCalifornia State Auditor’s People’s Choice award for excellent mentoring, leading, and team building (January 2010)\",\"linkedinFollowersCount\":2706,\"linkedinHeadline\":\"Director, Supply Chain Operations at Cedars-Sinai\",\"linkedinIsHiringBadge\":true,\"linkedinIsOpenToWorkBadge\":false,\"linkedinJobDateRange\":\"Oct 2024 - Present\",\"linkedinJobLocation\":\"Los Angeles, California, United States\",\"linkedinJobTitle\":\"Director, Supply Chain Operations\",\"linkedinPreviousCompanySlug\":\"kaiser-permanente\",\"linkedinPreviousJobDateRange\":\"Apr 2020 - Oct 2024\",\"linkedinPreviousJobDescription\":\"9/2023 to 10/2024 - Supply Chain Director for the Los Angeles Medical Center (Sunset) service area.\\n \\n4/2020 to 9/2023 - Supply Chain Director for the West LA Medical Center service area.\",\"linkedinPreviousJobLocation\":\"Los Angeles, California, United States\",\"linkedinPreviousJobTitle\":\"Area Director, Supply Chain\",\"linkedinPreviousSchoolUrl\":\"https://linkedin.com/school/sacstate\",\"linkedinPreviousSchoolCompanySlug\":\"sacstate\",\"linkedinPreviousSchoolDateRange\":\"2004 - 2006\",\"linkedinPreviousSchoolDegree\":\"Bachelor of Science (B.S.)\",\"linkedinPreviousSchoolName\":\"California State University-Sacramento\",\"linkedinProfileId\":\"77224362\",\"linkedinProfileSlug\":\"nicholascline\",\"linkedinProfileUrl\":\"https://linkedin.com/in/nicholascline\",\"linkedinProfileUrn\":\"ACoAAASaWaoBn7H_l3J8aF3wbf4un2hiU7ruriM\",\"linkedinProfileImageUrn\":\"urn:li:digitalmediaAsset:C4E03AQGiZcLb-2vyKg\",\"linkedinProfileImageUrl\":\"https://media.licdn.com/dms/image/v2/C4E03AQGiZcLb-2vyKg/profile-displayphoto-shrink_800_800/profile-displayphoto-shrink_800_800/0/1566330646853?e=1772064000&v=beta&t=4tyGlyK-0mv2yvhA4GHmp9-lZgW7T_sUeZcKs3pW3GE\",\"linkedinSchoolUrl\":\"https://linkedin.com/school/university-of-southern-california\",\"linkedinSchoolCompanySlug\":\"university-of-southern-california\",\"linkedinSchoolDateRange\":\"2016 - 2018\",\"linkedinSchoolDegree\":\"Master's Degree\",\"linkedinSchoolDescription\":\"U.S. News & World Report ranks the USC Price School:\\n#2 overall among 262 schools of public affairs\\n#3 out of 15 in Health Policy and Management\",\"linkedinSchoolName\":\"University of Southern California\",\"linkedinSkillsLabel\":\"Auditing, Internal Controls, Internal Audit, Accounting, Sarbanes-Oxley Act, Financial Analysis, Policy, Financial Reporting, Financial Statements, Data Analysis, Team Leadership, Government, Leadership, Microsoft Excel, Financial Accounting, Microsoft Office, Project Management, Risk Assessment, Program Management, GAAP\",\"location\":\"Los Angeles, California, United States\",\"previousCompanyName\":\"Kaiser Permanente\",\"professionalEmail\":\"nicholas.cline@cshs.org\",\"connectionDegree\":\"1st\",\"refreshedAt\":\"2026-02-09T00:06:36.545Z\",\"mutualConnectionsUrl\":\"https://www.linkedin.com/search/results/people/?facetNetwork=%5B%22F%22%5D&facetConnectionOf=%5B%22ACoAAASaWaoBn7H_l3J8aF3wbf4un2hiU7ruriM%22%5D&origin=MEMBER_PROFILE_CANNED_SEARCH&RESULT_TYPE=PEOPLE\",\"connectionsUrl\":\"https://www.linkedin.com/search/results/people/?facetConnectionOf=%5B%22ACoAAASaWaoBn7H_l3J8aF3wbf4un2hiU7ruriM%22%5D&facetNetwork=%5B%22F%22%2C%22S%22%5D&origin=MEMBER_PROFILE_CANNED_SEARCH\",\"linkedinConnectionsCount\":2723,\"profileUrl\":\"https://www.linkedin.com/in/nicholascline/\",\"linkedinCompanyName\":\"Cedars-Sinai\",\"linkedinCompanyDescription\":\"Since its beginning in 1902, Cedars-Sinai has evolved to meet the healthcare needs of one of the most diverse regions in the nation, continually setting new standards for quality and innovation in patient care, research, teaching and community service.\\n\\nToday, Cedars-Sinai is widely known for its national leadership in transforming healthcare for the benefit of patients.\\n\\nCedars-Sinai receives consistent recognition for our excellence. Our awards include; being named one of America’s Best Hospitals by U.S. News & World Report, receiving the National Research Corporation’s Consumer Choice Award 19 years in a row for providing the highest-quality medical care in Los Angeles, achieving the longest-running Magnet designation for nursing excellence in California, and being recognized as The Advisory Board Company’s 2017 Workplace of the Year, an award Cedars-Sinai has won three years in a row. This annual award recognizes hospitals and health systems nationwide that have outstanding levels of employee engagement.\\n\\nCedars-Sinai is a leader in the clinical care and research of heart disease, cancer and brain disorders, among other areas. Pioneering research achievements include using cardiac stem cells to repair damaged hearts, developing minimally invasive surgical techniques and discovering new types of drugs to target cancer more precisely.\\n\\nCedars-Sinai also impacts the future of healthcare through education programs that encompass everything from highly competitive medical residency and fellowship programs to a biomedical science and translational medicine PhD program, advanced training for nurses and educational opportunities for allied health professionals. Most notably, Cedars-Sinai demonstrates a longstanding commitment to strengthening the Los Angeles community through wide-ranging programs that improve the health of its most vulnerable residents.\",\"linkedinCompanyTagline\":\"Make a difference every single day at Cedars-Sinai\",\"linkedinCompanyFollowerCount\":157846,\"linkedinCompanyWebsite\":\"https://careers.cshs.org/\",\"linkedinCompanyEmployeesCount\":16397,\"linkedinCompanySize\":\"10001 employees\",\"linkedinCompanyHeadquarter\":\"8700 Beverly Blvd., CA 90048, US\",\"linkedinCompanyIndustry\":\"Hospitals and Health Care\",\"scraperProfileId\":\"455099309\",\"scraperFullName\":\"Kyle Reagan\"},{\"companyIndustry\":\"Hospital & Health Care\",\"companyName\":\"Children's Hospital Los Angeles (CHLA)\",\"companyWebsite\":\"http://chla.org/careers\",\"firstName\":\"LaVonnye\",\"lastName\":\"Chong, MS, CLS, MT (ASCP)\",\"linkedinCompanyUrl\":\"https://www.linkedin.com/company/childrensla/\",\"linkedinCompanySlug\":\"childrensla\",\"linkedinCompanyId\":\"2476\",\"linkedinDescription\":\"I am a performance-minded, solutions-driven executive who successfully defined organizational strategy and steered daily operations for multifaceted healthcare divisions and complex, regulated clinical environments. \\n\\nProudly, I have built a reputation for forging alliances and partnering with key decision-makers to revamp policies/procedures, drive efficiencies, engage staff, and optimize end-user/patient experience. I leverage forethought and big-picture mindset to enact positive, ongoing change. I source, build, mentor, lead and develop high-performing teams. I instill cohesive cultures of accountability and transparency.\\n\\nSpecialties:\\n★ Strategic Planning \\n★ Operations Management \\n★ Process Improvement \\n★ Fiscal Governance \\n★ Change Management\\n★ Healthcare Administration \\n★ Staff Management \\n★ Negotiations \\n★ Business Partnering \\n★ Talent Acquisition & Hiring\\n★ Employee Engagement & Retention \\n★ Regulatory Compliance \\n★ Lab Operations \\n★ Team Leadership & Mentoring\\n★ Restructuring \\n★ Program Development & Management \\n★ Budget Management \\n★ Human Resources \\n★ Team Building\",\"linkedinFollowersCount\":1791,\"linkedinHeadline\":\"Director of Lab Operations, Chief of Staff at Children’s Hospital Los Angeles\",\"linkedinIsHiringBadge\":false,\"linkedinIsOpenToWorkBadge\":false,\"linkedinJobDateRange\":\"May 2023 - Present\",\"linkedinJobTitle\":\"Director of Operations, Chief of Staff\",\"linkedinPreviousCompanySlug\":\"radychildrens\",\"linkedinPreviousJobDateRange\":\"Jul 2018 - May 2023\",\"linkedinPreviousJobTitle\":\"Director Of Laboratory Services\",\"linkedinPreviousSchoolUrl\":\"https://linkedin.com/school/andrews-university\",\"linkedinPreviousSchoolCompanySlug\":\"andrews-university\",\"linkedinPreviousSchoolDegree\":\"BS\",\"linkedinPreviousSchoolDescription\":\"Completed the business minor\",\"linkedinPreviousSchoolName\":\"Andrews University\",\"linkedinProfileId\":\"70763173\",\"linkedinProfileSlug\":\"lavonnyechong\",\"linkedinProfileUrl\":\"https://linkedin.com/in/lavonnyechong\",\"linkedinProfileUrn\":\"ACoAAAQ3wqUBHYLItAkKoItmhuBf587b0DbxoCk\",\"linkedinProfileImageUrn\":\"urn:li:digitalmediaAsset:D5603AQEruidtUSF9jw\",\"linkedinProfileImageUrl\":\"https://media.licdn.com/dms/image/v2/D5603AQEruidtUSF9jw/profile-displayphoto-crop_800_800/B56ZpA6VrhJwAI-/0/1762025626886?e=1772064000&v=beta&t=fkH_zDgXlNhTKwbjIfIOEDwuC8ZOtt6RcoCy5djl64s\",\"linkedinSchoolUrl\":\"https://linkedin.com/school/johns-hopkins-university\",\"linkedinSchoolCompanySlug\":\"johns-hopkins-university\",\"linkedinSchoolDegree\":\"MS\",\"linkedinSchoolDescription\":\"Concentrations:  Regulatory Affairs and Biotechnology Enterprise\",\"linkedinSchoolName\":\"The Johns Hopkins University\",\"linkedinSkillsLabel\":\"Healthcare, Hospitals, Healthcare Management, Medical Devices, Hematology, Phlebotomy, Laboratory Medicine, Clinical Chemistry, Immunology, Blood Bank, Point of Care, Biotechnology, Laboratory, Medicine, Pathology, Public Health, Quality Improvement, Regulatory Affairs, Clinical Research, HIPAA\",\"location\":\"San Diego, California, United States\",\"previousCompanyName\":\"Rady Children's Hospital-San Diego\",\"professionalEmail\":\"clavonnye@chla.org\",\"connectionDegree\":\"1st\",\"refreshedAt\":\"2026-02-09T00:07:01.454Z\",\"mutualConnectionsUrl\":\"https://www.linkedin.com/search/results/people/?facetNetwork=%5B%22F%22%5D&facetConnectionOf=%5B%22ACoAAAQ3wqUBHYLItAkKoItmhuBf587b0DbxoCk%22%5D&origin=MEMBER_PROFILE_CANNED_SEARCH&RESULT_TYPE=PEOPLE\",\"connectionsUrl\":\"https://www.linkedin.com/search/results/people/?facetConnectionOf=%5B%22ACoAAAQ3wqUBHYLItAkKoItmhuBf587b0DbxoCk%22%5D&facetNetwork=%5B%22F%22%2C%22S%22%5D&origin=MEMBER_PROFILE_CANNED_SEARCH\",\"linkedinConnectionsCount\":1783,\"profileUrl\":\"https://www.linkedin.com/in/lavonnyechong/\",\"linkedinCompanyName\":\"Children's Hospital Los Angeles (CHLA)\",\"linkedinCompanyDescription\":\"Here at CHLA, we believe every child deserves to enjoy all those special moments that childhood has to offer, free from pain and suffering. This is what inspires our staff to be their best—and they’re equipped with everything they need to succeed. If you want to help create more special moments for children where you’re empowered to deliver the highest quality of care, this is the place to do it. At CHLA — named a top 10 children’s hospital in the nation by U.S. News & World Report—we empower our team members to deliver the highest quality care. As a Magnet-designated hospital, we provide compassionate care for our patients more than 528,000 times each year. If you’re ready to make a difference for thousands of children while improving pediatric medicine, join us. \",\"linkedinCompanyFollowerCount\":115188,\"linkedinCompanyWebsite\":\"http://chla.org/careers\",\"linkedinCompanyEmployeesCount\":6860,\"linkedinCompanySize\":\"1001-5000 employees\",\"linkedinCompanyHeadquarter\":\"4650 Sunset Blvd, CA 90027, US\",\"linkedinCompanyIndustry\":\"Hospitals and Health Care\",\"linkedinCompanyFounded\":\"1901\",\"linkedinCompanySpecialities\":\"BMT, ED, CTICU, NICU, PICU, Transport, Hematology-Oncology, Rehabilitation, Specialty Surgical, Adolescent Medicine, Pediatric\",\"scraperProfileId\":\"455099309\",\"scraperFullName\":\"Kyle Reagan\"}]",
+            "exitMessage": "finished",
+            "exitCode": 0
+          },
+          "webhookUrl": "https://chrt.app.n8n.cloud/webhook/connection-sync-hubspot",
+          "executionMode": "production"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "versionId": "6c761dd3-6910-46b4-a1cd-7948cb7aeac6",
+  "activeVersionId": "6c761dd3-6910-46b4-a1cd-7948cb7aeac6",
+  "versionCounter": 301,
+  "triggerCount": 1,
+  "shared": [
+    {
+      "updatedAt": "2026-02-06T00:40:42.455Z",
+      "createdAt": "2026-02-06T00:40:42.455Z",
+      "role": "workflow:owner",
+      "workflowId": "wKYz16GbzqWTh2DK",
+      "projectId": "O7lTivDfRl72aS23",
+      "project": {
+        "updatedAt": "2025-12-24T03:17:11.000Z",
+        "createdAt": "2025-12-23T21:24:31.508Z",
+        "id": "O7lTivDfRl72aS23",
+        "name": "ChrtWorkflows",
+        "type": "team",
+        "icon": {
+          "type": "icon",
+          "value": "layers"
+        },
+        "description": "",
+        "creatorId": null,
+        "projectRelations": [
+          {
+            "updatedAt": "2025-12-23T21:24:31.510Z",
+            "createdAt": "2025-12-23T21:24:31.510Z",
+            "userId": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4",
+            "projectId": "O7lTivDfRl72aS23",
+            "user": {
+              "updatedAt": "2026-02-09T08:00:03.000Z",
+              "createdAt": "2025-12-17T12:51:53.118Z",
+              "id": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4",
+              "email": "hudson@chrt.com",
+              "firstName": "Hudson",
+              "lastName": "Lorfing",
+              "personalizationAnswers": null,
+              "settings": {
+                "userActivated": true,
+                "userClaimedAiCredits": true,
+                "easyAIWorkflowOnboarded": true,
+                "firstSuccessfulWorkflowId": "kjjYKQEXv67Vl5MS",
+                "userActivatedAt": 1766099344758,
+                "npsSurvey": {
+                  "responded": true,
+                  "lastShownAt": 1768855960435
+                }
+              },
+              "disabled": false,
+              "mfaEnabled": false,
+              "lastActiveAt": "2026-02-09",
+              "isPending": false
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": {
+    "updatedAt": "2026-02-09T15:36:34.000Z",
+    "createdAt": "2026-02-09T15:35:46.549Z",
+    "versionId": "6c761dd3-6910-46b4-a1cd-7948cb7aeac6",
+    "workflowId": "wKYz16GbzqWTh2DK",
+    "nodes": [
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "connection-sync-hubspot",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "wf3v2h-webhook",
+        "name": "PB Webhook (Email Scraper)",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          2224,
+          1008
+        ],
+        "webhookId": "test-connection-sync-hubspot-v2"
+      },
+      {
+        "parameters": {},
+        "type": "n8n-nodes-base.manualTrigger",
+        "typeVersion": 1,
+        "position": [
+          2208,
+          1200
+        ],
+        "id": "wf3v2h-manual",
+        "name": "When clicking 'Execute workflow'"
+      },
+      {
+        "parameters": {
+          "jsCode": "const input = $input.first().json;\nconst body = input.body || input;\nreturn [{ json: {\n  containerId: body.containerId || '',\n  agentId: body.agentId || '5768405047812127',\n  profile: body.profile || 'kyle'\n}}];"
+        },
+        "id": "wf3v2h-parse",
+        "name": "Parse Webhook Context",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2608,
+          1008
+        ]
+      },
+      {
+        "parameters": {
+          "operation": "getOutput",
+          "agentId": "={{ $json.agentId }}",
+          "additionalFields": {}
+        },
+        "id": "wf3v2h-get-output",
+        "name": "Get Email Scraper Output",
+        "type": "n8n-nodes-base.phantombuster",
+        "typeVersion": 1,
+        "position": [
+          2800,
+          1008
+        ],
+        "credentials": {
+          "phantombusterApi": {
+            "id": "UYQpQC8SBIqIkifM",
+            "name": "Phantombuster account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "has-json",
+                "leftValue": "={{ !!$json.jsonUrl }}",
+                "rightValue": true,
+                "operator": {
+                  "type": "boolean",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "wf3v2h-has-json",
+        "name": "Has jsonUrl?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          3008,
+          1008
+        ]
+      },
+      {
+        "parameters": {
+          "url": "={{ $json.jsonUrl }}",
+          "options": {
+            "timeout": 60000
+          }
+        },
+        "id": "wf3v2h-fetch-json",
+        "name": "Fetch Email Scraper JSON",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          3200,
+          944
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "// Merge connection data with email scraper data\n// The email scraper adds email addresses to profiles\nconst items = $input.all();\nconst context = $('Parse Webhook Context').first().json;\n\nreturn items.map(item => {\n  const p = item.json;\n  const profileUrl = (p.linkedinProfileUrl || p.profileUrl || p.linkedinProfileUrl || '').trim();\n  const email = p.email || p.mail || '';\n  const hasRealEmail = !!email && !email.includes('linkedin.com');\n  \n  return {\n    json: {\n      profileUrl,\n      fullName: p.fullName || ((p.firstName || '') + ' ' + (p.lastName || '')).trim(),\n      firstName: p.firstName || '',\n      lastName: p.lastName || '',\n      email,\n      hasRealEmail,\n      personalHeadLine: p.linkedinHeadline || '',\n      schoolUrl: p.linkedinSchoolUrl || '',\n      schoolDegree: p.linkedinSchoolDegree || '',\n      schoolName: p.linkedinSchoolName || '',\n      previousSchoolUrl: p.linkedinPreviousSchoolUrl || '',\n      previousSchoolDegree: p.linkedinPreviousSchoolDegree || '',\n      previousSchoolName: p.linkedinPreviousSchoolName || '',\n      personallocation: p.location || '',\n      jobLocation: p.linkedinJobLocation || '',\n      connectionDegree: p.connectionDegree || '1st',\n      jobTitle: p.linkedinJobTitle || p.jobTitle || '',\n      companyName: p.companyName || p.company || '',\n      companyDescription: p.linkedinCompanyDescription || '',\n      companySize: p.linkedinCompanySize || '',\n      companyHQ: p.linkedinCompanyHeadquarter || '',\n      companyTagline: p.linkedinCompanyTagline || '',\n      companySlug: p.linkedinCompanySlug || '',\n      companyIndustry: p.companyIndustry || '',\n      companyWebsite: p.companyWebsite || '',\n      previousCompanyName: p.previousCompanyName || '',\n      previousCompanySlug: p.linkedinPreviousCompanySlug|| '',\n      previousCompanyPosition: p.linkedinPreviousJobTitle || '',\n      profile: context.profile\n    }\n  };\n});"
+        },
+        "id": "wf3v2h-merge-data",
+        "name": "Merge Connection + Email Data",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          3408,
+          944
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "// Prepare HubSpot data from merged connection + email data\nconst items = $input.all();\nconst today = new Date().toISOString().split('T')[0];\n\nfunction parseLocation(loc) {\n  if (!loc) return { city: '', state: '', country: '' };\n  const parts = loc.split(',').map(s => s.trim());\n  if (parts.length >= 3) return { city: parts[0], state: parts[parts.length - 2], country: parts[parts.length - 1] };\n  if (parts.length === 2) return { city: parts[0], state: parts[1], country: '' };\n  return { city: loc, state: '', country: '' };\n}\n\n// Map LinkedIn industry to HubSpot enum\nconst INDUSTRY_MAP = {\n  'accounting': 'ACCOUNTING',\n  'airlines/aviation': 'AIRLINES_AVIATION',\n  'aviation & aerospace': 'AVIATION_AEROSPACE',\n  'aviation/aerospace': 'AVIATION_AEROSPACE',\n  'banking': 'BANKING',\n  'biotechnology': 'BIOTECHNOLOGY',\n  'broadcast media': 'BROADCAST_MEDIA',\n  'building materials': 'BUILDING_MATERIALS',\n  'chemicals': 'CHEMICALS',\n  'computer software': 'COMPUTER_SOFTWARE',\n  'construction': 'CONSTRUCTION',\n  'consumer electronics': 'CONSUMER_ELECTRONICS',\n  'consumer goods': 'CONSUMER_GOODS',\n  'consumer services': 'CONSUMER_SERVICES',\n  'cosmetics': 'COSMETICS',\n  'defense & space': 'DEFENSE_SPACE',\n  'defense/space': 'DEFENSE_SPACE',\n  'design': 'DESIGN',\n  'education management': 'EDUCATION_MANAGEMENT',\n  'electrical/electronic manufacturing': 'ELECTRICAL_ELECTRONIC_MANUFACTURING',\n  'entertainment': 'ENTERTAINMENT',\n  'environmental services': 'ENVIRONMENTAL_SERVICES',\n  'events services': 'EVENTS_SERVICES',\n  'facilities services': 'FACILITIES_SERVICES',\n  'financial services': 'FINANCIAL_SERVICES',\n  'food & beverages': 'FOOD_BEVERAGES',\n  'food production': 'FOOD_PRODUCTION',\n  'government administration': 'GOVERNMENT_ADMINISTRATION',\n  'health, wellness and fitness': 'HEALTH_WELLNESS_AND_FITNESS',\n  'health/wellness/fitness': 'HEALTH_WELLNESS_AND_FITNESS',\n  'wellness and fitness services': 'HEALTH_WELLNESS_AND_FITNESS',\n  'higher education': 'HIGHER_EDUCATION',\n  'hospital & health care': 'HOSPITAL_HEALTH_CARE',\n  'hospitals and health care': 'HOSPITAL_HEALTH_CARE',\n  'hospitality': 'HOSPITALITY',\n  'human resources': 'HUMAN_RESOURCES',\n  'import and export': 'IMPORT_AND_EXPORT',\n  'import/export': 'IMPORT_AND_EXPORT',\n  'industrial automation': 'INDUSTRIAL_AUTOMATION',\n  'information services': 'INFORMATION_SERVICES',\n  'information technology and services': 'INFORMATION_TECHNOLOGY_AND_SERVICES',\n  'information technology & services': 'INFORMATION_TECHNOLOGY_AND_SERVICES',\n  'insurance': 'INSURANCE',\n  'international trade and development': 'INTERNATIONAL_TRADE_AND_DEVELOPMENT',\n  'internet': 'INTERNET',\n  'legal services': 'LEGAL_SERVICES',\n  'logistics and supply chain': 'LOGISTICS_AND_SUPPLY_CHAIN',\n  'logistics/supply chain': 'LOGISTICS_AND_SUPPLY_CHAIN',\n  'machinery': 'MACHINERY',\n  'management consulting': 'MANAGEMENT_CONSULTING',\n  'maritime': 'MARITIME',\n  'market research': 'MARKET_RESEARCH',\n  'marketing and advertising': 'MARKETING_AND_ADVERTISING',\n  'mechanical or industrial engineering': 'MECHANICAL_OR_INDUSTRIAL_ENGINEERING',\n  'mechanical/industrial engineering': 'MECHANICAL_OR_INDUSTRIAL_ENGINEERING',\n  'media production': 'MEDIA_PRODUCTION',\n  'medical devices': 'MEDICAL_DEVICES',\n  'medical device': 'MEDICAL_DEVICES',\n  'medical practice': 'MEDICAL_PRACTICE',\n  'mental health care': 'MENTAL_HEALTH_CARE',\n  'military': 'MILITARY',\n  'mining & metals': 'MINING_METALS',\n  'oil & energy': 'OIL_ENERGY',\n  'oil/energy': 'OIL_ENERGY',\n  'package/freight delivery': 'PACKAGE_FREIGHT_DELIVERY',\n  'packaging and containers': 'PACKAGING_AND_CONTAINERS',\n  'pharmaceuticals': 'PHARMACEUTICALS',\n  'pharmaceutical manufacturing': 'PHARMACEUTICALS',\n  'plastics': 'PLASTICS',\n  'professional training & coaching': 'PROFESSIONAL_TRAINING_COACHING',\n  'public safety': 'PUBLIC_SAFETY',\n  'publishing': 'PUBLISHING',\n  'railroads': 'TRANSPORTATION_TRUCKING_RAILROAD',\n  'real estate': 'REAL_ESTATE',\n  'renewables & environment': 'RENEWABLES_ENVIRONMENT',\n  'research': 'RESEARCH',\n  'restaurants': 'RESTAURANTS',\n  'retail': 'RETAIL',\n  'security and investigations': 'SECURITY_AND_INVESTIGATIONS',\n  'semiconductors': 'SEMICONDUCTORS',\n  'sporting goods': 'SPORTING_GOODS',\n  'staffing and recruiting': 'STAFFING_AND_RECRUITING',\n  'telecommunications': 'TELECOMMUNICATIONS',\n  'textiles': 'TEXTILES',\n  'transportation/trucking/railroad': 'TRANSPORTATION_TRUCKING_RAILROAD',\n  'truck transportation': 'TRANSPORTATION_TRUCKING_RAILROAD',\n  'utilities': 'UTILITIES',\n  'veterinary': 'VETERINARY',\n  'warehousing': 'WAREHOUSING',\n  'wholesale': 'WHOLESALE',\n  'wireless': 'WIRELESS',\n};\n\nfunction mapIndustry(linkedinIndustry) {\n  if (!linkedinIndustry) return '';\n  const key = linkedinIndustry.toLowerCase().trim();\n  if (INDUSTRY_MAP[key]) return INDUSTRY_MAP[key];\n  // Fallback: try converting to enum format\n  const enumAttempt = key.replace(/[\\s&/]+/g, '_').replace(/_+/g, '_').toUpperCase();\n  return enumAttempt;\n}\n\nreturn items.map(item => {\n  const p = item.json;\n  const loc = parseLocation(p.personallocation || p.location || '');\n  const rawIndustry = p.companyIndustry || p.industry || '';\n\n  return {\n    json: {\n      // Reference fields for downstream nodes (Format Output, Update Sheet)\n      profileUrl: p.profileUrl || '',\n      fullName: p.fullName || '',\n      profile: p.profile || '',\n      // All HubSpot data in _hs\n      _hs: {\n        firstName: p.firstName || '',\n        lastName: p.lastName || '',\n        email: p.email || '',\n        hasRealEmail: p.hasRealEmail || false,\n        companyName: p.companyName || '',\n        jobTitle: p.jobTitle || '',\n        industry: rawIndustry,\n        hubspotIndustry: mapIndustry(rawIndustry),\n        location: p.personallocation || p.location || '',\n        city: loc.city,\n        state: loc.state,\n        country: loc.country,\n        linkedinUrl: p.profileUrl || '',\n        syncDate: today,\n        // Contact enrichment fields\n        linkedinHeadline: p.personalHeadLine || '',\n        schoolName: p.schoolName || '',\n        schoolDegree: p.schoolDegree || '',\n        previousCompanyName: p.previousCompanyName || '',\n        previousCompanyPosition: p.previousCompanyPosition || '',\n        jobLocation: p.jobLocation || '',\n        companySlug: p.companySlug || '',\n        // Company-record fields\n        companyDescription: p.companyDescription || '',\n        companySize: p.companySize || '',\n        companyHQ: p.companyHQ || '',\n        companyWebsite: p.companyWebsite || '',\n        companyTagline: p.companyTagline || '',\n      }\n    }\n  };\n});"
+        },
+        "id": "wf3v2h-prepare",
+        "name": "Prepare HubSpot Data",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          3600,
+          944
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ JSON.stringify({ ok: true, message: 'HubSpot sync started', profileCount: $input.all().length }) }}",
+          "options": {}
+        },
+        "id": "wf3v2h-respond",
+        "name": "Respond to Webhook",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [
+          3808,
+          944
+        ]
+      },
+      {
+        "parameters": {
+          "options": {}
+        },
+        "id": "wf3v2h-loop",
+        "name": "Loop Over Items",
+        "type": "n8n-nodes-base.splitInBatches",
+        "typeVersion": 3,
+        "position": [
+          4000,
+          944
+        ],
+        "notesInFlow": false
+      },
+      {
+        "parameters": {
+          "jsCode": "// Loop complete — summary\nreturn [{ json: { done: true, message: 'HubSpot sync complete' } }];"
+        },
+        "id": "wf3v2h-sync-complete",
+        "name": "Sync Complete",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          4240,
+          784
+        ]
+      },
+      {
+        "parameters": {},
+        "id": "wf3v2h-start-item",
+        "name": "Process Item",
+        "type": "n8n-nodes-base.noOp",
+        "typeVersion": 1,
+        "position": [
+          4208,
+          944
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "has-company",
+                "leftValue": "={{ !!($json._hs && $json._hs.companyName) }}",
+                "rightValue": true,
+                "operator": {
+                  "type": "boolean",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "wf3v2h-has-company",
+        "name": "Has Company Name?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          4400,
+          944
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "// Skip company processing — no company name provided\nconst preparedData = $('Prepare HubSpot Data').item.json;\nreturn [{ json: { ...preparedData, _hs: { ...preparedData._hs, companyId: null, companyCreated: false, companySkipped: true } } }];"
+        },
+        "id": "wf3v2h-skip-company",
+        "name": "Skip Company",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          4608,
+          1152
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.hubapi.com/crm/v3/objects/companies/search",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "hubspotOAuth2Api",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ filterGroups: [{ filters: [{ propertyName: 'name', operator: 'EQ', value: $json._hs.companyName || '' }] }], properties: ['name', 'domain', 'industry', 'description', 'website', 'linkedin_company_page'] }) }}",
+          "options": {}
+        },
+        "id": "wf3v2h-search-company",
+        "name": "Search Company",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          4608,
+          944
+        ],
+        "credentials": {
+          "hubspotOAuth2Api": {
+            "id": "3JZVnZQkHgMfXMRx",
+            "name": "HubSpot account"
+          }
+        },
+        "continueOnFail": true,
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "company-exists",
+                "leftValue": "={{ $json.total }}",
+                "rightValue": 0,
+                "operator": {
+                  "type": "number",
+                  "operation": "gt"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "wf3v2h-company-exists",
+        "name": "Company Exists?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          4800,
+          944
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "const searchResult = $('Search Company').item.json;\nconst preparedData = $('Prepare HubSpot Data').item.json;\nconst existingCompany = searchResult.results[0];\nconst ep = existingCompany.properties || {};\nconst hs = preparedData._hs;\n\n// Determine what company fields need updating\nconst companyUpdates = {};\nif (!ep.description && hs.companyDescription) companyUpdates.description = hs.companyDescription;\nif (!ep.website && hs.companyWebsite) companyUpdates.website = hs.companyWebsite;\nif (!ep.linkedin_company_page && hs.companySlug) companyUpdates.linkedin_company_page = 'https://www.linkedin.com/company/' + hs.companySlug;\nif (!ep.industry && hs.hubspotIndustry) companyUpdates.industry = hs.hubspotIndustry;\n\nreturn [{ json: { ...preparedData, _hs: { ...hs, companyId: existingCompany.id, companyCreated: false, companyUpdates, hasCompanyUpdates: Object.keys(companyUpdates).length > 0 } } }];"
+        },
+        "id": "wf3v2h-use-existing",
+        "name": "Use Existing Company",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          5008,
+          864
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.hubapi.com/crm/v3/objects/companies",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "hubspotOAuth2Api",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ properties: { name: $('Prepare HubSpot Data').item.json._hs.companyName || '', industry: $('Prepare HubSpot Data').item.json._hs.hubspotIndustry || '', description: $('Prepare HubSpot Data').item.json._hs.companyDescription || '', website: $('Prepare HubSpot Data').item.json._hs.companyWebsite || '', linkedin_company_page: $('Prepare HubSpot Data').item.json._hs.companySlug ? 'https://www.linkedin.com/company/' + $('Prepare HubSpot Data').item.json._hs.companySlug : '' } }) }}",
+          "options": {}
+        },
+        "id": "wf3v2h-create-company",
+        "name": "Create Company",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          5008,
+          1072
+        ],
+        "credentials": {
+          "hubspotOAuth2Api": {
+            "id": "3JZVnZQkHgMfXMRx",
+            "name": "HubSpot account"
+          }
+        },
+        "continueOnFail": true,
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "const createResult = $('Create Company').item.json;\nconst preparedData = $('Prepare HubSpot Data').item.json;\nreturn [{ json: { ...preparedData, _hs: { ...preparedData._hs, companyId: createResult.id, companyCreated: true } } }];"
+        },
+        "id": "wf3v2h-store-company",
+        "name": "Store New Company ID",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          5200,
+          1072
+        ]
+      },
+      {
+        "parameters": {},
+        "id": "wf3v2h-merge-company",
+        "name": "Merge Company Results",
+        "type": "n8n-nodes-base.noOp",
+        "typeVersion": 1,
+        "position": [
+          5808,
+          944
+        ]
+      },
+      {
+        "parameters": {
+          "method": "PATCH",
+          "url": "={{ 'https://api.hubapi.com/crm/v3/objects/contacts/' + $('Merge Search Results').item.json._matchedContact.id }}",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "hubspotOAuth2Api",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ properties: { jobtitle: $('Merge Search Results').item.json._hs.jobTitle || '', company: $('Merge Search Results').item.json._hs.companyName || '', industry: $('Merge Search Results').item.json._hs.hubspotIndustry || $('Merge Search Results').item.json._hs.industry || '', hs_lead_status: 'CONNECTED', hs_linkedin_url: $('Merge Search Results').item.json._hs.linkedinUrl || '', city: $('Merge Search Results').item.json._hs.city || $('Merge Search Results').item.json._hs.location || '', state: $('Merge Search Results').item.json._hs.state || '', country: $('Merge Search Results').item.json._hs.country || '', linkedin_headline: $('Merge Search Results').item.json._hs.linkedinHeadline || '', school_name: $('Merge Search Results').item.json._hs.schoolName || '', school_degree: $('Merge Search Results').item.json._hs.schoolDegree || '', previous_company_name: $('Merge Search Results').item.json._hs.previousCompanyName || '', previous_company_position: $('Merge Search Results').item.json._hs.previousCompanyPosition || '', job_location: $('Merge Search Results').item.json._hs.jobLocation || '', linkedin_company_slug: $('Merge Search Results').item.json._hs.companySlug || '' } }) }}",
+          "options": {}
+        },
+        "id": "wf3v2h-update-contact",
+        "name": "Update Contact",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          7392,
+          784
+        ],
+        "credentials": {
+          "hubspotOAuth2Api": {
+            "id": "3JZVnZQkHgMfXMRx",
+            "name": "HubSpot account"
+          }
+        },
+        "continueOnFail": true,
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.hubapi.com/crm/v3/objects/contacts",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "hubspotOAuth2Api",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ properties: { email: $('Merge Company Results').item.json._hs.hasRealEmail ? $('Merge Company Results').item.json._hs.email : undefined, firstname: $('Merge Company Results').item.json._hs.firstName, lastname: $('Merge Company Results').item.json._hs.lastName, jobtitle: $('Merge Company Results').item.json._hs.jobTitle || '', company: $('Merge Company Results').item.json._hs.companyName || '', industry: $('Merge Company Results').item.json._hs.hubspotIndustry || $('Merge Company Results').item.json._hs.industry || '', hs_lead_status: 'CONNECTED', hs_linkedin_url: $('Merge Company Results').item.json._hs.linkedinUrl || '', city: $('Merge Company Results').item.json._hs.city || $('Merge Company Results').item.json._hs.location || '', state: $('Merge Company Results').item.json._hs.state || '', country: $('Merge Company Results').item.json._hs.country || '', linkedin_headline: $('Merge Company Results').item.json._hs.linkedinHeadline || '', school_name: $('Merge Company Results').item.json._hs.schoolName || '', school_degree: $('Merge Company Results').item.json._hs.schoolDegree || '', previous_company_name: $('Merge Company Results').item.json._hs.previousCompanyName || '', previous_company_position: $('Merge Company Results').item.json._hs.previousCompanyPosition || '', job_location: $('Merge Company Results').item.json._hs.jobLocation || '', linkedin_company_slug: $('Merge Company Results').item.json._hs.companySlug || '' } }) }}",
+          "options": {}
+        },
+        "id": "wf3v2h-create-contact",
+        "name": "Create Contact",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          7328,
+          1360
+        ],
+        "credentials": {
+          "hubspotOAuth2Api": {
+            "id": "3JZVnZQkHgMfXMRx",
+            "name": "HubSpot account"
+          }
+        },
+        "continueOnFail": true,
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "const updateResult = $('Update Contact').item.json;\nconst mergedData = $('Merge Search Results').item.json;\nreturn [{ json: { ...mergedData, _hs: { ...mergedData._hs, contactId: updateResult.id, contactCreated: false } } }];"
+        },
+        "id": "wf3v2h-store-updated",
+        "name": "Store Updated Contact ID",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          7584,
+          784
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "const createResult = $('Create Contact').item.json;\nconst mergedData = $('Merge Company Results').item.json;\nreturn [{ json: { ...mergedData, _hs: { ...mergedData._hs, contactId: createResult.id, contactCreated: true } } }];"
+        },
+        "id": "wf3v2h-store-new",
+        "name": "Store New Contact ID",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          7552,
+          1360
+        ]
+      },
+      {
+        "parameters": {},
+        "id": "wf3v2h-merge-contact",
+        "name": "Merge Contact Results",
+        "type": "n8n-nodes-base.noOp",
+        "typeVersion": 1,
+        "position": [
+          7744,
+          976
+        ]
+      },
+      {
+        "parameters": {
+          "method": "PUT",
+          "url": "={{ 'https://api.hubapi.com/crm/v3/objects/contacts/' + $json._hs.contactId + '/associations/company/' + $json._hs.companyId + '/contact_to_company' }}",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "hubspotOAuth2Api",
+          "options": {
+            "response": {
+              "response": {
+                "neverError": true
+              }
+            }
+          }
+        },
+        "id": "wf3v2h-associate",
+        "name": "Associate Contact → Company",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          7936,
+          976
+        ],
+        "credentials": {
+          "hubspotOAuth2Api": {
+            "id": "3JZVnZQkHgMfXMRx",
+            "name": "HubSpot account"
+          }
+        },
+        "continueOnFail": true,
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Format output for logging / sheet update + pass data to 3.4\n// Reference Merge Contact Results (not $input which comes from the Associate HTTP call)\nconst contactData = $('Merge Contact Results').item.json;\nconst hs = contactData._hs || {};\nreturn [{ json: {\n  defaultProfileUrl: contactData.profileUrl || hs.linkedinUrl || '',\n  fullName: contactData.fullName || ((hs.firstName || '') + ' ' + (hs.lastName || '')).trim(),\n  firstName: hs.firstName || contactData.firstName || '',\n  lastName: hs.lastName || contactData.lastName || '',\n  title: hs.jobTitle || contactData.title || '',\n  company: hs.companyName || contactData.company || '',\n  linkedInProfileUrl: contactData.profileUrl || hs.linkedinUrl || '',\n  hubspotContactId: hs.contactId || '',\n  contactId: hs.contactId || '',\n  companyId: hs.companyId || '',\n  contactCreated: hs.contactCreated || false,\n  companyCreated: hs.companyCreated || false,\n  companySkipped: hs.companySkipped || false,\n  syncDate: hs.syncDate || ''\n}}];"
+        },
+        "id": "wf3v2h-format",
+        "name": "Format Output",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          8144,
+          976
+        ]
+      },
+      {
+        "parameters": {
+          "operation": "update",
+          "documentId": {
+            "__rl": true,
+            "mode": "id",
+            "value": "1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8"
+          },
+          "sheetName": {
+            "__rl": true,
+            "mode": "name",
+            "value": "Master List"
+          },
+          "columns": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "hubspotSync": "={{ $json.syncDate }}",
+              "row_number": 0,
+              "defaultProfileUrl": "={$input.defaultProfileUrl}"
+            },
+            "matchingColumns": [
+              "defaultProfileUrl"
+            ],
+            "schema": [
+              {
+                "id": "defaultProfileUrl",
+                "displayName": "defaultProfileUrl",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "fullName",
+                "displayName": "fullName",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "firstName",
+                "displayName": "firstName",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "lastName",
+                "displayName": "lastName",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "school",
+                "displayName": "school",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "schoolDegree",
+                "displayName": "schoolDegree",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "company",
+                "displayName": "company",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "companyUrl",
+                "displayName": "companyUrl",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "companyId",
+                "displayName": "companyId",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "jobTitle",
+                "displayName": "jobTitle",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "jobDateRange",
+                "displayName": "jobDateRange",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "hsIndustry",
+                "displayName": "hsIndustry",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "headline",
+                "displayName": "headline",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "location",
+                "displayName": "location",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "company2",
+                "displayName": "company2",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "companyUrl2",
+                "displayName": "companyUrl2",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "companyId2",
+                "displayName": "companyId2",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "jobTitle2",
+                "displayName": "jobTitle2",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "jobDateRange2",
+                "displayName": "jobDateRange2",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "score",
+                "displayName": "score",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "segment",
+                "displayName": "segment",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "reason",
+                "displayName": "reason",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "status",
+                "displayName": "status",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "added",
+                "displayName": "added",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "kyleSentDate",
+                "displayName": "kyleSentDate",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "kyleConnectDate",
+                "displayName": "kyleConnectDate",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "hudsonSentDate",
+                "displayName": "hudsonSentDate",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "hudsonConnectDate",
+                "displayName": "hudsonConnectDate",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "hubspotSync",
+                "displayName": "hubspotSync",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "hudsonNotes",
+                "displayName": "hudsonNotes",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "inviteResults",
+                "displayName": "inviteResults",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "connectionDegree",
+                "displayName": "connectionDegree",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "previousRole",
+                "displayName": "previousRole",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "industry",
+                "displayName": "industry",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "adj industry",
+                "displayName": "adj industry",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "summary",
+                "displayName": "summary",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "companyLocation",
+                "displayName": "companyLocation",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "durationInCompany",
+                "displayName": "durationInCompany",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "pastExperienceDuration",
+                "displayName": "pastExperienceDuration",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "sharedConnectionsCount",
+                "displayName": "sharedConnectionsCount",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "isPremium",
+                "displayName": "isPremium",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "isOpenLink",
+                "displayName": "isOpenLink",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "connectionFrom",
+                "displayName": "connectionFrom",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "profileUrl",
+                "displayName": "profileUrl",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "row_number",
+                "displayName": "row_number",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "canBeUsedToMatch": true,
+                "readOnly": true,
+                "removed": false
+              }
+            ],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": false
+          },
+          "options": {}
+        },
+        "id": "wf3v2h-update-sheet",
+        "name": "Update HubSpot Status",
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.5,
+        "position": [
+          8336,
+          976
+        ],
+        "alwaysOutputData": true,
+        "credentials": {
+          "googleSheetsOAuth2Api": {
+            "id": "hf9VoWnqYNXhUZsn",
+            "name": "Google Sheets account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "operation": "clear",
+          "documentId": {
+            "__rl": true,
+            "value": "1xPgob7BwDoDGAOtDPBTvKzhQHl2FUZkJhJG0gEHWdgo",
+            "mode": "list",
+            "cachedResultName": "HoldingSheet",
+            "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1xPgob7BwDoDGAOtDPBTvKzhQHl2FUZkJhJG0gEHWdgo/edit?usp=drivesdk"
+          },
+          "sheetName": {
+            "__rl": true,
+            "value": "gid=0",
+            "mode": "list",
+            "cachedResultName": "Sheet1",
+            "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1xPgob7BwDoDGAOtDPBTvKzhQHl2FUZkJhJG0gEHWdgo/edit#gid=0"
+          },
+          "clear": "specificRange",
+          "range": "A2:A"
+        },
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.7,
+        "position": [
+          2432,
+          1008
+        ],
+        "id": "a0577054-1024-4d9e-bd44-7b8b2fbd09cc",
+        "name": "Clear sheet",
+        "credentials": {
+          "googleSheetsOAuth2Api": {
+            "id": "hf9VoWnqYNXhUZsn",
+            "name": "Google Sheets account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict"
+            },
+            "conditions": [
+              {
+                "id": "company-updates-check",
+                "leftValue": "={{ $json._hs.hasCompanyUpdates }}",
+                "rightValue": true,
+                "operator": {
+                  "type": "boolean",
+                  "operation": "equals",
+                  "singleValue": true
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "wf3v2h-has-company-updates",
+        "name": "Has Company Updates?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [
+          5216,
+          864
+        ]
+      },
+      {
+        "parameters": {
+          "method": "PATCH",
+          "url": "={{ 'https://api.hubapi.com/crm/v3/objects/companies/' + $json._hs.companyId }}",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "hubspotOAuth2Api",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ properties: $json._hs.companyUpdates }) }}",
+          "options": {}
+        },
+        "id": "wf3v2h-update-company",
+        "name": "Update Company",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          5408,
+          864
+        ],
+        "credentials": {
+          "hubspotOAuth2Api": {
+            "id": "3JZVnZQkHgMfXMRx",
+            "name": "HubSpot account"
+          }
+        },
+        "continueOnFail": true,
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {},
+        "id": "wf3v2h-pass-company",
+        "name": "Pass Through Company",
+        "type": "n8n-nodes-base.noOp",
+        "typeVersion": 1,
+        "position": [
+          5632,
+          1024
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.hubapi.com/crm/v3/objects/contacts/search",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "hubspotOAuth2Api",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ filterGroups: [{ filters: [{ propertyName: 'hs_linkedin_url', operator: 'EQ', value: $json._hs.linkedinUrl || '' }] }], properties: ['firstname', 'lastname', 'email', 'jobtitle', 'hs_linkedin_url', 'hs_lead_status'], limit: 5 }) }}",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          6016,
+          944
+        ],
+        "id": "wf3v2h-search-url",
+        "name": "Search by LinkedIn URL",
+        "credentials": {
+          "hubspotOAuth2Api": {
+            "id": "3JZVnZQkHgMfXMRx",
+            "name": "HubSpot account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "found-by-url",
+                "leftValue": "={{ $json.total }}",
+                "rightValue": 0,
+                "operator": {
+                  "type": "number",
+                  "operation": "gt"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          6192,
+          944
+        ],
+        "id": "wf3v2h-found-url",
+        "name": "Found by URL?"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.hubapi.com/crm/v3/objects/contacts/search",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "hubspotOAuth2Api",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ filterGroups: [{ filters: [{ propertyName: 'firstname', operator: 'EQ', value: $('Prepare HubSpot Data').item.json._hs.firstName || '' }, { propertyName: 'lastname', operator: 'EQ', value: $('Prepare HubSpot Data').item.json._hs.lastName || '' }] }], properties: ['firstname', 'lastname', 'email', 'jobtitle', 'hs_linkedin_url', 'hs_lead_status'], limit: 10 }) }}",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          6448,
+          1152
+        ],
+        "id": "wf3v2h-search-name",
+        "name": "Search by Name",
+        "credentials": {
+          "hubspotOAuth2Api": {
+            "id": "3JZVnZQkHgMfXMRx",
+            "name": "HubSpot account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "// Evaluate name search results for best contact match\nconst nameResults = $('Search by Name').item.json;\nconst prepared = $('Prepare HubSpot Data').item.json;\nconst hs = prepared._hs;\nconst results = nameResults.results || [];\n\nif (results.length === 0) {\n  // No match — will create new contact\n  return [{ json: { ...prepared, _matchResult: 'create', _matchedContact: null } }];\n}\n\nif (results.length === 1) {\n  // Exact single match — will update\n  return [{ json: { ...prepared, _matchResult: 'update', _matchedContact: results[0] } }];\n}\n\n// Multiple results — try email tiebreaker\nif (hs.email && hs.hasRealEmail) {\n  const emailMatch = results.find(r =>\n    (r.properties.email || '').toLowerCase() === hs.email.toLowerCase()\n  );\n  if (emailMatch) {\n    return [{ json: { ...prepared, _matchResult: 'update', _matchedContact: emailMatch } }];\n  }\n}\n\n// Still ambiguous — send to Slack, skip this contact\nconst names = results.map(r =>\n  (r.properties.firstname || '') + ' ' + (r.properties.lastname || '') + ' (ID: ' + r.id + ', email: ' + (r.properties.email || 'none') + ')'\n).join(', ');\nreturn [{ json: { ...prepared, _matchResult: 'ambiguous', _matchedContact: null, _ambiguousDetails: names, _ambiguousCount: results.length } }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          6656,
+          1152
+        ],
+        "id": "wf3v2h-resolve-match",
+        "name": "Resolve Contact Match"
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "is-update",
+                "leftValue": "={{ $json._matchResult }}",
+                "rightValue": "update",
+                "operator": {
+                  "type": "string",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          6848,
+          1152
+        ],
+        "id": "wf3v2h-match-router",
+        "name": "Name Match Found?"
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "is-ambiguous",
+                "leftValue": "={{ $json._matchResult }}",
+                "rightValue": "ambiguous",
+                "operator": {
+                  "type": "string",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          7072,
+          1280
+        ],
+        "id": "wf3v2h-route-ambiguous",
+        "name": "Is Ambiguous?"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "={{ $env.SLACK_WEBHOOK_URL }}",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ text: ':warning: *Ambiguous HubSpot Contact Match*\\n' + 'Incoming: ' + $json.fullName + ' (' + ($json._hs.linkedinUrl || 'no URL') + ')\\n' + 'Found ' + $json._ambiguousCount + ' possible matches: ' + $json._ambiguousDetails + '\\n' + 'Skipping auto-sync — please resolve manually in HubSpot.' }) }}",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          7328,
+          1200
+        ],
+        "id": "wf3v2h-notify-slack",
+        "name": "Notify Slack (Ambiguous)"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Pass the URL-matched contact to the Update Contact path\nconst urlResults = $('Search by LinkedIn URL').item.json;\nconst prepared = $('Prepare HubSpot Data').item.json;\nconst matched = urlResults.results[0];\nreturn [{ json: { ...prepared, _matchedContact: matched } }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          6976,
+          784
+        ],
+        "id": "wf3v2h-prep-url-match",
+        "name": "Prep URL Match"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Pass the name-matched contact to the Update Contact path\nconst item = $input.first().json;\nreturn [{ json: item }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          7072,
+          1120
+        ],
+        "id": "wf3v2h-prep-name-match",
+        "name": "Prep Name Match"
+      },
+      {
+        "parameters": {},
+        "type": "n8n-nodes-base.noOp",
+        "typeVersion": 1,
+        "position": [
+          7184,
+          784
+        ],
+        "id": "wf3v2h-merge-search",
+        "name": "Merge Search Results"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Skip this contact — ambiguous match logged to Slack\nconst item = $input.first().json;\nreturn [{ json: {\n  defaultProfileUrl: item.profileUrl || item._hs?.linkedinUrl || '',\n  fullName: item.fullName || '',\n  contactId: 'SKIPPED_AMBIGUOUS',\n  companyId: item._hs?.companyId || '',\n  contactCreated: false,\n  companyCreated: item._hs?.companyCreated || false,\n  companySkipped: item._hs?.companySkipped || false,\n  syncDate: item._hs?.syncDate || ''\n} }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          7552,
+          1200
+        ],
+        "id": "wf3v2h-skip-ambiguous",
+        "name": "Skip Ambiguous Contact"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Restore prepared data after HubSpot company update API call\nconst preparedData = $('Has Company Updates?').item.json;\nreturn [{ json: preparedData }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          5632,
+          864
+        ],
+        "id": "wf3v2h-restore-company-update",
+        "name": "Restore After Company Update"
+      },
+      {
+        "parameters": {
+          "workflowId": {
+            "__rl": true,
+            "mode": "id",
+            "value": "vhTOB4xc7mxRgCiw"
+          },
+          "options": {
+            "waitForSubWorkflow": false
+          }
+        },
+        "type": "n8n-nodes-base.executeWorkflow",
+        "typeVersion": 1.2,
+        "position": [
+          8544,
+          1136
+        ],
+        "id": "wf3v2h-call-34",
+        "name": "Call 3.4 Conference Follow-Up",
+        "onError": "continueRegularOutput"
+      }
+    ],
+    "connections": {
+      "PB Webhook (Email Scraper)": {
+        "main": [
+          [
+            {
+              "node": "Clear sheet",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "When clicking 'Execute workflow'": {
+        "main": [
+          []
+        ]
+      },
+      "Parse Webhook Context": {
+        "main": [
+          [
+            {
+              "node": "Get Email Scraper Output",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Get Email Scraper Output": {
+        "main": [
+          [
+            {
+              "node": "Has jsonUrl?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Has jsonUrl?": {
+        "main": [
+          [
+            {
+              "node": "Fetch Email Scraper JSON",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Merge Connection + Email Data",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Fetch Email Scraper JSON": {
+        "main": [
+          [
+            {
+              "node": "Merge Connection + Email Data",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Merge Connection + Email Data": {
+        "main": [
+          [
+            {
+              "node": "Prepare HubSpot Data",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Prepare HubSpot Data": {
+        "main": [
+          [
+            {
+              "node": "Respond to Webhook",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Respond to Webhook": {
+        "main": [
+          [
+            {
+              "node": "Loop Over Items",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Loop Over Items": {
+        "main": [
+          [
+            {
+              "node": "Sync Complete",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Process Item",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Process Item": {
+        "main": [
+          [
+            {
+              "node": "Has Company Name?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Has Company Name?": {
+        "main": [
+          [
+            {
+              "node": "Search Company",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Skip Company",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Skip Company": {
+        "main": [
+          [
+            {
+              "node": "Merge Company Results",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Search Company": {
+        "main": [
+          [
+            {
+              "node": "Company Exists?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Company Exists?": {
+        "main": [
+          [
+            {
+              "node": "Use Existing Company",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Create Company",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Use Existing Company": {
+        "main": [
+          [
+            {
+              "node": "Has Company Updates?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Create Company": {
+        "main": [
+          [
+            {
+              "node": "Store New Company ID",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Store New Company ID": {
+        "main": [
+          [
+            {
+              "node": "Merge Company Results",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Merge Company Results": {
+        "main": [
+          [
+            {
+              "node": "Search by LinkedIn URL",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Update Contact": {
+        "main": [
+          [
+            {
+              "node": "Store Updated Contact ID",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Create Contact": {
+        "main": [
+          [
+            {
+              "node": "Store New Contact ID",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Store Updated Contact ID": {
+        "main": [
+          [
+            {
+              "node": "Merge Contact Results",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Store New Contact ID": {
+        "main": [
+          [
+            {
+              "node": "Merge Contact Results",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Merge Contact Results": {
+        "main": [
+          [
+            {
+              "node": "Associate Contact → Company",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Associate Contact → Company": {
+        "main": [
+          [
+            {
+              "node": "Format Output",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Format Output": {
+        "main": [
+          [
+            {
+              "node": "Update HubSpot Status",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Update HubSpot Status": {
+        "main": [
+          [
+            {
+              "node": "Loop Over Items",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Call 3.4 Conference Follow-Up",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Clear sheet": {
+        "main": [
+          [
+            {
+              "node": "Parse Webhook Context",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Has Company Updates?": {
+        "main": [
+          [
+            {
+              "node": "Update Company",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Pass Through Company",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Update Company": {
+        "main": [
+          [
+            {
+              "node": "Restore After Company Update",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Pass Through Company": {
+        "main": [
+          [
+            {
+              "node": "Merge Company Results",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Search by LinkedIn URL": {
+        "main": [
+          [
+            {
+              "node": "Found by URL?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Found by URL?": {
+        "main": [
+          [
+            {
+              "node": "Prep URL Match",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Search by Name",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Prep URL Match": {
+        "main": [
+          [
+            {
+              "node": "Merge Search Results",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Search by Name": {
+        "main": [
+          [
+            {
+              "node": "Resolve Contact Match",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Resolve Contact Match": {
+        "main": [
+          [
+            {
+              "node": "Name Match Found?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Name Match Found?": {
+        "main": [
+          [
+            {
+              "node": "Prep Name Match",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Is Ambiguous?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Prep Name Match": {
+        "main": [
+          [
+            {
+              "node": "Merge Search Results",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Merge Search Results": {
+        "main": [
+          [
+            {
+              "node": "Update Contact",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Is Ambiguous?": {
+        "main": [
+          [
+            {
+              "node": "Notify Slack (Ambiguous)",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Create Contact",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Notify Slack (Ambiguous)": {
+        "main": [
+          [
+            {
+              "node": "Skip Ambiguous Contact",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Skip Ambiguous Contact": {
+        "main": [
+          [
+            {
+              "node": "Update HubSpot Status",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Restore After Company Update": {
+        "main": [
+          [
+            {
+              "node": "Merge Company Results",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "authors": "Hudson Lorfing",
+    "name": "Version 6c761dd3",
+    "description": "",
+    "autosaved": true,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-02-09T15:36:34.286Z",
+        "id": 492,
+        "workflowId": "wKYz16GbzqWTh2DK",
+        "versionId": "6c761dd3-6910-46b4-a1cd-7948cb7aeac6",
+        "event": "activated",
+        "userId": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4"
+      }
+    ]
+  }
+}

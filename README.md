@@ -27,7 +27,7 @@ See [STATUS.md](STATUS.md) for current issues and next steps.
 
 4. **Sync with n8n**
    ```bash
-   ./scripts/n8n-sync.sh sync
+   ./scripts/n8n-ops/sync.sh sync
    ```
 
 That's it! All secrets are loaded from Doppler automatically.
@@ -72,25 +72,25 @@ This repo is synced bidirectionally with our n8n Cloud instance using a customiz
 
 1. **Pull latest from n8n** (source of truth):
    ```bash
-   ./scripts/n8n-sync.sh sync
+   ./scripts/n8n-ops/sync.sh sync
    ```
 
 2. **Edit workflow JSON** in Cursor
 
 3. **Push to n8n**:
    ```bash
-   ./scripts/n8n-debug.sh update "workflows/linkedin/[workflow].json" [WORKFLOW_ID]
-   ./scripts/n8n-sync.sh sync
+   ./scripts/n8n-ops/debug.sh update "workflows/linkedin/[workflow].json" [WORKFLOW_ID]
+   ./scripts/n8n-ops/sync.sh sync
    ```
 
 ### Script Commands
 
 | Command | Description |
 |---------|-------------|
-| `./scripts/n8n-sync.sh sync` | Download from n8n and push to GitHub |
-| `./scripts/n8n-sync.sh download` | Download all workflows from n8n |
-| `./scripts/n8n-sync.sh preflight` | Pre-flight checks before editing |
-| `./scripts/n8n-debug.sh update FILE ID` | Push local file to n8n |
+| `./scripts/n8n-ops/sync.sh sync` | Download from n8n and push to GitHub |
+| `./scripts/n8n-ops/sync.sh download` | Download all workflows from n8n |
+| `./scripts/n8n-ops/sync.sh preflight` | Pre-flight checks before editing |
+| `./scripts/n8n-ops/debug.sh update FILE ID` | Push local file to n8n |
 
 ## Workflow JSON Structure
 

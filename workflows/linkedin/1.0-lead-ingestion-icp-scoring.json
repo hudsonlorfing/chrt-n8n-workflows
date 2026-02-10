@@ -1,0 +1,1192 @@
+{
+  "updatedAt": "2026-02-10T17:29:12.676Z",
+  "createdAt": "2026-02-09T23:34:47.715Z",
+  "id": "5cV9fofnBEo2kBHr",
+  "name": "1.0 Lead Ingestion & ICP Scoring [V2]",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Dashboard"
+        },
+        "options": {}
+      },
+      "id": "read-dashboard-ingestion",
+      "name": "Read Dashboard",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -29232,
+        3040
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "hf9VoWnqYNXhUZsn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst kylePreProcessed = parseInt(data['kylePreProcessed'] || 0, 10);\nconst hudsonPreProcessed = parseInt(data['hudsonPreProcessed'] || 0, 10);\nconst kyleTargets = parseInt(data['kyleTargets'] || 0, 10);\nconst hudsonTargets = parseInt(data['hudsonTargets'] || 0, 10);\nconst kyleConferenceTargets = parseInt(data['kyleConferenceTargets'] || 0, 10);\nconst hudsonConferenceTargets = parseInt(data['hudsonConferenceTargets'] || 0, 10);\nconst hasConferenceTargets = kyleConferenceTargets > 0 || hudsonConferenceTargets > 0;\nconst priorityProfile = kyleTargets <= hudsonTargets ? 'kyle' : 'hudson';\n\n// Skip only when BOTH profiles are over 240 AND no conference targets pending\nif (kyleTargets > 240 && hudsonTargets > 240 && !hasConferenceTargets) {\n  return [{ json: { skip: true, reason: 'both over 240 targets, no conference targets' } }];\n}\n\nreturn [{ json: { batchSize: 50, source: 'schedule', skip: false, priorityProfile, kylePreProcessed, hudsonPreProcessed, kyleTargets, hudsonTargets, kyleConferenceTargets, hudsonConferenceTargets, hasConferenceTargets } }];"
+      },
+      "id": "check-preprocessed-priority",
+      "name": "Check pre-processed counts and priority",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -29056,
+        3040
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "need-run",
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-need-to-run",
+      "name": "Need to run?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -28864,
+        3040
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Single crawl per run: prefer priority; fallback to other when priority is maxed out.\n// Conference bypass: if conference targets exist, force process for that profile.\nconst data = $input.first().json;\nconst kylePreProcessed = parseInt(data.kylePreProcessed || 0, 10);\nconst hudsonPreProcessed = parseInt(data.hudsonPreProcessed || 0, 10);\nconst kyleTargets = parseInt(data.kyleTargets || 0, 10);\nconst hudsonTargets = parseInt(data.hudsonTargets || 0, 10);\nconst kyleConferenceTargets = parseInt(data.kyleConferenceTargets || 0, 10);\nconst hudsonConferenceTargets = parseInt(data.hudsonConferenceTargets || 0, 10);\nconst priorityProfile = data.priorityProfile || (kyleTargets <= hudsonTargets ? 'kyle' : 'hudson');\n\nlet crawlProfile = null;\nlet processProfile = null;\nconst priorityTargets = priorityProfile === 'kyle' ? kyleTargets : hudsonTargets;\nconst priorityPreProcessed = priorityProfile === 'kyle' ? kylePreProcessed : hudsonPreProcessed;\nconst otherTargets = priorityProfile === 'kyle' ? hudsonTargets : kyleTargets;\nconst otherPreProcessed = priorityProfile === 'kyle' ? hudsonPreProcessed : kylePreProcessed;\n\n// Conference bypass: if conference targets exist, always process that profile\nif (hudsonConferenceTargets > 0) {\n  processProfile = 'hudson';\n} else if (kyleConferenceTargets > 0) {\n  processProfile = 'kyle';\n}\n\n// Normal crawl logic (unchanged)\nif (priorityTargets < 240 && priorityPreProcessed < 1000 && priorityTargets > 0) {\n  crawlProfile = priorityProfile;\n} else if (otherTargets < 240 && otherPreProcessed < 1000) {\n  crawlProfile = priorityProfile === 'kyle' ? 'hudson' : 'kyle';\n}\n\n// Normal process logic — only if conference didn't already set it\nif (!processProfile) {\n  if (priorityTargets < 240 && priorityPreProcessed > 500) {\n    processProfile = priorityProfile;\n  } else if (otherTargets < 240 && otherPreProcessed > 500) {\n    processProfile = priorityProfile === 'kyle' ? 'hudson' : 'kyle';\n  }\n}\n\nreturn [{ json: { crawlProfile, processProfile, batchSize: data.batchSize || 25, source: data.source || 'schedule', priorityProfile, kylePreProcessed, hudsonPreProcessed, kyleTargets, hudsonTargets, kyleConferenceTargets, hudsonConferenceTargets } }];"
+      },
+      "id": "choose-crawl-profile",
+      "name": "Choose crawl profile",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -28688,
+        3024
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "crawl-anyone",
+              "leftValue": "={{ Boolean($json.crawlProfile) }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-should-trigger-crawl",
+      "name": "Crawl for anyone?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -28512,
+        3024
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://chrt.app.n8n.cloud/webhook/pipeline-monitor-crawler",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ profile: $json.crawlProfile }) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "http-trigger-crawl",
+      "name": "Trigger workflow 4 crawl",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -28256,
+        2912
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Restore batch payload after HTTP (HTTP replaces item with response)\nconst profile = $('Choose crawl profile').first().json;\nreturn [{ json: { batchSize: profile.batchSize || 25, source: 'schedule', processProfile: profile.processProfile } }];"
+      },
+      "id": "ensure-batch-payload",
+      "name": "Ensure batch payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -28064,
+        2912
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "process-anyone",
+              "leftValue": "={{ Boolean($('Choose crawl profile').first().json.processProfile) }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-process-anyone",
+      "name": "processAnyone?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -27904,
+        3040
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C0A6ES56MU2",
+          "mode": "list",
+          "cachedResultName": "automation"
+        },
+        "text": "=No processing needed/available: \nkyleTarget = {{ $('Choose crawl profile').item.json.kyleTargets}}\nkylePreProcess = {{ $('Choose crawl profile').item.json.kylePreProcessed}}\nhudsonTargets = {{ $('Choose crawl profile').item.json.hudsonTargets}}\nhudsonPreProcess = {{ $('Choose crawl profile').item.json.hudsonPreProcessed}}",
+        "otherOptions": {}
+      },
+      "id": "slack-no-processing",
+      "name": "Slack: No Processing",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [
+        -27472,
+        3264
+      ],
+      "webhookId": "b4d9d88f-ce0a-483e-975d-f539455d168d",
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "EBe7rpazmQ7oFc5K",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "notice": "Click 'Test workflow' to run manually after pasting PhantomBuster export into New Leads sheet"
+      },
+      "id": "948717d3-54d7-4dc2-beaa-ceb078510e74",
+      "name": "Run Manually",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -28000,
+        3280
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "lead-ingestion",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook-trigger-ingestion",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -27904,
+        2576
+      ],
+      "webhookId": "lead-ingestion-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Determine batch size and processProfile based on trigger source\n// Schedule path: read from Choose crawl profile\n// Webhook/manual path: read from input or default\n// Capped at 125 (125 × 1.5s = ~188s, within Apps Script 6-min limit)\nlet batchSize = 25;\nlet processProfile = '';\n\ntry {\n  // Try to read from Choose crawl profile first (schedule path)\n  const profileData = $('Choose crawl profile').first()?.json;\n  if (profileData) {\n    batchSize = Math.min(parseInt(profileData.batchSize) || 25, 50);\n    processProfile = profileData.processProfile || '';\n  }\n} catch (e) {\n  // Choose crawl profile not in chain (webhook/manual path)\n  try {\n    const inputData = $input.first()?.json || {};\n    processProfile = inputData.processProfile || (inputData.body && inputData.body.processProfile) || 'kyle';\n    if (inputData.batchSize) {\n      batchSize = Math.min(parseInt(inputData.batchSize) || 50, 50);\n    }\n    if (inputData.body && inputData.body.batchSize) {\n      batchSize = Math.min(parseInt(inputData.body.batchSize) || 50, 50);\n    }\n  } catch (e2) {\n    batchSize = 25;\n    processProfile = 'kyle';\n  }\n}\n\nreturn [{ json: { batchSize, processProfile } }];"
+      },
+      "id": "determine-batch-size",
+      "name": "Determine Batch Size",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -27696,
+        3024
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://script.google.com/macros/s/AKfycbyO8UzBgGdpsdONRf4UR_j0VRqM9xK-z1cFB0RJ6ID-Q4Jp0FD1nZEC-LSRU3h0LgPUOw/exec",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ processProfile: $json.processProfile, batchSize: $json.batchSize }) }}",
+        "options": {
+          "redirect": {
+            "redirect": {}
+          },
+          "timeout": 360000
+        }
+      },
+      "id": "wf1-score-and-ingest",
+      "name": "Score and Ingest via Apps Script",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -27408,
+        3024
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse Apps Script synchronous response\nconst resp = $input.first().json;\nconst ok = resp.ok || false;\nconst processed = resp.processed || 0;\nconst appended = resp.appended || 0;\nconst deleted = resp.deleted || 0;\nconst aiErrors = resp.aiErrors || 0;\nconst errors = resp.errors || [];\nconst processProfile = resp.processProfile || '';\n\nif (!ok) {\n  return [{ json: {\n    success: false,\n    source: 'lead-ingestion',\n    processProfile,\n    error: resp.error || 'Apps Script returned ok=false',\n    timestamp: new Date().toISOString()\n  }}];\n}\n\nreturn [{ json: {\n  success: true,\n  source: 'lead-ingestion',\n  processProfile,\n  processed,\n  appended,\n  deleted,\n  aiErrors,\n  errors,\n  message: resp.message || '',\n  timestamp: new Date().toISOString()\n}}];"
+      },
+      "id": "wf1-parse-response",
+      "name": "Parse Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -27120,
+        3024
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Final merge point — pass through whatever came in\nconst input = $input.first().json;\nreturn [{ json: { ...input, source: input.source || 'lead-ingestion', timestamp: new Date().toISOString() } }];"
+      },
+      "id": "final-status",
+      "name": "Final Status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -26832,
+        3024
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// No leads to process (skip condition met)\nreturn [{ json: { success: true, processed: 0, message: 'No new leads to process — skip condition met', timestamp: new Date().toISOString() } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -27120,
+        3264
+      ],
+      "id": "no-leads-found",
+      "name": "No Leads Found"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "03 6,7 * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule-every-30min",
+      "name": "6:03 and 7:03 Daily",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -29440,
+        3040
+      ]
+    }
+  ],
+  "connections": {
+    "Read Dashboard": {
+      "main": [
+        [
+          {
+            "node": "Check pre-processed counts and priority",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check pre-processed counts and priority": {
+      "main": [
+        [
+          {
+            "node": "Need to run?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Need to run?": {
+      "main": [
+        [
+          {
+            "node": "Choose crawl profile",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Leads Found",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Choose crawl profile": {
+      "main": [
+        [
+          {
+            "node": "Crawl for anyone?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crawl for anyone?": {
+      "main": [
+        [
+          {
+            "node": "Trigger workflow 4 crawl",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "processAnyone?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trigger workflow 4 crawl": {
+      "main": [
+        [
+          {
+            "node": "Ensure batch payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ensure batch payload": {
+      "main": [
+        [
+          {
+            "node": "processAnyone?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "processAnyone?": {
+      "main": [
+        [
+          {
+            "node": "Determine Batch Size",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Slack: No Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack: No Processing": {
+      "main": [
+        [
+          {
+            "node": "Final Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run Manually": {
+      "main": [
+        [
+          {
+            "node": "Determine Batch Size",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Determine Batch Size",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Determine Batch Size": {
+      "main": [
+        [
+          {
+            "node": "Score and Ingest via Apps Script",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Score and Ingest via Apps Script": {
+      "main": [
+        [
+          {
+            "node": "Parse Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Response": {
+      "main": [
+        [
+          {
+            "node": "Final Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "No Leads Found": {
+      "main": [
+        [
+          {
+            "node": "Final Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "6:03 and 7:03 Daily": {
+      "main": [
+        [
+          {
+            "node": "Read Dashboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false,
+    "errorWorkflow": "YWP69Qgq0ZlCN7Gj"
+  },
+  "staticData": {
+    "node:Schedule every 30 min": {
+      "recurrenceRules": []
+    },
+    "node:6:03 and 7:03 Daily": {
+      "recurrenceRules": []
+    }
+  },
+  "meta": null,
+  "pinData": {},
+  "versionId": "77369bcc-2d86-4378-befa-6c402c098392",
+  "activeVersionId": "77369bcc-2d86-4378-befa-6c402c098392",
+  "versionCounter": 31,
+  "triggerCount": 2,
+  "shared": [
+    {
+      "updatedAt": "2026-02-09T23:34:48.433Z",
+      "createdAt": "2026-02-09T23:34:48.433Z",
+      "role": "workflow:owner",
+      "workflowId": "5cV9fofnBEo2kBHr",
+      "projectId": "O7lTivDfRl72aS23",
+      "project": {
+        "updatedAt": "2025-12-24T03:17:11.000Z",
+        "createdAt": "2025-12-23T21:24:31.508Z",
+        "id": "O7lTivDfRl72aS23",
+        "name": "ChrtWorkflows",
+        "type": "team",
+        "icon": {
+          "type": "icon",
+          "value": "layers"
+        },
+        "description": "",
+        "creatorId": null,
+        "projectRelations": [
+          {
+            "updatedAt": "2025-12-23T21:24:31.510Z",
+            "createdAt": "2025-12-23T21:24:31.510Z",
+            "userId": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4",
+            "projectId": "O7lTivDfRl72aS23",
+            "user": {
+              "updatedAt": "2026-02-10T08:00:55.000Z",
+              "createdAt": "2025-12-17T12:51:53.118Z",
+              "id": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4",
+              "email": "hudson@chrt.com",
+              "firstName": "Hudson",
+              "lastName": "Lorfing",
+              "personalizationAnswers": null,
+              "settings": {
+                "userActivated": true,
+                "userClaimedAiCredits": true,
+                "easyAIWorkflowOnboarded": true,
+                "firstSuccessfulWorkflowId": "kjjYKQEXv67Vl5MS",
+                "userActivatedAt": 1766099344758,
+                "npsSurvey": {
+                  "responded": true,
+                  "lastShownAt": 1768855960435
+                }
+              },
+              "disabled": false,
+              "mfaEnabled": false,
+              "lastActiveAt": "2026-02-10",
+              "isPending": false
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": {
+    "updatedAt": "2026-02-10T17:29:16.000Z",
+    "createdAt": "2026-02-10T17:29:12.677Z",
+    "versionId": "77369bcc-2d86-4378-befa-6c402c098392",
+    "workflowId": "5cV9fofnBEo2kBHr",
+    "nodes": [
+      {
+        "parameters": {
+          "documentId": {
+            "__rl": true,
+            "mode": "id",
+            "value": "1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8"
+          },
+          "sheetName": {
+            "__rl": true,
+            "mode": "name",
+            "value": "Dashboard"
+          },
+          "options": {}
+        },
+        "id": "read-dashboard-ingestion",
+        "name": "Read Dashboard",
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.5,
+        "position": [
+          -29232,
+          3040
+        ],
+        "credentials": {
+          "googleSheetsOAuth2Api": {
+            "id": "hf9VoWnqYNXhUZsn",
+            "name": "Google Sheets account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "const data = $input.first().json;\nconst kylePreProcessed = parseInt(data['kylePreProcessed'] || 0, 10);\nconst hudsonPreProcessed = parseInt(data['hudsonPreProcessed'] || 0, 10);\nconst kyleTargets = parseInt(data['kyleTargets'] || 0, 10);\nconst hudsonTargets = parseInt(data['hudsonTargets'] || 0, 10);\nconst kyleConferenceTargets = parseInt(data['kyleConferenceTargets'] || 0, 10);\nconst hudsonConferenceTargets = parseInt(data['hudsonConferenceTargets'] || 0, 10);\nconst hasConferenceTargets = kyleConferenceTargets > 0 || hudsonConferenceTargets > 0;\nconst priorityProfile = kyleTargets <= hudsonTargets ? 'kyle' : 'hudson';\n\n// Skip only when BOTH profiles are over 240 AND no conference targets pending\nif (kyleTargets > 240 && hudsonTargets > 240 && !hasConferenceTargets) {\n  return [{ json: { skip: true, reason: 'both over 240 targets, no conference targets' } }];\n}\n\nreturn [{ json: { batchSize: 50, source: 'schedule', skip: false, priorityProfile, kylePreProcessed, hudsonPreProcessed, kyleTargets, hudsonTargets, kyleConferenceTargets, hudsonConferenceTargets, hasConferenceTargets } }];"
+        },
+        "id": "check-preprocessed-priority",
+        "name": "Check pre-processed counts and priority",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -29056,
+          3040
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "loose",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "need-run",
+                "leftValue": "={{ $json.skip }}",
+                "rightValue": false,
+                "operator": {
+                  "type": "boolean",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "if-need-to-run",
+        "name": "Need to run?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          -28864,
+          3040
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "// Single crawl per run: prefer priority; fallback to other when priority is maxed out.\n// Conference bypass: if conference targets exist, force process for that profile.\nconst data = $input.first().json;\nconst kylePreProcessed = parseInt(data.kylePreProcessed || 0, 10);\nconst hudsonPreProcessed = parseInt(data.hudsonPreProcessed || 0, 10);\nconst kyleTargets = parseInt(data.kyleTargets || 0, 10);\nconst hudsonTargets = parseInt(data.hudsonTargets || 0, 10);\nconst kyleConferenceTargets = parseInt(data.kyleConferenceTargets || 0, 10);\nconst hudsonConferenceTargets = parseInt(data.hudsonConferenceTargets || 0, 10);\nconst priorityProfile = data.priorityProfile || (kyleTargets <= hudsonTargets ? 'kyle' : 'hudson');\n\nlet crawlProfile = null;\nlet processProfile = null;\nconst priorityTargets = priorityProfile === 'kyle' ? kyleTargets : hudsonTargets;\nconst priorityPreProcessed = priorityProfile === 'kyle' ? kylePreProcessed : hudsonPreProcessed;\nconst otherTargets = priorityProfile === 'kyle' ? hudsonTargets : kyleTargets;\nconst otherPreProcessed = priorityProfile === 'kyle' ? hudsonPreProcessed : kylePreProcessed;\n\n// Conference bypass: if conference targets exist, always process that profile\nif (hudsonConferenceTargets > 0) {\n  processProfile = 'hudson';\n} else if (kyleConferenceTargets > 0) {\n  processProfile = 'kyle';\n}\n\n// Normal crawl logic (unchanged)\nif (priorityTargets < 240 && priorityPreProcessed < 1000 && priorityTargets > 0) {\n  crawlProfile = priorityProfile;\n} else if (otherTargets < 240 && otherPreProcessed < 1000) {\n  crawlProfile = priorityProfile === 'kyle' ? 'hudson' : 'kyle';\n}\n\n// Normal process logic — only if conference didn't already set it\nif (!processProfile) {\n  if (priorityTargets < 240 && priorityPreProcessed > 500) {\n    processProfile = priorityProfile;\n  } else if (otherTargets < 240 && otherPreProcessed > 500) {\n    processProfile = priorityProfile === 'kyle' ? 'hudson' : 'kyle';\n  }\n}\n\nreturn [{ json: { crawlProfile, processProfile, batchSize: data.batchSize || 25, source: data.source || 'schedule', priorityProfile, kylePreProcessed, hudsonPreProcessed, kyleTargets, hudsonTargets, kyleConferenceTargets, hudsonConferenceTargets } }];"
+        },
+        "id": "choose-crawl-profile",
+        "name": "Choose crawl profile",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -28688,
+          3024
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "loose",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "crawl-anyone",
+                "leftValue": "={{ Boolean($json.crawlProfile) }}",
+                "rightValue": true,
+                "operator": {
+                  "type": "boolean",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "if-should-trigger-crawl",
+        "name": "Crawl for anyone?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          -28512,
+          3024
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://chrt.app.n8n.cloud/webhook/pipeline-monitor-crawler",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ profile: $json.crawlProfile }) }}",
+          "options": {
+            "timeout": 60000
+          }
+        },
+        "id": "http-trigger-crawl",
+        "name": "Trigger workflow 4 crawl",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          -28256,
+          2912
+        ],
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Restore batch payload after HTTP (HTTP replaces item with response)\nconst profile = $('Choose crawl profile').first().json;\nreturn [{ json: { batchSize: profile.batchSize || 25, source: 'schedule', processProfile: profile.processProfile } }];"
+        },
+        "id": "ensure-batch-payload",
+        "name": "Ensure batch payload",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -28064,
+          2912
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "process-anyone",
+                "leftValue": "={{ Boolean($('Choose crawl profile').first().json.processProfile) }}",
+                "rightValue": true,
+                "operator": {
+                  "type": "boolean",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "if-process-anyone",
+        "name": "processAnyone?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          -27904,
+          3040
+        ]
+      },
+      {
+        "parameters": {
+          "authentication": "oAuth2",
+          "select": "channel",
+          "channelId": {
+            "__rl": true,
+            "value": "C0A6ES56MU2",
+            "mode": "list",
+            "cachedResultName": "automation"
+          },
+          "text": "=No processing needed/available: \nkyleTarget = {{ $('Choose crawl profile').item.json.kyleTargets}}\nkylePreProcess = {{ $('Choose crawl profile').item.json.kylePreProcessed}}\nhudsonTargets = {{ $('Choose crawl profile').item.json.hudsonTargets}}\nhudsonPreProcess = {{ $('Choose crawl profile').item.json.hudsonPreProcessed}}",
+          "otherOptions": {}
+        },
+        "id": "slack-no-processing",
+        "name": "Slack: No Processing",
+        "type": "n8n-nodes-base.slack",
+        "typeVersion": 2.4,
+        "position": [
+          -27472,
+          3264
+        ],
+        "webhookId": "b4d9d88f-ce0a-483e-975d-f539455d168d",
+        "credentials": {
+          "slackOAuth2Api": {
+            "id": "EBe7rpazmQ7oFc5K",
+            "name": "Slack account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "notice": "Click 'Test workflow' to run manually after pasting PhantomBuster export into New Leads sheet"
+        },
+        "id": "948717d3-54d7-4dc2-beaa-ceb078510e74",
+        "name": "Run Manually",
+        "type": "n8n-nodes-base.manualTrigger",
+        "typeVersion": 1,
+        "position": [
+          -28000,
+          3280
+        ]
+      },
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "lead-ingestion",
+          "responseMode": "lastNode",
+          "options": {}
+        },
+        "id": "webhook-trigger-ingestion",
+        "name": "Webhook Trigger",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          -27904,
+          2576
+        ],
+        "webhookId": "lead-ingestion-webhook"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Determine batch size and processProfile based on trigger source\n// Schedule path: read from Choose crawl profile\n// Webhook/manual path: read from input or default\n// Capped at 125 (125 × 1.5s = ~188s, within Apps Script 6-min limit)\nlet batchSize = 25;\nlet processProfile = '';\n\ntry {\n  // Try to read from Choose crawl profile first (schedule path)\n  const profileData = $('Choose crawl profile').first()?.json;\n  if (profileData) {\n    batchSize = Math.min(parseInt(profileData.batchSize) || 25, 50);\n    processProfile = profileData.processProfile || '';\n  }\n} catch (e) {\n  // Choose crawl profile not in chain (webhook/manual path)\n  try {\n    const inputData = $input.first()?.json || {};\n    processProfile = inputData.processProfile || (inputData.body && inputData.body.processProfile) || 'kyle';\n    if (inputData.batchSize) {\n      batchSize = Math.min(parseInt(inputData.batchSize) || 50, 50);\n    }\n    if (inputData.body && inputData.body.batchSize) {\n      batchSize = Math.min(parseInt(inputData.body.batchSize) || 50, 50);\n    }\n  } catch (e2) {\n    batchSize = 25;\n    processProfile = 'kyle';\n  }\n}\n\nreturn [{ json: { batchSize, processProfile } }];"
+        },
+        "id": "determine-batch-size",
+        "name": "Determine Batch Size",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -27696,
+          3024
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://script.google.com/macros/s/AKfycbyO8UzBgGdpsdONRf4UR_j0VRqM9xK-z1cFB0RJ6ID-Q4Jp0FD1nZEC-LSRU3h0LgPUOw/exec",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ processProfile: $json.processProfile, batchSize: $json.batchSize }) }}",
+          "options": {
+            "redirect": {
+              "redirect": {}
+            },
+            "timeout": 360000
+          }
+        },
+        "id": "wf1-score-and-ingest",
+        "name": "Score and Ingest via Apps Script",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          -27408,
+          3024
+        ],
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Parse Apps Script synchronous response\nconst resp = $input.first().json;\nconst ok = resp.ok || false;\nconst processed = resp.processed || 0;\nconst appended = resp.appended || 0;\nconst deleted = resp.deleted || 0;\nconst aiErrors = resp.aiErrors || 0;\nconst errors = resp.errors || [];\nconst processProfile = resp.processProfile || '';\n\nif (!ok) {\n  return [{ json: {\n    success: false,\n    source: 'lead-ingestion',\n    processProfile,\n    error: resp.error || 'Apps Script returned ok=false',\n    timestamp: new Date().toISOString()\n  }}];\n}\n\nreturn [{ json: {\n  success: true,\n  source: 'lead-ingestion',\n  processProfile,\n  processed,\n  appended,\n  deleted,\n  aiErrors,\n  errors,\n  message: resp.message || '',\n  timestamp: new Date().toISOString()\n}}];"
+        },
+        "id": "wf1-parse-response",
+        "name": "Parse Response",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -27120,
+          3024
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "// Final merge point — pass through whatever came in\nconst input = $input.first().json;\nreturn [{ json: { ...input, source: input.source || 'lead-ingestion', timestamp: new Date().toISOString() } }];"
+        },
+        "id": "final-status",
+        "name": "Final Status",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -26832,
+          3024
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "// No leads to process (skip condition met)\nreturn [{ json: { success: true, processed: 0, message: 'No new leads to process — skip condition met', timestamp: new Date().toISOString() } }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -27120,
+          3264
+        ],
+        "id": "no-leads-found",
+        "name": "No Leads Found"
+      },
+      {
+        "parameters": {
+          "rule": {
+            "interval": [
+              {
+                "field": "cronExpression",
+                "expression": "03 6,7 * * *"
+              }
+            ]
+          }
+        },
+        "id": "schedule-every-30min",
+        "name": "6:03 and 7:03 Daily",
+        "type": "n8n-nodes-base.scheduleTrigger",
+        "typeVersion": 1.2,
+        "position": [
+          -29440,
+          3040
+        ]
+      }
+    ],
+    "connections": {
+      "Read Dashboard": {
+        "main": [
+          [
+            {
+              "node": "Check pre-processed counts and priority",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Check pre-processed counts and priority": {
+        "main": [
+          [
+            {
+              "node": "Need to run?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Need to run?": {
+        "main": [
+          [
+            {
+              "node": "Choose crawl profile",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "No Leads Found",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Choose crawl profile": {
+        "main": [
+          [
+            {
+              "node": "Crawl for anyone?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Crawl for anyone?": {
+        "main": [
+          [
+            {
+              "node": "Trigger workflow 4 crawl",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "processAnyone?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Trigger workflow 4 crawl": {
+        "main": [
+          [
+            {
+              "node": "Ensure batch payload",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Ensure batch payload": {
+        "main": [
+          [
+            {
+              "node": "processAnyone?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "processAnyone?": {
+        "main": [
+          [
+            {
+              "node": "Determine Batch Size",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Slack: No Processing",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Slack: No Processing": {
+        "main": [
+          [
+            {
+              "node": "Final Status",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Run Manually": {
+        "main": [
+          [
+            {
+              "node": "Determine Batch Size",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Webhook Trigger": {
+        "main": [
+          [
+            {
+              "node": "Determine Batch Size",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Determine Batch Size": {
+        "main": [
+          [
+            {
+              "node": "Score and Ingest via Apps Script",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Score and Ingest via Apps Script": {
+        "main": [
+          [
+            {
+              "node": "Parse Response",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Parse Response": {
+        "main": [
+          [
+            {
+              "node": "Final Status",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "No Leads Found": {
+        "main": [
+          [
+            {
+              "node": "Final Status",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "6:03 and 7:03 Daily": {
+        "main": [
+          [
+            {
+              "node": "Read Dashboard",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "authors": "Hudson Lorfing",
+    "name": "Version 77369bcc",
+    "description": "",
+    "autosaved": true,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-02-10T17:29:15.994Z",
+        "id": 510,
+        "workflowId": "5cV9fofnBEo2kBHr",
+        "versionId": "77369bcc-2d86-4378-befa-6c402c098392",
+        "event": "activated",
+        "userId": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4"
+      }
+    ]
+  }
+}

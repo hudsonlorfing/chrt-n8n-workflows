@@ -1,0 +1,2580 @@
+{
+  "updatedAt": "2026-02-07T01:16:07.752Z",
+  "createdAt": "2026-02-06T00:40:40.626Z",
+  "id": "EjNGBdN420LQmX2M",
+  "name": "3.2 Connection Sync - Process [V2]",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "connection-sync",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wf3v2p-webhook",
+      "name": "PB Webhook (Connection Export)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        2560,
+        816
+      ],
+      "webhookId": "connection-sync-process-v2"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        2528,
+        1040
+      ],
+      "id": "wf3v2p-manual",
+      "name": "When clicking 'Execute workflow'"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nreturn items.map((item, index) => {\n  // 1. Access the 'body' property where n8n stores webhook data\n  const body = item.json.body || {};\n  console.log(`--- Processing Webhook Item ${index} ---`);\n\n  // 2. Extract the resultObject string\n  const rawResult = body.resultObject || \"[]\";\n  \n  let parsedResults = [];\n  try {\n    // 3. Parse the string into a real array\n    parsedResults = JSON.parse(rawResult);\n    console.log(`Parsed ${parsedResults.length} connections from resultObject.`);\n  } catch (e) {\n    console.error(\"JSON Parse Error:\", e.message);\n  }\n\n  // 4. Get the owner from the first connection in the list\n  const firstConnection = parsedResults[0] || {};\n  const ownerName = firstConnection.connectedUsername || \"Unknown\";\n  console.log(`Detected Owner: \"${ownerName}\"`);\n\n  // 5. Assign profile key based on the owner's name\n  let profileKey = 'kyle'; // Default fallback\n  if (ownerName === 'Hudson Lorfing') {\n    profileKey = 'hudson';\n  } else if (ownerName === 'Kyle Reagan') {\n    profileKey = 'kyle';\n  }\n  console.log(`Profile Key assigned: \"${profileKey}\"`);\n\n  // 6. Return the formatted result\n  return {\n    json: {\n      profile: profileKey,\n      owner: ownerName,\n      agentId: body.agentId || '',\n      containerId: body.containerId || '',\n      connectionCount: parsedResults.length\n    }\n  };\n});"
+      },
+      "id": "wf3v2p-parse",
+      "name": "Parse Webhook Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2784,
+        816
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getOutput",
+        "agentId": "={{ $('Parse Webhook Context').item.json.agentId }}",
+        "additionalFields": {}
+      },
+      "id": "wf3v2p-get-output",
+      "name": "Get Connection Export Output",
+      "type": "n8n-nodes-base.phantombuster",
+      "typeVersion": 1,
+      "position": [
+        3696,
+        800
+      ],
+      "credentials": {
+        "phantombusterApi": {
+          "id": "UYQpQC8SBIqIkifM",
+          "name": "Phantombuster account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Master List"
+        },
+        "options": {}
+      },
+      "id": "wf3v2p-read-master",
+      "name": "Get Pending Leads",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        3600,
+        608
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "hf9VoWnqYNXhUZsn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "sent-date",
+              "leftValue": "={{ $('Parse Webhook Context').item.json.profile == 'kyle' ? $json.kyleSentDate : $json.hudsonSentDate }}",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "wf3v2p-filter",
+      "name": "Filter Pending (Sent, Not Connected)",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.3,
+      "position": [
+        3808,
+        608
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "combineBySql",
+        "query": "SELECT c.*, substr(m.connectionSince, 1, 10) as connectionDate FROM input2 m INNER JOIN input1 c ON c.profileUrlNormalized = m.profileUrlNormalized"
+      },
+      "id": "wf3v2p-merge-data",
+      "name": "Merge Export + Pending",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        4208,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "has-connections",
+              "leftValue": "={{ $input.all().length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "wf3v2p-has-connections",
+      "name": "Has New Connections?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        5104,
+        704
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1xPgob7BwDoDGAOtDPBTvKzhQHl2FUZkJhJG0gEHWdgo",
+          "mode": "list",
+          "cachedResultName": "HoldingSheet",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1xPgob7BwDoDGAOtDPBTvKzhQHl2FUZkJhJG0gEHWdgo/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Sheet1",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "linkedInProfileUrl": "={{ $json.defaultProfileUrl }}"
+          },
+          "matchingColumns": [
+            "defaultProfileUrl"
+          ],
+          "schema": [
+            {
+              "id": "linkedInProfileUrl",
+              "displayName": "linkedInProfileUrl",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "wf3v2p-append-urls",
+      "name": "Append URLs to Scraper Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        5328,
+        688
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "hf9VoWnqYNXhUZsn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.phantombuster.com/api/v2/agents/launch",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  id: '3627182471241497',\n  manualLaunch: true,\n  bonusArgument: { \n    sessionCookie: $('Take one profile').first().json.sessionCookie.computed,\n    userAgent: $('Take one profile').first().json.userAgent,\n    spreadsheetUrl: 'https://docs.google.com/spreadsheets/d/1xPgob7BwDoDGAOtDPBTvKzhQHl2FUZkJhJG0gEHWdgo/edit?gid=0#gid=0',\n    columnName: 'linkedInProfileUrl',\n    emailChooser: 'phantombuster',\n    emailDiscovery: true,\n    enrichWithCompanyData: true,\n    numberOfAddsPerLaunch: $('FilterHubspotSyncs').all().length\n  }\n}) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "wf3v2p-launch-email",
+      "name": "Launch Profile Scraper with Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        5760,
+        688
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "KWeabljbYSzoLpjI",
+          "name": "Phantom Header Auth"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const result = $input.first().json;\nconst context = $('Parse Webhook Context').first().json;\nreturn [{ json: {\n  success: true,\n  profile: context.profile,\n  emailScraperContainerId: result.containerId || 'unknown',\n  message: 'Email scraper launched \u2014 3.3 handles results via PB webhook',\n  timestamp: new Date().toISOString()\n}}];"
+      },
+      "id": "wf3v2p-done",
+      "name": "Done - Email Scraper Launched",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6032,
+        688
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, message: $json.message }) }}",
+        "options": {}
+      },
+      "id": "wf3v2p-respond",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        6256,
+        688
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, message: 'Connections found but hubspot flow disconnected' }) }}",
+        "options": {}
+      },
+      "id": "wf3v2p-respond-skip",
+      "name": "Respond - No Connections",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        5248,
+        496
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Master List"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "kyleConnectDate": "={{ $('Parse Webhook Context').first().json.profile === 'kyle' ? $json.connectionDate : $json.kyleConnectDate }}",
+            "hudsonConnectDate": "={{ $('Parse Webhook Context').first().json.profile === 'hudson' ? $json.connectionDate : $json.hudsonConnectDate }}",
+            "row_number": 0,
+            "defaultProfileUrl": "={{ $json.defaultProfileUrl }}",
+            "hubspotSync": "={{ $json.hubspotSync }}"
+          },
+          "matchingColumns": [
+            "defaultProfileUrl"
+          ],
+          "schema": [
+            {
+              "id": "defaultProfileUrl",
+              "displayName": "defaultProfileUrl",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "fullName",
+              "displayName": "fullName",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "firstName",
+              "displayName": "firstName",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "lastName",
+              "displayName": "lastName",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "school",
+              "displayName": "school",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "schoolDegree",
+              "displayName": "schoolDegree",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "company",
+              "displayName": "company",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "companyUrl",
+              "displayName": "companyUrl",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "companyId",
+              "displayName": "companyId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "jobTitle",
+              "displayName": "jobTitle",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "jobDateRange",
+              "displayName": "jobDateRange",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "hsIndustry",
+              "displayName": "hsIndustry",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "headline",
+              "displayName": "headline",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "location",
+              "displayName": "location",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "company2",
+              "displayName": "company2",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "companyUrl2",
+              "displayName": "companyUrl2",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "companyId2",
+              "displayName": "companyId2",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "jobTitle2",
+              "displayName": "jobTitle2",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "jobDateRange2",
+              "displayName": "jobDateRange2",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "score",
+              "displayName": "score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "segment",
+              "displayName": "segment",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "reason",
+              "displayName": "reason",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "added",
+              "displayName": "added",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "kyleSentDate",
+              "displayName": "kyleSentDate",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "kyleConnectDate",
+              "displayName": "kyleConnectDate",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "hudsonSentDate",
+              "displayName": "hudsonSentDate",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "hudsonConnectDate",
+              "displayName": "hudsonConnectDate",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "hubspotSync",
+              "displayName": "hubspotSync",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "hudsonNotes",
+              "displayName": "hudsonNotes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "inviteResults",
+              "displayName": "inviteResults",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "connectionDegree",
+              "displayName": "connectionDegree",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "previousRole",
+              "displayName": "previousRole",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "industry",
+              "displayName": "industry",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "adj industry",
+              "displayName": "adj industry",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "summary",
+              "displayName": "summary",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "companyLocation",
+              "displayName": "companyLocation",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "durationInCompany",
+              "displayName": "durationInCompany",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "pastExperienceDuration",
+              "displayName": "pastExperienceDuration",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "sharedConnectionsCount",
+              "displayName": "sharedConnectionsCount",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "isPremium",
+              "displayName": "isPremium",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "isOpenLink",
+              "displayName": "isOpenLink",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "connectionFrom",
+              "displayName": "connectionFrom",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "profileUrl",
+              "displayName": "profileUrl",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "59d58273-a58b-49e0-b0f0-c29df9eb97e6",
+      "name": "Update HubSpot Status",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        5008,
+        896
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "hf9VoWnqYNXhUZsn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        4624,
+        720
+      ],
+      "id": "c5919608-d390-4f1c-93fa-da7b601a0d5d",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().filter(item => item?.json?.defaultProfileUrl).map(item => ({\n    json: {\n      ...item.json,\n      profileUrlNormalized: String(item.json.defaultProfileUrl || '')\n        .trim()\n        .replace('https://www.linkedin.com', 'https://linkedin.com')\n        .replace(/\\/$/, '') // remove trailing slash\n    }\n  }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3984,
+        608
+      ],
+      "id": "e87a28d4-08d3-4726-9573-205ab908fcf7",
+      "name": "normalizeGSheet"
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().filter(item => item?.json?.profileUrl).map(item => ({\n    json: {\n      ...item.json,\n      profileUrlNormalized: String(item.json.profileUrl || '')\n        .replace('https://www.linkedin.com', 'https://linkedin.com')\n        .replace(/\\/$/, '') // remove trailing slash\n    }\n  }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3904,
+        800
+      ],
+      "id": "6b26ac2d-ab19-45a8-8682-608dfecb6510",
+      "name": "normalizePB"
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.first().json"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5536,
+        688
+      ],
+      "id": "f946377f-be55-4b68-a7e3-4a00469dc413",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "url": "https://api.doppler.com/v3/configs/config/secrets",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "project",
+              "value": "developers"
+            },
+            {
+              "name": "config",
+              "value": "hudson"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "dde2dd24-1fde-469b-b196-64627772ee19",
+      "name": "Fetch Doppler cookies",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3008,
+        816
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "dz2vX61Mpayywfq1",
+          "name": "Doppler API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first();\nconst secrets = item.json.secrets || item.json || {};\nconst kyleCookie = secrets.LINKEDIN_KYLE_SESSION_COOKIE;\nconst hudsonCookie = secrets.LINKEDIN_HUDSON_SESSION_COOKIE;\nconst userAgents = { kyle: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36', hudson: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36' };\nreturn [\n  { json: { profile: 'kyle', sessionCookie: kyleCookie, userAgent: userAgents.kyle, connectionExportPhantom: '959265651312489' } },\n  { json: { profile: 'hudson', sessionCookie: hudsonCookie, userAgent: userAgents.hudson, connectionExportPhantom: '959265651312489' } }\n];"
+      },
+      "id": "506fee1a-16e2-4456-b887-6f81eea964a3",
+      "name": "Build profile items with cookies",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3200,
+        816
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nif (!items.length) return [];\n\nconst targetProfile = $('Parse Webhook Context').first().json.profile;\n\nconsole.log(`Searching for profile: \"${targetProfile}\"`)\n\nconst selectedItem = items.find(item => item.json.profile === targetProfile);\nif (selectedItem) {\n  console.log(`Match found for ${targetProfile}!`);\n  return [selectedItem];\n} else {\n  console.log(`No match found for \"${targetProfile}\". Falling back to first item.`);\n  return [items[0]];\n}"
+      },
+      "id": "887d311f-c56f-458b-b2b1-399fe80c2621",
+      "name": "Take one profile",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3408,
+        816
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "bc451c06-fb21-4243-8d69-088d8215493a",
+              "leftValue": "={{ $json.hubspotSync }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.3,
+      "position": [
+        4912,
+        704
+      ],
+      "id": "f7c00d8b-e05b-4448-8c32-7d813d107132",
+      "name": "FilterHubspotSyncs"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "c77fa433-008f-4ecc-90cb-93d3e07685ae",
+              "leftValue": "={{ $('Parse Webhook Context').item.json.profile === 'kyle' ? $json.kyleConnectDate : $json.hudsonConnectDate }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "empty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.3,
+      "position": [
+        4416,
+        720
+      ],
+      "id": "8f92d7c3-6d91-4a45-8515-4a6159152565",
+      "name": "Filter"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, message: 'No new connections found' }) }}",
+        "options": {}
+      },
+      "id": "530b2c2a-b829-4ce7-b3fa-bb785c0e86d2",
+      "name": "Respond - No Connections1",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        5296,
+        864
+      ]
+    }
+  ],
+  "connections": {
+    "PB Webhook (Connection Export)": {
+      "main": [
+        [
+          {
+            "node": "Parse Webhook Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking 'Execute workflow'": {
+      "main": [
+        [
+          {
+            "node": "Parse Webhook Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Webhook Context": {
+      "main": [
+        [
+          {
+            "node": "Fetch Doppler cookies",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Connection Export Output": {
+      "main": [
+        [
+          {
+            "node": "normalizePB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Pending Leads": {
+      "main": [
+        [
+          {
+            "node": "Filter Pending (Sent, Not Connected)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Pending (Sent, Not Connected)": {
+      "main": [
+        [
+          {
+            "node": "normalizeGSheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Export + Pending": {
+      "main": [
+        [
+          {
+            "node": "Filter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has New Connections?": {
+      "main": [
+        [
+          {
+            "node": "Respond - No Connections",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond - No Connections1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append URLs to Scraper Sheet": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Launch Profile Scraper with Email": {
+      "main": [
+        [
+          {
+            "node": "Done - Email Scraper Launched",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Done - Email Scraper Launched": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "FilterHubspotSyncs",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update HubSpot Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update HubSpot Status": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "normalizeGSheet": {
+      "main": [
+        [
+          {
+            "node": "Merge Export + Pending",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "normalizePB": {
+      "main": [
+        [
+          {
+            "node": "Merge Export + Pending",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Launch Profile Scraper with Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Doppler cookies": {
+      "main": [
+        [
+          {
+            "node": "Build profile items with cookies",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build profile items with cookies": {
+      "main": [
+        [
+          {
+            "node": "Take one profile",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Take one profile": {
+      "main": [
+        [
+          {
+            "node": "Get Pending Leads",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Connection Export Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FilterHubspotSyncs": {
+      "main": [
+        [
+          {
+            "node": "Has New Connections?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": {},
+  "versionId": "b01ea7e1-c7da-40ba-9819-1c3ae2d8cdcb",
+  "activeVersionId": "b01ea7e1-c7da-40ba-9819-1c3ae2d8cdcb",
+  "versionCounter": 351,
+  "triggerCount": 1,
+  "shared": [
+    {
+      "updatedAt": "2026-02-06T00:40:41.057Z",
+      "createdAt": "2026-02-06T00:40:41.057Z",
+      "role": "workflow:owner",
+      "workflowId": "EjNGBdN420LQmX2M",
+      "projectId": "O7lTivDfRl72aS23",
+      "project": {
+        "updatedAt": "2025-12-24T03:17:11.000Z",
+        "createdAt": "2025-12-23T21:24:31.508Z",
+        "id": "O7lTivDfRl72aS23",
+        "name": "ChrtWorkflows",
+        "type": "team",
+        "icon": {
+          "type": "icon",
+          "value": "layers"
+        },
+        "description": "",
+        "creatorId": null,
+        "projectRelations": [
+          {
+            "updatedAt": "2025-12-23T21:24:31.510Z",
+            "createdAt": "2025-12-23T21:24:31.510Z",
+            "userId": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4",
+            "projectId": "O7lTivDfRl72aS23",
+            "user": {
+              "updatedAt": "2026-02-07T08:00:55.000Z",
+              "createdAt": "2025-12-17T12:51:53.118Z",
+              "id": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4",
+              "email": "hudson@chrt.com",
+              "firstName": "Hudson",
+              "lastName": "Lorfing",
+              "personalizationAnswers": null,
+              "settings": {
+                "userActivated": true,
+                "userClaimedAiCredits": true,
+                "easyAIWorkflowOnboarded": true,
+                "firstSuccessfulWorkflowId": "kjjYKQEXv67Vl5MS",
+                "userActivatedAt": 1766099344758,
+                "npsSurvey": {
+                  "responded": true,
+                  "lastShownAt": 1768855960435
+                }
+              },
+              "disabled": false,
+              "mfaEnabled": false,
+              "lastActiveAt": "2026-02-07",
+              "isPending": false
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": {
+    "updatedAt": "2026-02-07T01:16:11.000Z",
+    "createdAt": "2026-02-07T01:16:07.753Z",
+    "versionId": "b01ea7e1-c7da-40ba-9819-1c3ae2d8cdcb",
+    "workflowId": "EjNGBdN420LQmX2M",
+    "nodes": [
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "connection-sync",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "wf3v2p-webhook",
+        "name": "PB Webhook (Connection Export)",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          2560,
+          816
+        ],
+        "webhookId": "connection-sync-process-v2"
+      },
+      {
+        "parameters": {},
+        "type": "n8n-nodes-base.manualTrigger",
+        "typeVersion": 1,
+        "position": [
+          2528,
+          1040
+        ],
+        "id": "wf3v2p-manual",
+        "name": "When clicking 'Execute workflow'"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\n\nreturn items.map((item, index) => {\n  // 1. Access the 'body' property where n8n stores webhook data\n  const body = item.json.body || {};\n  console.log(`--- Processing Webhook Item ${index} ---`);\n\n  // 2. Extract the resultObject string\n  const rawResult = body.resultObject || \"[]\";\n  \n  let parsedResults = [];\n  try {\n    // 3. Parse the string into a real array\n    parsedResults = JSON.parse(rawResult);\n    console.log(`Parsed ${parsedResults.length} connections from resultObject.`);\n  } catch (e) {\n    console.error(\"JSON Parse Error:\", e.message);\n  }\n\n  // 4. Get the owner from the first connection in the list\n  const firstConnection = parsedResults[0] || {};\n  const ownerName = firstConnection.connectedUsername || \"Unknown\";\n  console.log(`Detected Owner: \"${ownerName}\"`);\n\n  // 5. Assign profile key based on the owner's name\n  let profileKey = 'kyle'; // Default fallback\n  if (ownerName === 'Hudson Lorfing') {\n    profileKey = 'hudson';\n  } else if (ownerName === 'Kyle Reagan') {\n    profileKey = 'kyle';\n  }\n  console.log(`Profile Key assigned: \"${profileKey}\"`);\n\n  // 6. Return the formatted result\n  return {\n    json: {\n      profile: profileKey,\n      owner: ownerName,\n      agentId: body.agentId || '',\n      containerId: body.containerId || '',\n      connectionCount: parsedResults.length\n    }\n  };\n});"
+        },
+        "id": "wf3v2p-parse",
+        "name": "Parse Webhook Context",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2784,
+          816
+        ]
+      },
+      {
+        "parameters": {
+          "operation": "getOutput",
+          "agentId": "={{ $('Parse Webhook Context').item.json.agentId }}",
+          "additionalFields": {}
+        },
+        "id": "wf3v2p-get-output",
+        "name": "Get Connection Export Output",
+        "type": "n8n-nodes-base.phantombuster",
+        "typeVersion": 1,
+        "position": [
+          3696,
+          800
+        ],
+        "credentials": {
+          "phantombusterApi": {
+            "id": "UYQpQC8SBIqIkifM",
+            "name": "Phantombuster account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "documentId": {
+            "__rl": true,
+            "mode": "id",
+            "value": "1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8"
+          },
+          "sheetName": {
+            "__rl": true,
+            "mode": "name",
+            "value": "Master List"
+          },
+          "options": {}
+        },
+        "id": "wf3v2p-read-master",
+        "name": "Get Pending Leads",
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.5,
+        "position": [
+          3600,
+          608
+        ],
+        "credentials": {
+          "googleSheetsOAuth2Api": {
+            "id": "hf9VoWnqYNXhUZsn",
+            "name": "Google Sheets account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 3
+            },
+            "conditions": [
+              {
+                "id": "sent-date",
+                "leftValue": "={{ $('Parse Webhook Context').item.json.profile == 'kyle' ? $json.kyleSentDate : $json.hudsonSentDate }}",
+                "operator": {
+                  "type": "string",
+                  "operation": "notEmpty"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "wf3v2p-filter",
+        "name": "Filter Pending (Sent, Not Connected)",
+        "type": "n8n-nodes-base.filter",
+        "typeVersion": 2.3,
+        "position": [
+          3808,
+          608
+        ]
+      },
+      {
+        "parameters": {
+          "mode": "combineBySql",
+          "query": "SELECT c.*, substr(m.connectionSince, 1, 10) as connectionDate FROM input2 m INNER JOIN input1 c ON c.profileUrlNormalized = m.profileUrlNormalized"
+        },
+        "id": "wf3v2p-merge-data",
+        "name": "Merge Export + Pending",
+        "type": "n8n-nodes-base.merge",
+        "typeVersion": 3,
+        "position": [
+          4208,
+          720
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "has-connections",
+                "leftValue": "={{ $input.all().length }}",
+                "rightValue": 0,
+                "operator": {
+                  "type": "number",
+                  "operation": "gt"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "wf3v2p-has-connections",
+        "name": "Has New Connections?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          5104,
+          704
+        ]
+      },
+      {
+        "parameters": {
+          "operation": "append",
+          "documentId": {
+            "__rl": true,
+            "value": "1xPgob7BwDoDGAOtDPBTvKzhQHl2FUZkJhJG0gEHWdgo",
+            "mode": "list",
+            "cachedResultName": "HoldingSheet",
+            "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1xPgob7BwDoDGAOtDPBTvKzhQHl2FUZkJhJG0gEHWdgo/edit?usp=drivesdk"
+          },
+          "sheetName": {
+            "__rl": true,
+            "value": "Sheet1",
+            "mode": "name"
+          },
+          "columns": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "linkedInProfileUrl": "={{ $json.defaultProfileUrl }}"
+            },
+            "matchingColumns": [
+              "defaultProfileUrl"
+            ],
+            "schema": [
+              {
+                "id": "linkedInProfileUrl",
+                "displayName": "linkedInProfileUrl",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              }
+            ],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": false
+          },
+          "options": {}
+        },
+        "id": "wf3v2p-append-urls",
+        "name": "Append URLs to Scraper Sheet",
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.7,
+        "position": [
+          5328,
+          688
+        ],
+        "credentials": {
+          "googleSheetsOAuth2Api": {
+            "id": "hf9VoWnqYNXhUZsn",
+            "name": "Google Sheets account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.phantombuster.com/api/v2/agents/launch",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpHeaderAuth",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({\n  id: '3627182471241497',\n  manualLaunch: true,\n  bonusArgument: { \n    sessionCookie: $('Take one profile').first().json.sessionCookie.computed,\n    userAgent: $('Take one profile').first().json.userAgent,\n    spreadsheetUrl: 'https://docs.google.com/spreadsheets/d/1xPgob7BwDoDGAOtDPBTvKzhQHl2FUZkJhJG0gEHWdgo/edit?gid=0#gid=0',\n    columnName: 'linkedInProfileUrl',\n    emailChooser: 'phantombuster',\n    emailDiscovery: true,\n    enrichWithCompanyData: true,\n    numberOfAddsPerLaunch: $('FilterHubspotSyncs').all().length\n  }\n}) }}",
+          "options": {
+            "timeout": 120000
+          }
+        },
+        "id": "wf3v2p-launch-email",
+        "name": "Launch Profile Scraper with Email",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          5760,
+          688
+        ],
+        "credentials": {
+          "httpHeaderAuth": {
+            "id": "KWeabljbYSzoLpjI",
+            "name": "Phantom Header Auth"
+          }
+        },
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "const result = $input.first().json;\nconst context = $('Parse Webhook Context').first().json;\nreturn [{ json: {\n  success: true,\n  profile: context.profile,\n  emailScraperContainerId: result.containerId || 'unknown',\n  message: 'Email scraper launched \u2014 3.3 handles results via PB webhook',\n  timestamp: new Date().toISOString()\n}}];"
+        },
+        "id": "wf3v2p-done",
+        "name": "Done - Email Scraper Launched",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          6032,
+          688
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ JSON.stringify({ ok: true, message: $json.message }) }}",
+          "options": {}
+        },
+        "id": "wf3v2p-respond",
+        "name": "Respond to Webhook",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [
+          6256,
+          688
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ JSON.stringify({ ok: true, message: 'Connections found but hubspot flow disconnected' }) }}",
+          "options": {}
+        },
+        "id": "wf3v2p-respond-skip",
+        "name": "Respond - No Connections",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [
+          5248,
+          496
+        ]
+      },
+      {
+        "parameters": {
+          "operation": "update",
+          "documentId": {
+            "__rl": true,
+            "mode": "id",
+            "value": "1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8"
+          },
+          "sheetName": {
+            "__rl": true,
+            "mode": "name",
+            "value": "Master List"
+          },
+          "columns": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "kyleConnectDate": "={{ $('Parse Webhook Context').first().json.profile === 'kyle' ? $json.connectionDate : $json.kyleConnectDate }}",
+              "hudsonConnectDate": "={{ $('Parse Webhook Context').first().json.profile === 'hudson' ? $json.connectionDate : $json.hudsonConnectDate }}",
+              "row_number": 0,
+              "defaultProfileUrl": "={{ $json.defaultProfileUrl }}",
+              "hubspotSync": "={{ $json.hubspotSync }}"
+            },
+            "matchingColumns": [
+              "defaultProfileUrl"
+            ],
+            "schema": [
+              {
+                "id": "defaultProfileUrl",
+                "displayName": "defaultProfileUrl",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "fullName",
+                "displayName": "fullName",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "firstName",
+                "displayName": "firstName",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "lastName",
+                "displayName": "lastName",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "school",
+                "displayName": "school",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "schoolDegree",
+                "displayName": "schoolDegree",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "company",
+                "displayName": "company",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "companyUrl",
+                "displayName": "companyUrl",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "companyId",
+                "displayName": "companyId",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "jobTitle",
+                "displayName": "jobTitle",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "jobDateRange",
+                "displayName": "jobDateRange",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "hsIndustry",
+                "displayName": "hsIndustry",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "headline",
+                "displayName": "headline",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "location",
+                "displayName": "location",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "company2",
+                "displayName": "company2",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "companyUrl2",
+                "displayName": "companyUrl2",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "companyId2",
+                "displayName": "companyId2",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "jobTitle2",
+                "displayName": "jobTitle2",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "jobDateRange2",
+                "displayName": "jobDateRange2",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "score",
+                "displayName": "score",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "segment",
+                "displayName": "segment",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "reason",
+                "displayName": "reason",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "status",
+                "displayName": "status",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "added",
+                "displayName": "added",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "kyleSentDate",
+                "displayName": "kyleSentDate",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "kyleConnectDate",
+                "displayName": "kyleConnectDate",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "hudsonSentDate",
+                "displayName": "hudsonSentDate",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "hudsonConnectDate",
+                "displayName": "hudsonConnectDate",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "hubspotSync",
+                "displayName": "hubspotSync",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "hudsonNotes",
+                "displayName": "hudsonNotes",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "inviteResults",
+                "displayName": "inviteResults",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "connectionDegree",
+                "displayName": "connectionDegree",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "previousRole",
+                "displayName": "previousRole",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "industry",
+                "displayName": "industry",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "adj industry",
+                "displayName": "adj industry",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "summary",
+                "displayName": "summary",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "companyLocation",
+                "displayName": "companyLocation",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "durationInCompany",
+                "displayName": "durationInCompany",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "pastExperienceDuration",
+                "displayName": "pastExperienceDuration",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "sharedConnectionsCount",
+                "displayName": "sharedConnectionsCount",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "isPremium",
+                "displayName": "isPremium",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "isOpenLink",
+                "displayName": "isOpenLink",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "connectionFrom",
+                "displayName": "connectionFrom",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "profileUrl",
+                "displayName": "profileUrl",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "row_number",
+                "displayName": "row_number",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "canBeUsedToMatch": true,
+                "readOnly": true,
+                "removed": false
+              }
+            ],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": false
+          },
+          "options": {}
+        },
+        "id": "59d58273-a58b-49e0-b0f0-c29df9eb97e6",
+        "name": "Update HubSpot Status",
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.5,
+        "position": [
+          5008,
+          896
+        ],
+        "credentials": {
+          "googleSheetsOAuth2Api": {
+            "id": "hf9VoWnqYNXhUZsn",
+            "name": "Google Sheets account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "options": {}
+        },
+        "type": "n8n-nodes-base.splitInBatches",
+        "typeVersion": 3,
+        "position": [
+          4624,
+          720
+        ],
+        "id": "c5919608-d390-4f1c-93fa-da7b601a0d5d",
+        "name": "Loop Over Items"
+      },
+      {
+        "parameters": {
+          "jsCode": "return $input.all().filter(item => item?.json?.defaultProfileUrl).map(item => ({\n    json: {\n      ...item.json,\n      profileUrlNormalized: String(item.json.defaultProfileUrl || '')\n        .trim()\n        .replace('https://www.linkedin.com', 'https://linkedin.com')\n        .replace(/\\/$/, '') // remove trailing slash\n    }\n  }));"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          3984,
+          608
+        ],
+        "id": "e87a28d4-08d3-4726-9573-205ab908fcf7",
+        "name": "normalizeGSheet"
+      },
+      {
+        "parameters": {
+          "jsCode": "return $input.all().filter(item => item?.json?.profileUrl).map(item => ({\n    json: {\n      ...item.json,\n      profileUrlNormalized: String(item.json.profileUrl || '')\n        .replace('https://www.linkedin.com', 'https://linkedin.com')\n        .replace(/\\/$/, '') // remove trailing slash\n    }\n  }));"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          3904,
+          800
+        ],
+        "id": "6b26ac2d-ab19-45a8-8682-608dfecb6510",
+        "name": "normalizePB"
+      },
+      {
+        "parameters": {
+          "jsCode": "return $input.first().json"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          5536,
+          688
+        ],
+        "id": "f946377f-be55-4b68-a7e3-4a00469dc413",
+        "name": "Code in JavaScript"
+      },
+      {
+        "parameters": {
+          "url": "https://api.doppler.com/v3/configs/config/secrets",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpHeaderAuth",
+          "sendQuery": true,
+          "queryParameters": {
+            "parameters": [
+              {
+                "name": "project",
+                "value": "developers"
+              },
+              {
+                "name": "config",
+                "value": "hudson"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "dde2dd24-1fde-469b-b196-64627772ee19",
+        "name": "Fetch Doppler cookies",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          3008,
+          816
+        ],
+        "credentials": {
+          "httpHeaderAuth": {
+            "id": "dz2vX61Mpayywfq1",
+            "name": "Doppler API"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "const item = $input.first();\nconst secrets = item.json.secrets || item.json || {};\nconst kyleCookie = secrets.LINKEDIN_KYLE_SESSION_COOKIE;\nconst hudsonCookie = secrets.LINKEDIN_HUDSON_SESSION_COOKIE;\nconst userAgents = { kyle: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36', hudson: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36' };\nreturn [\n  { json: { profile: 'kyle', sessionCookie: kyleCookie, userAgent: userAgents.kyle, connectionExportPhantom: '959265651312489' } },\n  { json: { profile: 'hudson', sessionCookie: hudsonCookie, userAgent: userAgents.hudson, connectionExportPhantom: '959265651312489' } }\n];"
+        },
+        "id": "506fee1a-16e2-4456-b887-6f81eea964a3",
+        "name": "Build profile items with cookies",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          3200,
+          816
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\nif (!items.length) return [];\n\nconst targetProfile = $('Parse Webhook Context').first().json.profile;\n\nconsole.log(`Searching for profile: \"${targetProfile}\"`)\n\nconst selectedItem = items.find(item => item.json.profile === targetProfile);\nif (selectedItem) {\n  console.log(`Match found for ${targetProfile}!`);\n  return [selectedItem];\n} else {\n  console.log(`No match found for \"${targetProfile}\". Falling back to first item.`);\n  return [items[0]];\n}"
+        },
+        "id": "887d311f-c56f-458b-b2b1-399fe80c2621",
+        "name": "Take one profile",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          3408,
+          816
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 3
+            },
+            "conditions": [
+              {
+                "id": "bc451c06-fb21-4243-8d69-088d8215493a",
+                "leftValue": "={{ $json.hubspotSync }}",
+                "rightValue": "",
+                "operator": {
+                  "type": "string",
+                  "operation": "notEmpty",
+                  "singleValue": true
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.filter",
+        "typeVersion": 2.3,
+        "position": [
+          4912,
+          704
+        ],
+        "id": "f7c00d8b-e05b-4448-8c32-7d813d107132",
+        "name": "FilterHubspotSyncs"
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 3
+            },
+            "conditions": [
+              {
+                "id": "c77fa433-008f-4ecc-90cb-93d3e07685ae",
+                "leftValue": "={{ $('Parse Webhook Context').item.json.profile === 'kyle' ? $json.kyleConnectDate : $json.hudsonConnectDate }}",
+                "rightValue": "",
+                "operator": {
+                  "type": "string",
+                  "operation": "empty",
+                  "singleValue": true
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.filter",
+        "typeVersion": 2.3,
+        "position": [
+          4416,
+          720
+        ],
+        "id": "8f92d7c3-6d91-4a45-8515-4a6159152565",
+        "name": "Filter"
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ JSON.stringify({ ok: true, message: 'No new connections found' }) }}",
+          "options": {}
+        },
+        "id": "530b2c2a-b829-4ce7-b3fa-bb785c0e86d2",
+        "name": "Respond - No Connections1",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [
+          5296,
+          864
+        ]
+      }
+    ],
+    "connections": {
+      "PB Webhook (Connection Export)": {
+        "main": [
+          [
+            {
+              "node": "Parse Webhook Context",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "When clicking 'Execute workflow'": {
+        "main": [
+          [
+            {
+              "node": "Parse Webhook Context",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Parse Webhook Context": {
+        "main": [
+          [
+            {
+              "node": "Fetch Doppler cookies",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Get Connection Export Output": {
+        "main": [
+          [
+            {
+              "node": "normalizePB",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Get Pending Leads": {
+        "main": [
+          [
+            {
+              "node": "Filter Pending (Sent, Not Connected)",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Filter Pending (Sent, Not Connected)": {
+        "main": [
+          [
+            {
+              "node": "normalizeGSheet",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Merge Export + Pending": {
+        "main": [
+          [
+            {
+              "node": "Filter",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Has New Connections?": {
+        "main": [
+          [
+            {
+              "node": "Respond - No Connections",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Respond - No Connections1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Append URLs to Scraper Sheet": {
+        "main": [
+          [
+            {
+              "node": "Code in JavaScript",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Launch Profile Scraper with Email": {
+        "main": [
+          [
+            {
+              "node": "Done - Email Scraper Launched",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Done - Email Scraper Launched": {
+        "main": [
+          [
+            {
+              "node": "Respond to Webhook",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Loop Over Items": {
+        "main": [
+          [
+            {
+              "node": "FilterHubspotSyncs",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Update HubSpot Status",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Update HubSpot Status": {
+        "main": [
+          [
+            {
+              "node": "Loop Over Items",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "normalizeGSheet": {
+        "main": [
+          [
+            {
+              "node": "Merge Export + Pending",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "normalizePB": {
+        "main": [
+          [
+            {
+              "node": "Merge Export + Pending",
+              "type": "main",
+              "index": 1
+            }
+          ]
+        ]
+      },
+      "Code in JavaScript": {
+        "main": [
+          [
+            {
+              "node": "Launch Profile Scraper with Email",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Fetch Doppler cookies": {
+        "main": [
+          [
+            {
+              "node": "Build profile items with cookies",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Build profile items with cookies": {
+        "main": [
+          [
+            {
+              "node": "Take one profile",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Take one profile": {
+        "main": [
+          [
+            {
+              "node": "Get Pending Leads",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Get Connection Export Output",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "FilterHubspotSyncs": {
+        "main": [
+          [
+            {
+              "node": "Has New Connections?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Filter": {
+        "main": [
+          [
+            {
+              "node": "Loop Over Items",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "authors": "Hudson Lorfing",
+    "name": "Version b01ea7e1",
+    "description": "",
+    "autosaved": true,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-02-07T01:16:11.846Z",
+        "id": 472,
+        "workflowId": "EjNGBdN420LQmX2M",
+        "versionId": "b01ea7e1-c7da-40ba-9819-1c3ae2d8cdcb",
+        "event": "activated",
+        "userId": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4"
+      }
+    ]
+  }
+}

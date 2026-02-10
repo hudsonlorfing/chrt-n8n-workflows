@@ -1,0 +1,293 @@
+{
+  "name": "Test - 3.4 Conference Follow-Up [V2]",
+  "description": "Receives contact data from 3.3 after HubSpot sync. Checks if the contact is a conference target via conference-check.js Apps Script. If yes, creates a HubSpot task with conference context and a draft message.",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        2400,
+        960
+      ],
+      "id": "wf34-trigger",
+      "name": "Called by 3.3"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        2400,
+        1152
+      ],
+      "id": "wf34-manual",
+      "name": "When clicking 'Execute workflow'"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract contact data passed from 3.3\nconst item = $input.first().json;\nconst contactData = {\n  firstName: item.firstName || item._hs?.firstName || '',\n  lastName: item.lastName || item._hs?.lastName || '',\n  fullName: item.fullName || ((item.firstName || '') + ' ' + (item.lastName || '')).trim(),\n  title: item.title || item._hs?.jobTitle || '',\n  company: item.company || item._hs?.companyName || '',\n  linkedinUrl: item.linkedInProfileUrl || item.defaultProfileUrl || item.profileUrl || '',\n  hubspotContactId: item._hs?.contactId || item.hubspotContactId || '',\n  email: item.email || item._hs?.email || ''\n};\nreturn [{ json: contactData }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2608,
+        960
+      ],
+      "id": "wf34-extract",
+      "name": "Extract Contact Data"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://script.google.com/macros/s/AKfycbwy_e5rs0WR54SpB2G7z1CYEYaKblquJByORwN9Z6ipMNIiTBW2aPOFzalUPOIoWAH7/exec",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ linkedinUrl: $json.linkedinUrl }) }}",
+        "options": {
+          "redirect": {
+            "redirect": {}
+          },
+          "timeout": 60000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2816,
+        960
+      ],
+      "id": "wf34-check",
+      "name": "Conference Check (Apps Script)",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "is-target",
+              "leftValue": "={{ $json.isConferenceTarget }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3024,
+        960
+      ],
+      "id": "wf34-is-target",
+      "name": "Is Conference Target?"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build HubSpot task payload for conference follow-up\nconst checkResult = $input.first().json;\nconst contact = $('Extract Contact Data').first().json;\nconst conferenceName = checkResult.conferenceName || 'Conference';\nconst firstName = contact.firstName || 'there';\nconst fullName = contact.fullName || 'Unknown';\nconst title = contact.title || '';\nconst company = contact.company || '';\nconst linkedinUrl = contact.linkedinUrl || '';\n\nconst subject = `Conference Prep: ${fullName} - ${conferenceName}`;\nconst body = `${fullName} (${title} at ${company}) just accepted your connection. Tagged for ${conferenceName}.\\n\\nLinkedIn: ${linkedinUrl}\\n\\nDraft message:\\nHey ${firstName}, great connecting! I'll be at ${conferenceName} next week -- would love to chat about how Chrt is helping companies like ${company} streamline time-critical logistics. Open to grabbing coffee or a quick meeting?`;\n\n// Due date: tomorrow + random 1-8 hours\nconst now = new Date();\nconst dueDate = new Date(now.getTime() + 86400000 + Math.floor(Math.random() * 28800000));\n\nreturn [{ json: {\n  subject,\n  body,\n  dueDate: dueDate.toISOString(),\n  contactId: contact.hubspotContactId,\n  linkedinUrl,\n  conferenceName\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3232,
+        896
+      ],
+      "id": "wf34-build-task",
+      "name": "Build HubSpot Task"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/tasks",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ properties: { hs_task_subject: $json.subject, hs_task_body: $json.body, hs_task_type: 'LINKED_IN_MESSAGE', hs_task_priority: 'HIGH', hs_task_status: 'NOT_STARTED', hs_timestamp: String(new Date($json.dueDate).getTime()) } }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3440,
+        896
+      ],
+      "id": "wf34-create-task",
+      "name": "Create HubSpot Task",
+      "credentials": {
+        "hubspotOAuth2Api": {
+          "id": "3JZVnZQkHgMfXMRx",
+          "name": "HubSpot account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "={{ 'https://api.hubapi.com/crm/v3/objects/tasks/' + $json.id + '/associations/contacts/' + $('Build HubSpot Task').first().json.contactId + '/task_to_contact' }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotOAuth2Api",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3648,
+        896
+      ],
+      "id": "wf34-assoc-task",
+      "name": "Associate Task with Contact",
+      "credentials": {
+        "hubspotOAuth2Api": {
+          "id": "3JZVnZQkHgMfXMRx",
+          "name": "HubSpot account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Done — log what happened\nconst task = $('Create HubSpot Task').first().json;\nconst contact = $('Extract Contact Data').first().json;\nreturn [{ json: { success: true, taskId: task.id, contact: contact.fullName, conference: $('Build HubSpot Task').first().json.conferenceName } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3856,
+        896
+      ],
+      "id": "wf34-done",
+      "name": "Done - Task Created"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Not a conference target — no action needed\nreturn [{ json: { success: true, isConferenceTarget: false, message: 'Not a conference target — skipped' } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3232,
+        1056
+      ],
+      "id": "wf34-skip",
+      "name": "Done - Not Conference Target"
+    }
+  ],
+  "connections": {
+    "Called by 3.3": {
+      "main": [
+        [
+          {
+            "node": "Extract Contact Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking 'Execute workflow'": {
+      "main": [
+        []
+      ]
+    },
+    "Extract Contact Data": {
+      "main": [
+        [
+          {
+            "node": "Conference Check (Apps Script)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Conference Check (Apps Script)": {
+      "main": [
+        [
+          {
+            "node": "Is Conference Target?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Conference Target?": {
+      "main": [
+        [
+          {
+            "node": "Build HubSpot Task",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Done - Not Conference Target",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build HubSpot Task": {
+      "main": [
+        [
+          {
+            "node": "Create HubSpot Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create HubSpot Task": {
+      "main": [
+        [
+          {
+            "node": "Associate Task with Contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Associate Task with Contact": {
+      "main": [
+        [
+          {
+            "node": "Done - Task Created",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": {}
+}

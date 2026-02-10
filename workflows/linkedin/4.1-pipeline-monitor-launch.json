@@ -1,0 +1,2627 @@
+{
+  "updatedAt": "2026-02-07T01:32:38.905Z",
+  "createdAt": "2026-02-06T00:40:40.488Z",
+  "id": "OVjPWkmSVnXYlQDP",
+  "name": "4.1 Pipeline Monitor - Launch [V2]",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 6 * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule-kyle-6am",
+      "name": "Schedule Kyle",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        1120,
+        928
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "5 6 * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule-hudson-6am",
+      "name": "Schedule Hudson",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        1120,
+        1120
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { profileIndex: 0 } }];"
+      },
+      "id": "set-kyle",
+      "name": "Set profile Kyle",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1280,
+        928
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { profileIndex: 1 } }];"
+      },
+      "id": "set-hudson",
+      "name": "Set profile Hudson",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1280,
+        1120
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "pipeline-monitor-crawler",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "crawl-webhook",
+      "name": "Crawl for profile webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        1312
+      ],
+      "webhookId": "pipeline-monitor-crawl-v2"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nconst profile = body.profile || 'kyle';\nconst idx = profile === 'hudson' ? 1 : 0;\nreturn [{ json: { profileIndex: idx } }];"
+      },
+      "id": "set-from-webhook",
+      "name": "Set profile from webhook",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1296,
+        1312
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.doppler.com/v3/configs/config/secrets",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "project",
+              "value": "developers"
+            },
+            {
+              "name": "config",
+              "value": "hudson"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "fetch-doppler",
+      "name": "Fetch Doppler cookies",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1280,
+        768
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "dz2vX61Mpayywfq1",
+          "name": "Doppler API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch",
+        "useDataOfInput": 2
+      },
+      "id": "merge-doppler",
+      "name": "Profile + Doppler",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        1648,
+        1024
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first();\nconst secrets = item.json.secrets || item.json || {};\nconst kyleCookie = secrets.LINKEDIN_KYLE_SESSION_COOKIE;\nconst hudsonCookie = secrets.LINKEDIN_HUDSON_SESSION_COOKIE;\nconst userAgents = { kyle: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36', hudson: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36' };\nreturn [\n  { json: { profile: 'kyle', sessionCookie: kyleCookie, userAgent: userAgents.kyle, exportPhantom: '4606663815675720' } },\n  { json: { profile: 'hudson', sessionCookie: hudsonCookie, userAgent: userAgents.hudson, exportPhantom: '2368687890019633' } }\n];"
+      },
+      "id": "build-profiles",
+      "name": "Build profile items with cookies",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1808,
+        1024
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nif (!items.length) return [];\nlet idx;\ntry { idx = $('selectProfile').first().json.profileIndex; } catch (e) { idx = 0; }\nif (idx === undefined || idx === null) idx = new Date().getDate() % 2;\nreturn [items[Math.min(idx, items.length - 1)]];"
+      },
+      "id": "take-one",
+      "name": "Take one profile",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1968,
+        1024
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Dashboard"
+        },
+        "options": {}
+      },
+      "id": "read-dashboard",
+      "name": "Read Dashboard Metrics",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2160,
+        1024
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "hf9VoWnqYNXhUZsn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst kylePreProcessed = parseInt(data['kylePreProcessed'] || 0);\nconst kyleTargets = parseInt(data['kyleTargets'] || 0);\nconst hudsonPreProcessed = parseInt(data['hudsonPreProcessed'] || 0);\nconst hudsonTargets = parseInt(data['hudsonTargets'] || 0);\nconst profile = $('Take one profile').first().json.profile;\nlet needScrape = false;\nlet needTargets = false;\nif (profile == 'kyle') { needScrape = kylePreProcessed < 1000; needTargets = kyleTargets < 240; }\nelse { needScrape = hudsonPreProcessed < 1000; needTargets = hudsonTargets < 240; }\nreturn [{ json: { profile, needScrape, needTargets } }];"
+      },
+      "id": "parse-metrics",
+      "name": "Parse Dashboard Metrics",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2368,
+        1024
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "needs-scrape",
+              "leftValue": "={{ $json.needScrape }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "need-leads-check",
+      "name": "Need more leads?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2544,
+        1024
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "People to crawl"
+        },
+        "options": {}
+      },
+      "id": "read-people-to-crawl",
+      "name": "Read People to Crawl",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2784,
+        960
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "hf9VoWnqYNXhUZsn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Analyze URLs: Conference-first selection, then People to Crawl fallback\nconst allRows = $input.all();\nlet profile = 'kyle';\ntry { profile = $('Take one profile').first().json.profile; } catch(e) {}\n\n// Step 1: Check for active conference URLs\nlet confRows = [];\ntry { confRows = $('Read Conferences').all(); } catch(e) {}\nconst today = new Date();\ntoday.setHours(0, 0, 0, 0);\nconst activeConfUrls = [];\nconfRows.forEach(item => {\n  const d = item.json || item;\n  const status = d.status;\n  if (status !== true && String(status).toUpperCase() !== 'TRUE') return;\n  const endDate = d.end ? new Date(d.end) : null;\n  if (endDate && !isNaN(endDate.getTime())) {\n    endDate.setHours(23, 59, 59, 999);\n    if (today > endDate) return;\n  }\n  const url = (d.salesNavUrl || '').trim();\n  if (url) activeConfUrls.push({ url, tag: d.tag || '', name: d.name || '' });\n});\n\n// If active conference URLs exist, use one (round-robin by day)\nif (activeConfUrls.length > 0) {\n  const idx = new Date().getDate() % activeConfUrls.length;\n  const picked = activeConfUrls[idx];\n  return [{ json: { uncrawledCount: activeConfUrls.length, crawledCount: 0, totalURLs: activeConfUrls.length, selectedURL: picked.url, selectedRow: null, alertLevel: 'none', selectedName: picked.name || picked.tag, currentProfile: profile, isConference: true, conferenceTag: picked.tag } }];\n}\n\n// Step 2: Fallback to People to Crawl (existing logic)\nlet profile_prefix = profile !== 'kyle' ? 'h_' : 'k_';\nconst linkKey = profile_prefix + 'salesNavLink';\nconst dateKey = profile_prefix + 'lastCrawlDate';\nconst nameKey = profile_prefix + 'name';\nconst uncrawled = [];\nconst crawled = [];\nlet totalValidLinks = 0;\nallRows.forEach((item, index) => {\n  const data = item.json || item;\n  const searchLink = data[linkKey];\n  if (searchLink && typeof searchLink === 'string' && searchLink.trim().length > 0) {\n    totalValidLinks++;\n    const lastCrawl = data[dateKey] || '';\n    const name = data[nameKey] || '';\n    const rowNumber = data.row_number || index + 2;\n    const rowData = { rowNumber, name, searchLink: searchLink.trim(), lastCrawlDate: lastCrawl ? lastCrawl.trim() : null };\n    if (!lastCrawl || lastCrawl.trim() === '') { uncrawled.push(rowData); } else { crawled.push(rowData); }\n  }\n});\ncrawled.sort((a, b) => new Date(a.lastCrawlDate || '2099-12-31') - new Date(b.lastCrawlDate || '2099-12-31'));\nconst uncrawledCount = uncrawled.length;\nlet selectedURL = null, selectedRow = null, alertLevel = 'none';\nif (uncrawledCount > 2) { selectedURL = uncrawled[0].searchLink; selectedRow = uncrawled[0].rowNumber; }\nelse if (uncrawledCount > 0) { selectedURL = uncrawled[0].searchLink; selectedRow = uncrawled[0].rowNumber; alertLevel = 'warning'; }\nelse if (crawled.length > 0) { selectedURL = crawled[0].searchLink; selectedRow = crawled[0].rowNumber; alertLevel = 'fallback'; }\nelse { alertLevel = 'critical'; }\nreturn [{ json: { uncrawledCount, crawledCount: crawled.length, totalURLs: totalValidLinks, selectedURL, selectedRow, alertLevel, selectedName: selectedURL ? (uncrawledCount > 0 ? uncrawled[0].name : crawled[0]?.name) : null, currentProfile: profile, isConference: false, conferenceTag: '' } }];"
+      },
+      "id": "analyze-urls",
+      "name": "Analyze URLs & Select Next",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2976,
+        960
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "has-url",
+              "leftValue": "={{ $json.uncrawledCount }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-has-url",
+      "name": "Has URL to Process?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3168,
+        960
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.phantombuster.com/api/v2/agents/launch",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  id: $('Take one profile').first().json.exportPhantom || '4606663815675720',\n  manualLaunch: true,\n  bonusArgument: {\n    salesNavigatorSearchUrl: $json.selectedURL,\n    numberOfResultsPerSearch: 2500,\n    removeDuplicateProfiles: true\n  }\n}) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "launch-phantom",
+      "name": "Launch Search Export Phantom",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3408,
+        896
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "KWeabljbYSzoLpjI",
+          "name": "Phantom Header Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// PB launched \u2014 4.2 will handle results via PB webhook\nconst result = $input.first().json;\nconst profile = $('Take one profile').first().json.profile;\nconst analyzeData = $('Analyze URLs & Select Next').first().json;\nreturn [{ json: {\n  success: true,\n  profile,\n  containerId: result.containerId || 'unknown',\n  agentId: $('Take one profile').first().json.exportPhantom || '4606663815675720',\n  selectedRow: analyzeData.selectedRow,\n  selectedURL: analyzeData.selectedURL,\n  selectedName: analyzeData.selectedName,\n  isConference: analyzeData.isConference || false,\n  conferenceTag: analyzeData.conferenceTag || '',\n  message: 'PB launched \u2014 4.2 workflow handles results via webhook',\n  timestamp: new Date().toISOString().split('T')[0]\n}}];"
+      },
+      "id": "done-launched",
+      "name": "Done - PB Launched",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3600,
+        896
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { success: false, message: 'No URLs to process or no scrape needed', timestamp: new Date().toISOString() } }];"
+      },
+      "id": "done-skip",
+      "name": "Done - Skipped",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3408,
+        1120
+      ]
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        1504
+      ],
+      "id": "manual-trigger",
+      "name": "When clicking 'Execute workflow'"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Conferences"
+        },
+        "options": {}
+      },
+      "id": "read-conferences",
+      "name": "Read Conferences",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2784,
+        800
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "hf9VoWnqYNXhUZsn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "is-conference",
+              "leftValue": "={{ $json.isConference }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "is-conference-check",
+      "name": "Is Conference?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3792,
+        896
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const kyle = $('Set profile Kyle').isExecuted ? $('Set profile Kyle').first() : null;\nconst hudson = $('Set profile Hudson').isExecuted ? $('Set profile Hudson').first() : null;\nconst crawl = $('Set profile from webhook').isExecuted ? $('Set profile from webhook').first() : null;\nconst selected = kyle || hudson || crawl;\nif (!selected) throw new Error('No profile set');\nreturn [{ json: { profileIndex: selected.json.profileIndex } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        1008
+      ],
+      "id": "34a5214e-413d-4484-b040-a247e1e5cc3d",
+      "name": "selectProfile"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "People to crawl"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "k_salesNavLink": "={{ $json.selectedURL }}",
+            "k_lastCrawlDate": "={{ $json.timestamp }}"
+          },
+          "matchingColumns": [
+            "k_salesNavLink"
+          ],
+          "schema": [
+            {
+              "id": "k_profileReason",
+              "displayName": "k_profileReason",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "k_name",
+              "displayName": "k_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "k_linkedInUrl",
+              "displayName": "k_linkedInUrl",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "k_salesNavLink",
+              "displayName": "k_salesNavLink",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "k_lastCrawlDate",
+              "displayName": "k_lastCrawlDate",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "k_connections",
+              "displayName": "k_connections",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "h_profileReason",
+              "displayName": "h_profileReason",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "h_name",
+              "displayName": "h_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "h_linkedInUrl",
+              "displayName": "h_linkedInUrl",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "h_salesNavLink",
+              "displayName": "h_salesNavLink",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "h_lastCrawlDate",
+              "displayName": "h_lastCrawlDate",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "h_connections",
+              "displayName": "h_connections",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Current Url",
+              "displayName": "Current Url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "industryName",
+              "displayName": "industryName",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "industryId",
+              "displayName": "industryId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "industryUrl",
+              "displayName": "industryUrl",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "searchGroup",
+              "displayName": "searchGroup",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "fullUrlGroup1",
+              "displayName": "fullUrlGroup1",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "fullUrlGroup2",
+              "displayName": "fullUrlGroup2",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "fullUrlGroup3",
+              "displayName": "fullUrlGroup3",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "9d149f65-1fe3-42bb-b94f-a900ef774a20",
+      "name": "updateCrawlDate",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        4016,
+        736
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "hf9VoWnqYNXhUZsn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "People to crawl"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "h_salesNavLink": "={{ $json.selectedURL }}",
+            "h_lastCrawlDate": "={{ $json.timestamp }}"
+          },
+          "matchingColumns": [
+            "h_salesNavLink"
+          ],
+          "schema": [
+            {
+              "id": "k_profileReason",
+              "displayName": "k_profileReason",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "k_name",
+              "displayName": "k_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "k_linkedInUrl",
+              "displayName": "k_linkedInUrl",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "k_salesNavLink",
+              "displayName": "k_salesNavLink",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "k_lastCrawlDate",
+              "displayName": "k_lastCrawlDate",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "k_connections",
+              "displayName": "k_connections",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "h_profileReason",
+              "displayName": "h_profileReason",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "h_name",
+              "displayName": "h_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "h_linkedInUrl",
+              "displayName": "h_linkedInUrl",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "h_salesNavLink",
+              "displayName": "h_salesNavLink",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "h_lastCrawlDate",
+              "displayName": "h_lastCrawlDate",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "h_connections",
+              "displayName": "h_connections",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "industryName",
+              "displayName": "industryName",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "industryId",
+              "displayName": "industryId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "industryUrl",
+              "displayName": "industryUrl",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "searchGroup",
+              "displayName": "searchGroup",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "fullUrlGroup1",
+              "displayName": "fullUrlGroup1",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "fullUrlGroup2",
+              "displayName": "fullUrlGroup2",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "fullUrlGroup3",
+              "displayName": "fullUrlGroup3",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "7d98558c-fe1f-462c-9872-4b9baf8c3c89",
+      "name": "updateCrawlDate1",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        4016,
+        912
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "hf9VoWnqYNXhUZsn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "74e86685-de51-4b81-98d8-2d3324245854",
+              "leftValue": "={{ $('Take one profile').first().json.profile }}",
+              "rightValue": "kyle",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        3792,
+        832
+      ],
+      "id": "8ff60bd8-3e23-4dd8-9d3c-41fbe33e677d",
+      "name": "If"
+    }
+  ],
+  "connections": {
+    "Schedule Kyle": {
+      "main": [
+        [
+          {
+            "node": "Set profile Kyle",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch Doppler cookies",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Hudson": {
+      "main": [
+        [
+          {
+            "node": "Set profile Hudson",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch Doppler cookies",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crawl for profile webhook": {
+      "main": [
+        [
+          {
+            "node": "Set profile from webhook",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch Doppler cookies",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set profile Kyle": {
+      "main": [
+        [
+          {
+            "node": "selectProfile",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set profile Hudson": {
+      "main": [
+        [
+          {
+            "node": "selectProfile",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set profile from webhook": {
+      "main": [
+        [
+          {
+            "node": "selectProfile",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Doppler cookies": {
+      "main": [
+        [
+          {
+            "node": "Profile + Doppler",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Profile + Doppler": {
+      "main": [
+        [
+          {
+            "node": "Build profile items with cookies",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build profile items with cookies": {
+      "main": [
+        [
+          {
+            "node": "Take one profile",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Take one profile": {
+      "main": [
+        [
+          {
+            "node": "Read Dashboard Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Dashboard Metrics": {
+      "main": [
+        [
+          {
+            "node": "Parse Dashboard Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Dashboard Metrics": {
+      "main": [
+        [
+          {
+            "node": "Need more leads?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Need more leads?": {
+      "main": [
+        [
+          {
+            "node": "Read Conferences",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Done - Skipped",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Conferences": {
+      "main": [
+        [
+          {
+            "node": "Read People to Crawl",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read People to Crawl": {
+      "main": [
+        [
+          {
+            "node": "Analyze URLs & Select Next",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze URLs & Select Next": {
+      "main": [
+        [
+          {
+            "node": "Has URL to Process?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has URL to Process?": {
+      "main": [
+        [
+          {
+            "node": "Launch Search Export Phantom",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Done - Skipped",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Launch Search Export Phantom": {
+      "main": [
+        [
+          {
+            "node": "Done - PB Launched",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking 'Execute workflow'": {
+      "main": [
+        []
+      ]
+    },
+    "selectProfile": {
+      "main": [
+        [
+          {
+            "node": "Profile + Doppler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Done - PB Launched": {
+      "main": [
+        [
+          {
+            "node": "Is Conference?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Conference?": {
+      "main": [
+        [],
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "updateCrawlDate",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "updateCrawlDate1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": {
+    "node:Schedule Kyle": {
+      "recurrenceRules": []
+    },
+    "node:Schedule Hudson": {
+      "recurrenceRules": []
+    }
+  },
+  "meta": null,
+  "pinData": {
+    "Crawl for profile webhook": [
+      {
+        "json": {
+          "headers": {
+            "host": "chrt.app.n8n.cloud",
+            "user-agent": "axios/1.12.0",
+            "content-length": "20",
+            "accept": "application/json,text/html,application/xhtml+xml,application/xml,text/*;q=0.9, image/*;q=0.8, */*;q=0.7",
+            "accept-encoding": "gzip, br",
+            "cdn-loop": "cloudflare; loops=1; subreqs=1",
+            "cf-connecting-ip": "4.184.78.254",
+            "cf-ew-via": "15",
+            "cf-ipcountry": "DE",
+            "cf-ray": "9c9f1a42704d18d9-FRA",
+            "cf-visitor": "{\"scheme\":\"https\"}",
+            "cf-worker": "n8n.cloud",
+            "content-type": "application/json",
+            "x-forwarded-for": "4.184.78.254, 162.158.110.58",
+            "x-forwarded-host": "chrt.app.n8n.cloud",
+            "x-forwarded-port": "443",
+            "x-forwarded-proto": "https",
+            "x-forwarded-server": "traefik-prod-users-gwc-90-644db48b77-zcxv8",
+            "x-is-trusted": "yes",
+            "x-real-ip": "4.184.78.254"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "profile": "hudson"
+          },
+          "webhookUrl": "https://chrt.app.n8n.cloud/webhook/pipeline-monitor-crawler",
+          "executionMode": "production"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "versionId": "2cc7129f-7506-4973-9a09-0d25fc3a5d03",
+  "activeVersionId": "2cc7129f-7506-4973-9a09-0d25fc3a5d03",
+  "versionCounter": 95,
+  "triggerCount": 1,
+  "shared": [
+    {
+      "updatedAt": "2026-02-06T00:40:40.915Z",
+      "createdAt": "2026-02-06T00:40:40.915Z",
+      "role": "workflow:owner",
+      "workflowId": "OVjPWkmSVnXYlQDP",
+      "projectId": "O7lTivDfRl72aS23",
+      "project": {
+        "updatedAt": "2025-12-24T03:17:11.000Z",
+        "createdAt": "2025-12-23T21:24:31.508Z",
+        "id": "O7lTivDfRl72aS23",
+        "name": "ChrtWorkflows",
+        "type": "team",
+        "icon": {
+          "type": "icon",
+          "value": "layers"
+        },
+        "description": "",
+        "creatorId": null,
+        "projectRelations": [
+          {
+            "updatedAt": "2025-12-23T21:24:31.510Z",
+            "createdAt": "2025-12-23T21:24:31.510Z",
+            "userId": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4",
+            "projectId": "O7lTivDfRl72aS23",
+            "user": {
+              "updatedAt": "2026-02-07T08:00:55.000Z",
+              "createdAt": "2025-12-17T12:51:53.118Z",
+              "id": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4",
+              "email": "hudson@chrt.com",
+              "firstName": "Hudson",
+              "lastName": "Lorfing",
+              "personalizationAnswers": null,
+              "settings": {
+                "userActivated": true,
+                "userClaimedAiCredits": true,
+                "easyAIWorkflowOnboarded": true,
+                "firstSuccessfulWorkflowId": "kjjYKQEXv67Vl5MS",
+                "userActivatedAt": 1766099344758,
+                "npsSurvey": {
+                  "responded": true,
+                  "lastShownAt": 1768855960435
+                }
+              },
+              "disabled": false,
+              "mfaEnabled": false,
+              "lastActiveAt": "2026-02-07",
+              "isPending": false
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": {
+    "updatedAt": "2026-02-07T01:32:50.000Z",
+    "createdAt": "2026-02-07T01:32:38.906Z",
+    "versionId": "2cc7129f-7506-4973-9a09-0d25fc3a5d03",
+    "workflowId": "OVjPWkmSVnXYlQDP",
+    "nodes": [
+      {
+        "parameters": {
+          "rule": {
+            "interval": [
+              {
+                "field": "cronExpression",
+                "expression": "0 6 * * *"
+              }
+            ]
+          }
+        },
+        "id": "schedule-kyle-6am",
+        "name": "Schedule Kyle",
+        "type": "n8n-nodes-base.scheduleTrigger",
+        "typeVersion": 1.2,
+        "position": [
+          1120,
+          928
+        ],
+        "disabled": true
+      },
+      {
+        "parameters": {
+          "rule": {
+            "interval": [
+              {
+                "field": "cronExpression",
+                "expression": "5 6 * * *"
+              }
+            ]
+          }
+        },
+        "id": "schedule-hudson-6am",
+        "name": "Schedule Hudson",
+        "type": "n8n-nodes-base.scheduleTrigger",
+        "typeVersion": 1.2,
+        "position": [
+          1120,
+          1120
+        ],
+        "disabled": true
+      },
+      {
+        "parameters": {
+          "jsCode": "return [{ json: { profileIndex: 0 } }];"
+        },
+        "id": "set-kyle",
+        "name": "Set profile Kyle",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1280,
+          928
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "return [{ json: { profileIndex: 1 } }];"
+        },
+        "id": "set-hudson",
+        "name": "Set profile Hudson",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1280,
+          1120
+        ]
+      },
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "pipeline-monitor-crawler",
+          "responseMode": "lastNode",
+          "options": {}
+        },
+        "id": "crawl-webhook",
+        "name": "Crawl for profile webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          1120,
+          1312
+        ],
+        "webhookId": "pipeline-monitor-crawl-v2"
+      },
+      {
+        "parameters": {
+          "jsCode": "const body = $input.first().json.body || $input.first().json;\nconst profile = body.profile || 'kyle';\nconst idx = profile === 'hudson' ? 1 : 0;\nreturn [{ json: { profileIndex: idx } }];"
+        },
+        "id": "set-from-webhook",
+        "name": "Set profile from webhook",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1296,
+          1312
+        ]
+      },
+      {
+        "parameters": {
+          "url": "https://api.doppler.com/v3/configs/config/secrets",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpHeaderAuth",
+          "sendQuery": true,
+          "queryParameters": {
+            "parameters": [
+              {
+                "name": "project",
+                "value": "developers"
+              },
+              {
+                "name": "config",
+                "value": "hudson"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "fetch-doppler",
+        "name": "Fetch Doppler cookies",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1280,
+          768
+        ],
+        "credentials": {
+          "httpHeaderAuth": {
+            "id": "dz2vX61Mpayywfq1",
+            "name": "Doppler API"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "mode": "chooseBranch",
+          "useDataOfInput": 2
+        },
+        "id": "merge-doppler",
+        "name": "Profile + Doppler",
+        "type": "n8n-nodes-base.merge",
+        "typeVersion": 3,
+        "position": [
+          1648,
+          1024
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "const item = $input.first();\nconst secrets = item.json.secrets || item.json || {};\nconst kyleCookie = secrets.LINKEDIN_KYLE_SESSION_COOKIE;\nconst hudsonCookie = secrets.LINKEDIN_HUDSON_SESSION_COOKIE;\nconst userAgents = { kyle: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36', hudson: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36' };\nreturn [\n  { json: { profile: 'kyle', sessionCookie: kyleCookie, userAgent: userAgents.kyle, exportPhantom: '4606663815675720' } },\n  { json: { profile: 'hudson', sessionCookie: hudsonCookie, userAgent: userAgents.hudson, exportPhantom: '2368687890019633' } }\n];"
+        },
+        "id": "build-profiles",
+        "name": "Build profile items with cookies",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1808,
+          1024
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\nif (!items.length) return [];\nlet idx;\ntry { idx = $('selectProfile').first().json.profileIndex; } catch (e) { idx = 0; }\nif (idx === undefined || idx === null) idx = new Date().getDate() % 2;\nreturn [items[Math.min(idx, items.length - 1)]];"
+        },
+        "id": "take-one",
+        "name": "Take one profile",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1968,
+          1024
+        ]
+      },
+      {
+        "parameters": {
+          "documentId": {
+            "__rl": true,
+            "mode": "id",
+            "value": "1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8"
+          },
+          "sheetName": {
+            "__rl": true,
+            "mode": "name",
+            "value": "Dashboard"
+          },
+          "options": {}
+        },
+        "id": "read-dashboard",
+        "name": "Read Dashboard Metrics",
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.5,
+        "position": [
+          2160,
+          1024
+        ],
+        "credentials": {
+          "googleSheetsOAuth2Api": {
+            "id": "hf9VoWnqYNXhUZsn",
+            "name": "Google Sheets account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "const data = $input.first().json;\nconst kylePreProcessed = parseInt(data['kylePreProcessed'] || 0);\nconst kyleTargets = parseInt(data['kyleTargets'] || 0);\nconst hudsonPreProcessed = parseInt(data['hudsonPreProcessed'] || 0);\nconst hudsonTargets = parseInt(data['hudsonTargets'] || 0);\nconst profile = $('Take one profile').first().json.profile;\nlet needScrape = false;\nlet needTargets = false;\nif (profile == 'kyle') { needScrape = kylePreProcessed < 1000; needTargets = kyleTargets < 240; }\nelse { needScrape = hudsonPreProcessed < 1000; needTargets = hudsonTargets < 240; }\nreturn [{ json: { profile, needScrape, needTargets } }];"
+        },
+        "id": "parse-metrics",
+        "name": "Parse Dashboard Metrics",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2368,
+          1024
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "needs-scrape",
+                "leftValue": "={{ $json.needScrape }}",
+                "rightValue": true,
+                "operator": {
+                  "type": "boolean",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "need-leads-check",
+        "name": "Need more leads?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          2544,
+          1024
+        ]
+      },
+      {
+        "parameters": {
+          "documentId": {
+            "__rl": true,
+            "mode": "id",
+            "value": "1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8"
+          },
+          "sheetName": {
+            "__rl": true,
+            "mode": "name",
+            "value": "People to crawl"
+          },
+          "options": {}
+        },
+        "id": "read-people-to-crawl",
+        "name": "Read People to Crawl",
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.5,
+        "position": [
+          2784,
+          960
+        ],
+        "credentials": {
+          "googleSheetsOAuth2Api": {
+            "id": "hf9VoWnqYNXhUZsn",
+            "name": "Google Sheets account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "// Analyze URLs: Conference-first selection, then People to Crawl fallback\nconst allRows = $input.all();\nlet profile = 'kyle';\ntry { profile = $('Take one profile').first().json.profile; } catch(e) {}\n\n// Step 1: Check for active conference URLs\nlet confRows = [];\ntry { confRows = $('Read Conferences').all(); } catch(e) {}\nconst today = new Date();\ntoday.setHours(0, 0, 0, 0);\nconst activeConfUrls = [];\nconfRows.forEach(item => {\n  const d = item.json || item;\n  const status = d.status;\n  if (status !== true && String(status).toUpperCase() !== 'TRUE') return;\n  const endDate = d.end ? new Date(d.end) : null;\n  if (endDate && !isNaN(endDate.getTime())) {\n    endDate.setHours(23, 59, 59, 999);\n    if (today > endDate) return;\n  }\n  const url = (d.salesNavUrl || '').trim();\n  if (url) activeConfUrls.push({ url, tag: d.tag || '', name: d.name || '' });\n});\n\n// If active conference URLs exist, use one (round-robin by day)\nif (activeConfUrls.length > 0) {\n  const idx = new Date().getDate() % activeConfUrls.length;\n  const picked = activeConfUrls[idx];\n  return [{ json: { uncrawledCount: activeConfUrls.length, crawledCount: 0, totalURLs: activeConfUrls.length, selectedURL: picked.url, selectedRow: null, alertLevel: 'none', selectedName: picked.name || picked.tag, currentProfile: profile, isConference: true, conferenceTag: picked.tag } }];\n}\n\n// Step 2: Fallback to People to Crawl (existing logic)\nlet profile_prefix = profile !== 'kyle' ? 'h_' : 'k_';\nconst linkKey = profile_prefix + 'salesNavLink';\nconst dateKey = profile_prefix + 'lastCrawlDate';\nconst nameKey = profile_prefix + 'name';\nconst uncrawled = [];\nconst crawled = [];\nlet totalValidLinks = 0;\nallRows.forEach((item, index) => {\n  const data = item.json || item;\n  const searchLink = data[linkKey];\n  if (searchLink && typeof searchLink === 'string' && searchLink.trim().length > 0) {\n    totalValidLinks++;\n    const lastCrawl = data[dateKey] || '';\n    const name = data[nameKey] || '';\n    const rowNumber = data.row_number || index + 2;\n    const rowData = { rowNumber, name, searchLink: searchLink.trim(), lastCrawlDate: lastCrawl ? lastCrawl.trim() : null };\n    if (!lastCrawl || lastCrawl.trim() === '') { uncrawled.push(rowData); } else { crawled.push(rowData); }\n  }\n});\ncrawled.sort((a, b) => new Date(a.lastCrawlDate || '2099-12-31') - new Date(b.lastCrawlDate || '2099-12-31'));\nconst uncrawledCount = uncrawled.length;\nlet selectedURL = null, selectedRow = null, alertLevel = 'none';\nif (uncrawledCount > 2) { selectedURL = uncrawled[0].searchLink; selectedRow = uncrawled[0].rowNumber; }\nelse if (uncrawledCount > 0) { selectedURL = uncrawled[0].searchLink; selectedRow = uncrawled[0].rowNumber; alertLevel = 'warning'; }\nelse if (crawled.length > 0) { selectedURL = crawled[0].searchLink; selectedRow = crawled[0].rowNumber; alertLevel = 'fallback'; }\nelse { alertLevel = 'critical'; }\nreturn [{ json: { uncrawledCount, crawledCount: crawled.length, totalURLs: totalValidLinks, selectedURL, selectedRow, alertLevel, selectedName: selectedURL ? (uncrawledCount > 0 ? uncrawled[0].name : crawled[0]?.name) : null, currentProfile: profile, isConference: false, conferenceTag: '' } }];"
+        },
+        "id": "analyze-urls",
+        "name": "Analyze URLs & Select Next",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2976,
+          960
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "has-url",
+                "leftValue": "={{ $json.uncrawledCount }}",
+                "rightValue": 0,
+                "operator": {
+                  "type": "number",
+                  "operation": "gt"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "check-has-url",
+        "name": "Has URL to Process?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          3168,
+          960
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.phantombuster.com/api/v2/agents/launch",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpHeaderAuth",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({\n  id: $('Take one profile').first().json.exportPhantom || '4606663815675720',\n  manualLaunch: true,\n  bonusArgument: {\n    salesNavigatorSearchUrl: $json.selectedURL,\n    numberOfResultsPerSearch: 2500,\n    removeDuplicateProfiles: true\n  }\n}) }}",
+          "options": {
+            "timeout": 120000
+          }
+        },
+        "id": "launch-phantom",
+        "name": "Launch Search Export Phantom",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          3408,
+          896
+        ],
+        "credentials": {
+          "httpHeaderAuth": {
+            "id": "KWeabljbYSzoLpjI",
+            "name": "Phantom Header Auth"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "// PB launched \u2014 4.2 will handle results via PB webhook\nconst result = $input.first().json;\nconst profile = $('Take one profile').first().json.profile;\nconst analyzeData = $('Analyze URLs & Select Next').first().json;\nreturn [{ json: {\n  success: true,\n  profile,\n  containerId: result.containerId || 'unknown',\n  agentId: $('Take one profile').first().json.exportPhantom || '4606663815675720',\n  selectedRow: analyzeData.selectedRow,\n  selectedURL: analyzeData.selectedURL,\n  selectedName: analyzeData.selectedName,\n  isConference: analyzeData.isConference || false,\n  conferenceTag: analyzeData.conferenceTag || '',\n  message: 'PB launched \u2014 4.2 workflow handles results via webhook',\n  timestamp: new Date().toISOString().split('T')[0]\n}}];"
+        },
+        "id": "done-launched",
+        "name": "Done - PB Launched",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          3600,
+          896
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "return [{ json: { success: false, message: 'No URLs to process or no scrape needed', timestamp: new Date().toISOString() } }];"
+        },
+        "id": "done-skip",
+        "name": "Done - Skipped",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          3408,
+          1120
+        ]
+      },
+      {
+        "parameters": {},
+        "type": "n8n-nodes-base.manualTrigger",
+        "typeVersion": 1,
+        "position": [
+          1120,
+          1504
+        ],
+        "id": "manual-trigger",
+        "name": "When clicking 'Execute workflow'"
+      },
+      {
+        "parameters": {
+          "jsCode": "const kyle = $('Set profile Kyle').isExecuted ? $('Set profile Kyle').first() : null;\nconst hudson = $('Set profile Hudson').isExecuted ? $('Set profile Hudson').first() : null;\nconst crawl = $('Set profile from webhook').isExecuted ? $('Set profile from webhook').first() : null;\nconst selected = kyle || hudson || crawl;\nif (!selected) throw new Error('No profile set');\nreturn [{ json: { profileIndex: selected.json.profileIndex } }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1440,
+          1008
+        ],
+        "id": "34a5214e-413d-4484-b040-a247e1e5cc3d",
+        "name": "selectProfile"
+      },
+      {
+        "parameters": {
+          "operation": "update",
+          "documentId": {
+            "__rl": true,
+            "mode": "id",
+            "value": "1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8"
+          },
+          "sheetName": {
+            "__rl": true,
+            "mode": "name",
+            "value": "People to crawl"
+          },
+          "columns": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "k_salesNavLink": "={{ $json.selectedURL }}",
+              "k_lastCrawlDate": "={{ $json.timestamp }}"
+            },
+            "matchingColumns": [
+              "k_salesNavLink"
+            ],
+            "schema": [
+              {
+                "id": "k_profileReason",
+                "displayName": "k_profileReason",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "k_name",
+                "displayName": "k_name",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "k_linkedInUrl",
+                "displayName": "k_linkedInUrl",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "k_salesNavLink",
+                "displayName": "k_salesNavLink",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "k_lastCrawlDate",
+                "displayName": "k_lastCrawlDate",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "k_connections",
+                "displayName": "k_connections",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "h_profileReason",
+                "displayName": "h_profileReason",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "h_name",
+                "displayName": "h_name",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "h_linkedInUrl",
+                "displayName": "h_linkedInUrl",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "h_salesNavLink",
+                "displayName": "h_salesNavLink",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "h_lastCrawlDate",
+                "displayName": "h_lastCrawlDate",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "h_connections",
+                "displayName": "h_connections",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "Current Url",
+                "displayName": "Current Url",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "industryName",
+                "displayName": "industryName",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "industryId",
+                "displayName": "industryId",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "industryUrl",
+                "displayName": "industryUrl",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "searchGroup",
+                "displayName": "searchGroup",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "fullUrlGroup1",
+                "displayName": "fullUrlGroup1",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "fullUrlGroup2",
+                "displayName": "fullUrlGroup2",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "fullUrlGroup3",
+                "displayName": "fullUrlGroup3",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "row_number",
+                "displayName": "row_number",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "canBeUsedToMatch": true,
+                "readOnly": true,
+                "removed": true
+              }
+            ],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": false
+          },
+          "options": {}
+        },
+        "id": "9d149f65-1fe3-42bb-b94f-a900ef774a20",
+        "name": "updateCrawlDate",
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.5,
+        "position": [
+          4016,
+          736
+        ],
+        "credentials": {
+          "googleSheetsOAuth2Api": {
+            "id": "hf9VoWnqYNXhUZsn",
+            "name": "Google Sheets account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "operation": "update",
+          "documentId": {
+            "__rl": true,
+            "mode": "id",
+            "value": "1KQ9NPfbFTsPMsC1gZ7BZNMKw9grnczwHtmCG-9Xx7R8"
+          },
+          "sheetName": {
+            "__rl": true,
+            "mode": "name",
+            "value": "People to crawl"
+          },
+          "columns": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "h_salesNavLink": "={{ $json.selectedURL }}",
+              "h_lastCrawlDate": "={{ $json.timestamp }}"
+            },
+            "matchingColumns": [
+              "h_salesNavLink"
+            ],
+            "schema": [
+              {
+                "id": "k_profileReason",
+                "displayName": "k_profileReason",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "k_name",
+                "displayName": "k_name",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "k_linkedInUrl",
+                "displayName": "k_linkedInUrl",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "k_salesNavLink",
+                "displayName": "k_salesNavLink",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "k_lastCrawlDate",
+                "displayName": "k_lastCrawlDate",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "k_connections",
+                "displayName": "k_connections",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "h_profileReason",
+                "displayName": "h_profileReason",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "h_name",
+                "displayName": "h_name",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "h_linkedInUrl",
+                "displayName": "h_linkedInUrl",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "h_salesNavLink",
+                "displayName": "h_salesNavLink",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "h_lastCrawlDate",
+                "displayName": "h_lastCrawlDate",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "h_connections",
+                "displayName": "h_connections",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "industryName",
+                "displayName": "industryName",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "industryId",
+                "displayName": "industryId",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "industryUrl",
+                "displayName": "industryUrl",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "searchGroup",
+                "displayName": "searchGroup",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "fullUrlGroup1",
+                "displayName": "fullUrlGroup1",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "fullUrlGroup2",
+                "displayName": "fullUrlGroup2",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "fullUrlGroup3",
+                "displayName": "fullUrlGroup3",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "row_number",
+                "displayName": "row_number",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "number",
+                "canBeUsedToMatch": true,
+                "readOnly": true,
+                "removed": true
+              }
+            ],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": false
+          },
+          "options": {}
+        },
+        "id": "7d98558c-fe1f-462c-9872-4b9baf8c3c89",
+        "name": "updateCrawlDate1",
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.5,
+        "position": [
+          4016,
+          912
+        ],
+        "credentials": {
+          "googleSheetsOAuth2Api": {
+            "id": "hf9VoWnqYNXhUZsn",
+            "name": "Google Sheets account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 3
+            },
+            "conditions": [
+              {
+                "id": "74e86685-de51-4b81-98d8-2d3324245854",
+                "leftValue": "={{ $('Take one profile').first().json.profile }}",
+                "rightValue": "kyle",
+                "operator": {
+                  "type": "string",
+                  "operation": "equals",
+                  "name": "filter.operator.equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.3,
+        "position": [
+          3792,
+          832
+        ],
+        "id": "8ff60bd8-3e23-4dd8-9d3c-41fbe33e677d",
+        "name": "If"
+      }
+    ],
+    "connections": {
+      "Schedule Kyle": {
+        "main": [
+          [
+            {
+              "node": "Set profile Kyle",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Fetch Doppler cookies",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Schedule Hudson": {
+        "main": [
+          [
+            {
+              "node": "Set profile Hudson",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Fetch Doppler cookies",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Crawl for profile webhook": {
+        "main": [
+          [
+            {
+              "node": "Set profile from webhook",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Fetch Doppler cookies",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Set profile Kyle": {
+        "main": [
+          [
+            {
+              "node": "selectProfile",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Set profile Hudson": {
+        "main": [
+          [
+            {
+              "node": "selectProfile",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Set profile from webhook": {
+        "main": [
+          [
+            {
+              "node": "selectProfile",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Fetch Doppler cookies": {
+        "main": [
+          [
+            {
+              "node": "Profile + Doppler",
+              "type": "main",
+              "index": 1
+            }
+          ]
+        ]
+      },
+      "Profile + Doppler": {
+        "main": [
+          [
+            {
+              "node": "Build profile items with cookies",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Build profile items with cookies": {
+        "main": [
+          [
+            {
+              "node": "Take one profile",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Take one profile": {
+        "main": [
+          [
+            {
+              "node": "Read Dashboard Metrics",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Read Dashboard Metrics": {
+        "main": [
+          [
+            {
+              "node": "Parse Dashboard Metrics",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Parse Dashboard Metrics": {
+        "main": [
+          [
+            {
+              "node": "Need more leads?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Need more leads?": {
+        "main": [
+          [
+            {
+              "node": "Read People to Crawl",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Done - Skipped",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Read People to Crawl": {
+        "main": [
+          [
+            {
+              "node": "Analyze URLs & Select Next",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Analyze URLs & Select Next": {
+        "main": [
+          [
+            {
+              "node": "Has URL to Process?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Has URL to Process?": {
+        "main": [
+          [
+            {
+              "node": "Launch Search Export Phantom",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Done - Skipped",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Launch Search Export Phantom": {
+        "main": [
+          [
+            {
+              "node": "Done - PB Launched",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "When clicking 'Execute workflow'": {
+        "main": [
+          []
+        ]
+      },
+      "selectProfile": {
+        "main": [
+          [
+            {
+              "node": "Profile + Doppler",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Done - PB Launched": {
+        "main": [
+          [
+            {
+              "node": "If",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "If": {
+        "main": [
+          [
+            {
+              "node": "updateCrawlDate",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "updateCrawlDate1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "authors": "Hudson Lorfing",
+    "name": "Version 2cc7129f",
+    "description": "",
+    "autosaved": true,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-02-07T01:32:50.899Z",
+        "id": 474,
+        "workflowId": "OVjPWkmSVnXYlQDP",
+        "versionId": "2cc7129f-7506-4973-9a09-0d25fc3a5d03",
+        "event": "activated",
+        "userId": "3f98abd2-ede1-4e1f-985d-ae50bbfbeda4"
+      }
+    ]
+  }
+}
