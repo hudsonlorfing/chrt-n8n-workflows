@@ -1,3 +1,9 @@
+/**
+ * @deprecated — This VPS filesystem store is replaced by Supabase
+ * (meeting_analyses + meeting_participants tables).
+ * Kept for reference only. Do not deploy or update.
+ * Deprecated: 2026-02-10
+ */
 const express = require('express');
 const fs = require('fs');
 const path = require('path');

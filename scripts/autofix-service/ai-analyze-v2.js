@@ -1,4 +1,9 @@
 /**
+ * @deprecated — This VPS service is replaced by the n8n AI Agent node in WF7
+ * (7.-slack-interaction-handler.json) + Apps Script meeting-context.js.
+ * Kept for reference only. Do not deploy or update.
+ * Deprecated: 2026-02-10
+ *
  * AI Analyze Service v2
  * 
  * Enhanced meeting analysis with:

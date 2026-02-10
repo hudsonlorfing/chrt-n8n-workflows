@@ -1,0 +1,328 @@
+{
+  "id": "9t7EPqjlUUirs2fw",
+  "name": "8. Slack Follow-Up Agent",
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "meeting-intel-followup",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "name": "Slack Events Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 300],
+      "webhookId": "meeting-intel-followup",
+      "id": "wf8-webhook-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Handle Slack Events API: URL verification + app_mention events\nconst body = $input.first().json.body || $input.first().json;\n\n// URL verification challenge (Slack sends this when you first set up the Request URL)\nif (body.type === 'url_verification') {\n  return [{ json: { challenge: body.challenge, isChallenge: true } }];\n}\n\n// Extract event data\nconst event = body.event || {};\nconst eventType = event.type;\n\nif (eventType !== 'app_mention') {\n  return [{ json: { skip: true, reason: 'Not an app_mention event: ' + eventType } }];\n}\n\n// Extract the question (remove the bot mention)\nconst text = (event.text || '').replace(/<@[A-Z0-9]+>/g, '').trim();\nconst threadTs = event.thread_ts || event.ts;\nconst channelId = event.channel;\nconst userId = event.user;\n\nif (!text) {\n  return [{ json: { skip: true, reason: 'Empty message after removing mention' } }];\n}\n\nreturn [{ json: {\n  question: text,\n  threadTs,\n  channelId,\n  userId,\n  isChallenge: false,\n  skip: false\n} }];"
+      },
+      "name": "Parse Event",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [220, 300],
+      "id": "wf8-parse-event-001"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose", "version": 2 },
+          "conditions": [
+            {
+              "id": "is-challenge",
+              "leftValue": "={{ $json.isChallenge }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "Is Challenge?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [440, 300],
+      "id": "wf8-is-challenge-001"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ challenge: $json.challenge }) }}"
+      },
+      "name": "Respond Challenge",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [660, 200],
+      "id": "wf8-respond-challenge-001"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true }) }}"
+      },
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [660, 400],
+      "id": "wf8-respond-ok-001"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose", "version": 2 },
+          "conditions": [
+            {
+              "id": "not-skip",
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": false,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "Should Process?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [880, 400],
+      "id": "wf8-should-process-001"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://utvoxshpxzsgsliworwh.supabase.co/rest/v1/meetings?slack_thread_ts=eq.{{ $('Parse Event').first().json.threadTs }}&select=*&limit=1",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "options": {}
+      },
+      "name": "Supabase: Find Meeting",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1100, 300],
+      "credentials": {
+        "supabaseApi": { "id": "HRBgSj7d6TFZA8kL", "name": "Supabase account 2" }
+      },
+      "continueOnFail": true,
+      "id": "wf8-supabase-find-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build context for the follow-up AI agent\nconst event = $('Parse Event').first().json;\nconst meetingResponse = $input.first().json;\nconst meeting = Array.isArray(meetingResponse) ? meetingResponse[0] : meetingResponse;\n\nif (!meeting || !meeting.id) {\n  // No meeting found for this thread — respond helpfully\n  return [{ json: {\n    question: event.question,\n    threadTs: event.threadTs,\n    channelId: event.channelId,\n    hasMeeting: false,\n    systemPrompt: 'You are Chrt\\'s meeting intelligence assistant. The user asked a question in a Slack thread, but no meeting is associated with this thread. Politely explain that you can only answer questions about analyzed meetings, and suggest they analyze a meeting first.',\n    userMessage: event.question\n  } }];\n}\n\n// Get participant emails for context resolution\nconst attendeeList = (meeting.attendees_raw || '').split(',').map(a => a.trim()).filter(Boolean);\nconst participantEmails = attendeeList.filter(a => a.includes('@'));\n\nreturn [{ json: {\n  question: event.question,\n  threadTs: event.threadTs,\n  channelId: event.channelId,\n  hasMeeting: true,\n  meetingUuid: meeting.id,\n  meetingTitle: meeting.title,\n  meetingDate: meeting.date_str,\n  meetingType: meeting.meeting_type,\n  firefliesId: meeting.fireflies_id,\n  participantEmails\n} }];"
+      },
+      "name": "Build Follow-Up Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1320, 300],
+      "id": "wf8-build-context-001"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://utvoxshpxzsgsliworwh.supabase.co/rest/v1/agent_conversations?session_id=eq.{{ $('Build Follow-Up Context').first().json.threadTs }}&order=created_at.asc&limit=20",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "options": {}
+      },
+      "name": "Supabase: Fetch History",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1430, 200],
+      "credentials": {
+        "supabaseApi": { "id": "HRBgSj7d6TFZA8kL", "name": "Supabase account 2" }
+      },
+      "continueOnFail": true,
+      "id": "wf8-fetch-history-001"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://script.google.com/macros/s/AKfycbzKwe8tz2Ag3MI6FOs-HTk-jwgs2FaTpBcg2qEaQv7ehz5Z5Bc1TwpTnySLtiUelAmAtw/exec",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ action: 'resolve-context', participant_emails: $('Build Follow-Up Context').first().json.participantEmails || [], meeting_id: $('Build Follow-Up Context').first().json.meetingUuid }) }}",
+        "options": { "timeout": 30000 }
+      },
+      "name": "Apps Script: Resolve Context",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1540, 300],
+      "continueOnFail": true,
+      "id": "wf8-resolve-context-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build system prompt with meeting context + prior resolved context + conversation history\nconst ctx = $('Build Follow-Up Context').first().json;\nconst resolved = $input.first().json;\nconst resolvedParticipants = resolved.participants || [];\n\nif (!ctx.hasMeeting) {\n  return [{ json: ctx }];\n}\n\n// Fetch prior conversation history from Supabase\nconst historyRaw = $('Supabase: Fetch History').first().json;\nconst history = Array.isArray(historyRaw) ? historyRaw : [];\nlet conversationBlock = '';\nif (history.length > 0) {\n  conversationBlock = '\\n\\n## Prior Conversation in This Thread\\n';\n  history.forEach(msg => {\n    conversationBlock += `[${msg.role}]: ${msg.content}\\n`;\n  });\n}\n\n// Build context injection from resolved data\nlet contextBlock = '';\nresolvedParticipants.forEach(p => {\n  if (p.hubspot) {\n    contextBlock += `\\nHubSpot: ${p.hubspot.firstname || ''} ${p.hubspot.lastname || ''} - ${p.hubspot.company || ''} (${p.hubspot.jobtitle || ''})\\n`;\n  }\n  if (p.prior_meetings?.length > 0) {\n    contextBlock += 'Prior meetings: ' + p.prior_meetings.map(m => m.title + ' (' + m.date + ')').join(', ') + '\\n';\n  }\n  if (p.memory?.length > 0) {\n    contextBlock += 'Known facts: ' + p.memory.map(f => f.fact).join('; ') + '\\n';\n  }\n});\n\nconst systemPrompt = `You are Chrt's meeting intelligence assistant, answering follow-up questions about a specific meeting.\n\nMeeting: ${ctx.meetingTitle}\nDate: ${ctx.meetingDate}\nType: ${ctx.meetingType}\n\nChrt is a B2B SaaS company selling real-time visibility and coordination software for time-critical logistics.\n\nAnswer the user's question based on what you know about this meeting and its participants.\n\n${contextBlock ? '## Additional Context\\n' + contextBlock : ''}${conversationBlock}\n\nBe concise but thorough. If you don't know the answer, say so. Reference specific details from the meeting when possible.`;\n\nreturn [{ json: {\n  ...ctx,\n  systemPrompt,\n  userMessage: ctx.question\n} }];"
+      },
+      "name": "Build Agent Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1760, 300],
+      "id": "wf8-build-agent-prompt-001"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.userMessage }}",
+        "options": {
+          "systemMessage": "={{ $json.systemPrompt }}",
+          "maxTokens": 4096,
+          "temperature": 0.3
+        }
+      },
+      "name": "AI Agent: Follow-Up",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [1980, 300],
+      "id": "wf8-ai-agent-001"
+    },
+    {
+      "parameters": {
+        "model": "claude-sonnet-4-20250514",
+        "options": {
+          "maxTokensToSample": 4096,
+          "temperature": 0.3
+        }
+      },
+      "name": "Anthropic Claude",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [1900, 520],
+      "credentials": {
+        "anthropicApi": { "id": "B6k4mmzjw7OzEK5c", "name": "Anthropic account" }
+      },
+      "id": "wf8-anthropic-001"
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Build Agent Prompt').first().json.threadTs }}"
+      },
+      "name": "Window Buffer Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [2060, 520],
+      "id": "wf8-window-memory-001"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://utvoxshpxzsgsliworwh.supabase.co/rest/v1/agent_conversations",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "Prefer", "value": "return=minimal" }]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify([ { session_id: $('Build Agent Prompt').first().json.threadTs, role: 'user', content: $('Build Agent Prompt').first().json.question }, { session_id: $('Build Agent Prompt').first().json.threadTs, role: 'assistant', content: ($json.output || $json.text || '').substring(0, 4000) } ]) }}",
+        "options": {}
+      },
+      "name": "Supabase: Save Exchange",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2100, 200],
+      "credentials": {
+        "supabaseApi": { "id": "HRBgSj7d6TFZA8kL", "name": "Supabase account 2" }
+      },
+      "continueOnFail": true,
+      "id": "wf8-save-exchange-001"
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": { "__rl": true, "mode": "id", "value": "={{ $('Build Agent Prompt').first().json.channelId }}" },
+        "messageType": "text",
+        "text": "={{ $('AI Agent: Follow-Up').first().json.output || $('AI Agent: Follow-Up').first().json.text || 'Sorry, I could not generate a response.' }}",
+        "otherOptions": {
+          "threadTs": "={{ $('Build Agent Prompt').first().json.threadTs }}"
+        }
+      },
+      "name": "Slack: Reply in Thread",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [2200, 300],
+      "id": "wf8-slack-reply-001",
+      "credentials": {
+        "slackApi": { "id": "wkLpZSqhXl2iesnC", "name": "Chrt Slack App" }
+      }
+    },
+    {
+      "parameters": {},
+      "name": "Skip",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1100, 500],
+      "id": "wf8-skip-001"
+    }
+  ],
+  "connections": {
+    "Slack Events Webhook": {
+      "main": [[{ "node": "Parse Event", "type": "main", "index": 0 }]]
+    },
+    "Parse Event": {
+      "main": [[{ "node": "Is Challenge?", "type": "main", "index": 0 }]]
+    },
+    "Is Challenge?": {
+      "main": [
+        [{ "node": "Respond Challenge", "type": "main", "index": 0 }],
+        [{ "node": "Respond OK", "type": "main", "index": 0 }]
+      ]
+    },
+    "Respond OK": {
+      "main": [[{ "node": "Should Process?", "type": "main", "index": 0 }]]
+    },
+    "Should Process?": {
+      "main": [
+        [{ "node": "Supabase: Find Meeting", "type": "main", "index": 0 }],
+        [{ "node": "Skip", "type": "main", "index": 0 }]
+      ]
+    },
+    "Supabase: Find Meeting": {
+      "main": [[{ "node": "Build Follow-Up Context", "type": "main", "index": 0 }]]
+    },
+    "Build Follow-Up Context": {
+      "main": [[{ "node": "Supabase: Fetch History", "type": "main", "index": 0 }]]
+    },
+    "Supabase: Fetch History": {
+      "main": [[{ "node": "Apps Script: Resolve Context", "type": "main", "index": 0 }]]
+    },
+    "Apps Script: Resolve Context": {
+      "main": [[{ "node": "Build Agent Prompt", "type": "main", "index": 0 }]]
+    },
+    "Build Agent Prompt": {
+      "main": [[{ "node": "AI Agent: Follow-Up", "type": "main", "index": 0 }]]
+    },
+    "Anthropic Claude": {
+      "ai_languageModel": [[{ "node": "AI Agent: Follow-Up", "type": "ai_languageModel", "index": 0 }]]
+    },
+    "Window Buffer Memory": {
+      "ai_memory": [[{ "node": "AI Agent: Follow-Up", "type": "ai_memory", "index": 0 }]]
+    },
+    "AI Agent: Follow-Up": {
+      "main": [[{ "node": "Supabase: Save Exchange", "type": "main", "index": 0 }]]
+    },
+    "Supabase: Save Exchange": {
+      "main": [[{ "node": "Slack: Reply in Thread", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "YWP69Qgq0ZlCN7Gj",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": null,
+  "tags": [],
+  "_folderPath": "",
+  "_fileName": "8.-slack-follow-up-agent.json"
+}
