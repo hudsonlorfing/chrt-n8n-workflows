@@ -1,0 +1,1342 @@
+{
+  "updatedAt": "2026-02-10T01:11:11.653Z",
+  "createdAt": "2026-02-10T00:42:41.647Z",
+  "id": "RgIeeH7CuGKwCXzc",
+  "name": "Test - 2.1 LinkedIn Outreach - Send [V2]",
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "30 8 * * 1-6"
+            },
+            {
+              "field": "cronExpression",
+              "expression": "10 16 * * 1-6"
+            }
+          ]
+        }
+      },
+      "id": "wf2v2-schedule-kyle",
+      "name": "Schedule Kyle",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        2800,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "05 9 * * 1-6"
+            },
+            {
+              "field": "cronExpression",
+              "expression": "20 16 * * 1-6"
+            }
+          ]
+        }
+      },
+      "id": "wf2v2-schedule-hudson",
+      "name": "Schedule Hudson",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        2800,
+        912
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { profileIndex: 0 } }];"
+      },
+      "id": "wf2v2-set-kyle",
+      "name": "Set profile Kyle",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2960,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { profileIndex: 1 } }];"
+      },
+      "id": "wf2v2-set-hudson",
+      "name": "Set profile Hudson",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2960,
+        912
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const kyle = $('Set profile Kyle').isExecuted ? $('Set profile Kyle').first() : null;\nconst hudson = $('Set profile Hudson').isExecuted ? $('Set profile Hudson').first() : null;\nconst selected = kyle || hudson;\nif (!selected) throw new Error('No profile set');\nreturn [{ json: { profileIndex: selected.json.profileIndex } }];"
+      },
+      "id": "wf2v2-select-profile",
+      "name": "selectProfile",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3120,
+        816
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.doppler.com/v3/configs/config/secrets",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "project",
+              "value": "developers"
+            },
+            {
+              "name": "config",
+              "value": "hudson"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "wf2v2-fetch-doppler",
+      "name": "Fetch Doppler cookies",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3008,
+        576
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "dz2vX61Mpayywfq1",
+          "name": "Doppler API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch",
+        "useDataOfInput": 2
+      },
+      "id": "wf2v2-merge-doppler",
+      "name": "Profile + Doppler",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        3344,
+        896
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first();\nconst secrets = item.json.secrets || item.json || {};\nconst kyleCookie = secrets.LINKEDIN_KYLE_SESSION_COOKIE;\nconst hudsonCookie = secrets.LINKEDIN_HUDSON_SESSION_COOKIE;\nconst userAgents = { kyle: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36', hudson: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36' };\nreturn [{ json: { profile: 'kyle', sessionCookie: kyleCookie, userAgent: userAgents.kyle } }, { json: { profile: 'hudson', sessionCookie: hudsonCookie, userAgent: userAgents.hudson } }];"
+      },
+      "id": "wf2v2-build-profile",
+      "name": "Build profile items with cookies",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3504,
+        928
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nif (!items.length) return [];\nlet idx;\ntry { idx = $('selectProfile').first().json.profileIndex; } catch (e) { idx = 0; }\nif (idx === undefined || idx === null) idx = new Date().getDate() % 2;\nreturn [items[Math.min(idx, items.length - 1)]];"
+      },
+      "id": "wf2v2-take-one",
+      "name": "Take one profile",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3680,
+        928
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Calculate how many connection requests to send this run.\n// Also sets the minimum score threshold (change minScore here to adjust from n8n).\nconst profile = $('Take one profile').first().json.profile;\n\nlet maxItems;\nif (profile === 'kyle') {\n  maxItems = 8 + Math.floor(Math.random() * 4); // 8-11 per run\n} else {\n  // Hudson ramp-up schedule\n  const rampStart = new Date('2026-02-10');\n  const days = Math.min(30, Math.max(0, Math.floor((Date.now() - rampStart) / 86400000)));\n  const minPerRun = 4 + (days / 30) * 4;\n  const maxPerRun = 6 + (days / 30) * 5;\n  const range = maxPerRun - minPerRun + 1;\n  maxItems = Math.round(minPerRun + Math.floor(Math.random() * range));\n}\n\n// ── Score threshold: change this value to adjust minimum score ──\nconst minScore = 7;\n\nreturn [{ json: { profile, maxItems, minScore } }];"
+      },
+      "id": "wf2v2-calc-limit",
+      "name": "Calculate Send Limit",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3872,
+        928
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://script.google.com/macros/s/AKfycbxUgh_VlR3TG4n5T18K08rFYB3Qga_Z_fZT_uHiR2LBZ-sHpMciV0LfYT5rIR3W9JjAHw/exec",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ profile: $json.profile, minScore: $json.minScore, limit: $json.maxItems }) }}",
+        "options": {
+          "redirect": {
+            "redirect": {}
+          },
+          "timeout": 120000
+        }
+      },
+      "id": "wf2v2-fetch-ready",
+      "name": "Fetch Ready Leads",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4320,
+        928
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse Apps Script response — extract the leads array into individual items\n// Also detect conference exhaustion and trigger Slack alert\nconst resp = $input.first().json;\n\nif (!resp.ok) {\n  throw new Error('Apps Script error: ' + (resp.error || 'unknown'));\n}\n\n// Check for conference exhaustion — leads exhausted but conference still active\nif (resp.conferenceExhausted) {\n  const alertMsg = `⚠️ Conference Prep Alert: ${resp.conferenceName || 'Unknown'} outreach exhausted for *${resp.exhaustedFor}*. Conference still active (ends ${resp.conferenceEndDate || 'N/A'}). Run more 4.1 crawls or normal ICP scoring continues.`;\n  // Store alert info for downstream Slack node\n  $execution.customData.set('conferenceAlert', alertMsg);\n  $execution.customData.set('conferenceExhausted', 'true');\n}\n\nif (!resp.leads || resp.leads.length === 0) {\n  // Return empty to skip downstream nodes gracefully\n  return [];\n}\n\nconst profile = resp.profile || $('Calculate Send Limit').first().json.profile;\nreturn resp.leads.map(lead => ({ json: { ...lead, profile } }));"
+      },
+      "id": "wf2v2-split-leads",
+      "name": "Split Leads",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4544,
+        928
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1xPgob7BwDoDGAOtDPBTvKzhQHl2FUZkJhJG0gEHWdgo",
+          "mode": "list",
+          "cachedResultName": "HoldingSheet",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1xPgob7BwDoDGAOtDPBTvKzhQHl2FUZkJhJG0gEHWdgo/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 2051829261,
+          "mode": "list",
+          "cachedResultName": "Sheet2",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1xPgob7BwDoDGAOtDPBTvKzhQHl2FUZkJhJG0gEHWdgo/edit#gid=2051829261"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "linkedInProfileUrl": "={{ $json.defaultProfileUrl }}"
+          },
+          "matchingColumns": [
+            "linkedInProfileUrl"
+          ],
+          "schema": [
+            {
+              "id": "linkedInProfileUrl",
+              "displayName": "linkedInProfileUrl",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        4768,
+        928
+      ],
+      "id": "wf2v2-append-holding",
+      "name": "Append to HoldingSheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "hf9VoWnqYNXhUZsn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Pass single item to PB launch\nreturn $input.first();"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4992,
+        928
+      ],
+      "id": "wf2v2-pass-one",
+      "name": "Pass One"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.phantombuster.com/api/v2/agents/launch",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  id: \"3044757503240384\",\n  bonusArgument: {\n    inputType: \"spreadsheetUrl\",\n    spreadsheetUrl: \"https://docs.google.com/spreadsheets/d/1xPgob7BwDoDGAOtDPBTvKzhQHl2FUZkJhJG0gEHWdgo/edit?pli=1&gid=2051829261#gid=2051829261\",\n    numberOfAddsPerLaunch: $('Calculate Send Limit').first().json.maxItems,\n    onlySecondCircle: false,\n    dwellTime: true,\n    sessionCookie: $('Take one profile').first().json.sessionCookie?.computed ?? $('Take one profile').first().json.sessionCookie,\n    userAgent: $('Take one profile').first().json.userAgent\n  }\n}) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "wf2v2-pb-send",
+      "name": "PhantomBuster: SendConnectionList",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        5216,
+        928
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "KWeabljbYSzoLpjI",
+          "name": "Phantom Header Auth"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Log the PB launch result and exit — 2.2 workflow handles results via PB webhook\nconst result = $input.first().json;\nconst profile = $('Take one profile').first().json.profile;\nconst maxItems = $('Calculate Send Limit').first().json.maxItems;\nreturn [{ json: {\n  success: true,\n  profile,\n  maxItems,\n  containerId: result.containerId || 'unknown',\n  status: result.status || 'launched',\n  message: 'PB launched — results handled by 2.2 workflow via webhook',\n  timestamp: new Date().toISOString()\n}}];"
+      },
+      "id": "wf2v2-done",
+      "name": "Done - PB Launched",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5440,
+        928
+      ]
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        2800,
+        1104
+      ],
+      "id": "wf2v2-manual",
+      "name": "When clicking 'Execute workflow'"
+    },
+    {
+      "parameters": {
+        "amount": "={{ Math.floor(Math.random()*15)}}"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        4080,
+        928
+      ],
+      "id": "c36cef08-e462-42a2-a89f-338e6e7bb192",
+      "name": "Wait",
+      "webhookId": "8a06cdef-788d-40ca-a3f4-c8414d8e3761"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check if conference exhaustion alert needs to be sent\nconst resp = $('Fetch Ready Leads').first().json;\nif (resp.conferenceExhausted) {\n  const msg = `⚠️ Conference Prep Alert: ${resp.conferenceName || 'Unknown'} outreach exhausted for *${resp.exhaustedFor}*. Conference still active (ends ${resp.conferenceEndDate || 'N/A'}). Run more 4.1 crawls or normal ICP scoring continues.`;\n  return [{ json: { sendAlert: true, message: msg } }];\n}\nreturn [{ json: { sendAlert: false } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4544,
+        1136
+      ],
+      "id": "wf2v2-conf-alert-check",
+      "name": "Check Conference Exhaustion"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "should-alert",
+              "leftValue": "={{ $json.sendAlert }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        4768,
+        1136
+      ],
+      "id": "wf2v2-conf-alert-if",
+      "name": "Should Alert?"
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "C0A6ES56MU2"
+        },
+        "text": "={{ $json.message }}",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        4992,
+        1072
+      ],
+      "id": "wf2v2-slack-alert",
+      "name": "Slack: Conference Alert",
+      "webhookId": "438d131a-dec5-445d-9dcb-0fc9c5372e78",
+      "credentials": {
+        "slackApi": {
+          "id": "wkLpZSqhXl2iesnC",
+          "name": "Chrt Slack App"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Kyle": {
+      "main": [
+        [
+          {
+            "node": "Fetch Doppler cookies",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Set profile Kyle",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Hudson": {
+      "main": [
+        [
+          {
+            "node": "Fetch Doppler cookies",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Set profile Hudson",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set profile Kyle": {
+      "main": [
+        [
+          {
+            "node": "selectProfile",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set profile Hudson": {
+      "main": [
+        [
+          {
+            "node": "selectProfile",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "selectProfile": {
+      "main": [
+        [
+          {
+            "node": "Profile + Doppler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Doppler cookies": {
+      "main": [
+        [
+          {
+            "node": "Profile + Doppler",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Profile + Doppler": {
+      "main": [
+        [
+          {
+            "node": "Build profile items with cookies",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build profile items with cookies": {
+      "main": [
+        [
+          {
+            "node": "Take one profile",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Take one profile": {
+      "main": [
+        [
+          {
+            "node": "Calculate Send Limit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Send Limit": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Ready Leads": {
+      "main": [
+        [
+          {
+            "node": "Split Leads",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Check Conference Exhaustion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Conference Exhaustion": {
+      "main": [
+        [
+          {
+            "node": "Should Alert?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Should Alert?": {
+      "main": [
+        [
+          {
+            "node": "Slack: Conference Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Split Leads": {
+      "main": [
+        [
+          {
+            "node": "Append to HoldingSheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append to HoldingSheet": {
+      "main": [
+        [
+          {
+            "node": "Pass One",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pass One": {
+      "main": [
+        [
+          {
+            "node": "PhantomBuster: SendConnectionList",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PhantomBuster: SendConnectionList": {
+      "main": [
+        [
+          {
+            "node": "Done - PB Launched",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking 'Execute workflow'": {
+      "main": [
+        []
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Fetch Ready Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": {
+    "node:Schedule Kyle": {
+      "recurrenceRules": []
+    },
+    "node:Schedule Hudson": {
+      "recurrenceRules": []
+    }
+  },
+  "meta": null,
+  "pinData": {},
+  "versionId": "39da0853-eab1-4d72-b9ed-e6b52e32a447",
+  "activeVersionId": "39da0853-eab1-4d72-b9ed-e6b52e32a447",
+  "triggerCount": 2,
+  "shared": [
+    {
+      "updatedAt": "2026-02-10T00:42:42.009Z",
+      "createdAt": "2026-02-10T00:42:42.009Z",
+      "role": "workflow:owner",
+      "workflowId": "RgIeeH7CuGKwCXzc",
+      "projectId": "O7lTivDfRl72aS23"
+    }
+  ],
+  "activeVersion": {
+    "updatedAt": "2026-02-10T05:42:38.000Z",
+    "createdAt": "2026-02-10T01:11:11.654Z",
+    "versionId": "39da0853-eab1-4d72-b9ed-e6b52e32a447",
+    "workflowId": "RgIeeH7CuGKwCXzc",
+    "nodes": [
+      {
+        "parameters": {
+          "rule": {
+            "interval": [
+              {
+                "field": "cronExpression",
+                "expression": "30 8 * * 1-6"
+              },
+              {
+                "field": "cronExpression",
+                "expression": "10 16 * * 1-6"
+              }
+            ]
+          }
+        },
+        "id": "wf2v2-schedule-kyle",
+        "name": "Schedule Kyle",
+        "type": "n8n-nodes-base.scheduleTrigger",
+        "typeVersion": 1.2,
+        "position": [
+          2800,
+          720
+        ]
+      },
+      {
+        "parameters": {
+          "rule": {
+            "interval": [
+              {
+                "field": "cronExpression",
+                "expression": "05 9 * * 1-6"
+              },
+              {
+                "field": "cronExpression",
+                "expression": "20 16 * * 1-6"
+              }
+            ]
+          }
+        },
+        "id": "wf2v2-schedule-hudson",
+        "name": "Schedule Hudson",
+        "type": "n8n-nodes-base.scheduleTrigger",
+        "typeVersion": 1.2,
+        "position": [
+          2800,
+          912
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "return [{ json: { profileIndex: 0 } }];"
+        },
+        "id": "wf2v2-set-kyle",
+        "name": "Set profile Kyle",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2960,
+          720
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "return [{ json: { profileIndex: 1 } }];"
+        },
+        "id": "wf2v2-set-hudson",
+        "name": "Set profile Hudson",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2960,
+          912
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "const kyle = $('Set profile Kyle').isExecuted ? $('Set profile Kyle').first() : null;\nconst hudson = $('Set profile Hudson').isExecuted ? $('Set profile Hudson').first() : null;\nconst selected = kyle || hudson;\nif (!selected) throw new Error('No profile set');\nreturn [{ json: { profileIndex: selected.json.profileIndex } }];"
+        },
+        "id": "wf2v2-select-profile",
+        "name": "selectProfile",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          3120,
+          816
+        ]
+      },
+      {
+        "parameters": {
+          "url": "https://api.doppler.com/v3/configs/config/secrets",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpHeaderAuth",
+          "sendQuery": true,
+          "queryParameters": {
+            "parameters": [
+              {
+                "name": "project",
+                "value": "developers"
+              },
+              {
+                "name": "config",
+                "value": "hudson"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "wf2v2-fetch-doppler",
+        "name": "Fetch Doppler cookies",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          3008,
+          576
+        ],
+        "credentials": {
+          "httpHeaderAuth": {
+            "id": "dz2vX61Mpayywfq1",
+            "name": "Doppler API"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "mode": "chooseBranch",
+          "useDataOfInput": 2
+        },
+        "id": "wf2v2-merge-doppler",
+        "name": "Profile + Doppler",
+        "type": "n8n-nodes-base.merge",
+        "typeVersion": 3,
+        "position": [
+          3344,
+          896
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "const item = $input.first();\nconst secrets = item.json.secrets || item.json || {};\nconst kyleCookie = secrets.LINKEDIN_KYLE_SESSION_COOKIE;\nconst hudsonCookie = secrets.LINKEDIN_HUDSON_SESSION_COOKIE;\nconst userAgents = { kyle: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36', hudson: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36' };\nreturn [{ json: { profile: 'kyle', sessionCookie: kyleCookie, userAgent: userAgents.kyle } }, { json: { profile: 'hudson', sessionCookie: hudsonCookie, userAgent: userAgents.hudson } }];"
+        },
+        "id": "wf2v2-build-profile",
+        "name": "Build profile items with cookies",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          3504,
+          928
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\nif (!items.length) return [];\nlet idx;\ntry { idx = $('selectProfile').first().json.profileIndex; } catch (e) { idx = 0; }\nif (idx === undefined || idx === null) idx = new Date().getDate() % 2;\nreturn [items[Math.min(idx, items.length - 1)]];"
+        },
+        "id": "wf2v2-take-one",
+        "name": "Take one profile",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          3680,
+          928
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "// Calculate how many connection requests to send this run.\n// Also sets the minimum score threshold (change minScore here to adjust from n8n).\nconst profile = $('Take one profile').first().json.profile;\n\nlet maxItems;\nif (profile === 'kyle') {\n  maxItems = 8 + Math.floor(Math.random() * 4); // 8-11 per run\n} else {\n  // Hudson ramp-up schedule\n  const rampStart = new Date('2026-02-10');\n  const days = Math.min(30, Math.max(0, Math.floor((Date.now() - rampStart) / 86400000)));\n  const minPerRun = 4 + (days / 30) * 4;\n  const maxPerRun = 6 + (days / 30) * 5;\n  const range = maxPerRun - minPerRun + 1;\n  maxItems = Math.round(minPerRun + Math.floor(Math.random() * range));\n}\n\n// ── Score threshold: change this value to adjust minimum score ──\nconst minScore = 7;\n\nreturn [{ json: { profile, maxItems, minScore } }];"
+        },
+        "id": "wf2v2-calc-limit",
+        "name": "Calculate Send Limit",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          3872,
+          928
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://script.google.com/macros/s/AKfycbxUgh_VlR3TG4n5T18K08rFYB3Qga_Z_fZT_uHiR2LBZ-sHpMciV0LfYT5rIR3W9JjAHw/exec",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ profile: $json.profile, minScore: $json.minScore, limit: $json.maxItems }) }}",
+          "options": {
+            "redirect": {
+              "redirect": {}
+            },
+            "timeout": 120000
+          }
+        },
+        "id": "wf2v2-fetch-ready",
+        "name": "Fetch Ready Leads",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          4320,
+          928
+        ],
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Parse Apps Script response — extract the leads array into individual items\n// Also detect conference exhaustion and trigger Slack alert\nconst resp = $input.first().json;\n\nif (!resp.ok) {\n  throw new Error('Apps Script error: ' + (resp.error || 'unknown'));\n}\n\n// Check for conference exhaustion — leads exhausted but conference still active\nif (resp.conferenceExhausted) {\n  const alertMsg = `⚠️ Conference Prep Alert: ${resp.conferenceName || 'Unknown'} outreach exhausted for *${resp.exhaustedFor}*. Conference still active (ends ${resp.conferenceEndDate || 'N/A'}). Run more 4.1 crawls or normal ICP scoring continues.`;\n  // Store alert info for downstream Slack node\n  $execution.customData.set('conferenceAlert', alertMsg);\n  $execution.customData.set('conferenceExhausted', 'true');\n}\n\nif (!resp.leads || resp.leads.length === 0) {\n  // Return empty to skip downstream nodes gracefully\n  return [];\n}\n\nconst profile = resp.profile || $('Calculate Send Limit').first().json.profile;\nreturn resp.leads.map(lead => ({ json: { ...lead, profile } }));"
+        },
+        "id": "wf2v2-split-leads",
+        "name": "Split Leads",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          4544,
+          928
+        ]
+      },
+      {
+        "parameters": {
+          "operation": "append",
+          "documentId": {
+            "__rl": true,
+            "value": "1xPgob7BwDoDGAOtDPBTvKzhQHl2FUZkJhJG0gEHWdgo",
+            "mode": "list",
+            "cachedResultName": "HoldingSheet",
+            "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1xPgob7BwDoDGAOtDPBTvKzhQHl2FUZkJhJG0gEHWdgo/edit?usp=drivesdk"
+          },
+          "sheetName": {
+            "__rl": true,
+            "value": 2051829261,
+            "mode": "list",
+            "cachedResultName": "Sheet2",
+            "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1xPgob7BwDoDGAOtDPBTvKzhQHl2FUZkJhJG0gEHWdgo/edit#gid=2051829261"
+          },
+          "columns": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "linkedInProfileUrl": "={{ $json.defaultProfileUrl }}"
+            },
+            "matchingColumns": [
+              "linkedInProfileUrl"
+            ],
+            "schema": [
+              {
+                "id": "linkedInProfileUrl",
+                "displayName": "linkedInProfileUrl",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              }
+            ],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": false
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.7,
+        "position": [
+          4768,
+          928
+        ],
+        "id": "wf2v2-append-holding",
+        "name": "Append to HoldingSheet",
+        "credentials": {
+          "googleSheetsOAuth2Api": {
+            "id": "hf9VoWnqYNXhUZsn",
+            "name": "Google Sheets account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "// Pass single item to PB launch\nreturn $input.first();"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          4992,
+          928
+        ],
+        "id": "wf2v2-pass-one",
+        "name": "Pass One"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.phantombuster.com/api/v2/agents/launch",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpHeaderAuth",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({\n  id: \"3044757503240384\",\n  bonusArgument: {\n    inputType: \"spreadsheetUrl\",\n    spreadsheetUrl: \"https://docs.google.com/spreadsheets/d/1xPgob7BwDoDGAOtDPBTvKzhQHl2FUZkJhJG0gEHWdgo/edit?pli=1&gid=2051829261#gid=2051829261\",\n    numberOfAddsPerLaunch: $('Calculate Send Limit').first().json.maxItems,\n    onlySecondCircle: false,\n    dwellTime: true,\n    sessionCookie: $('Take one profile').first().json.sessionCookie?.computed ?? $('Take one profile').first().json.sessionCookie,\n    userAgent: $('Take one profile').first().json.userAgent\n  }\n}) }}",
+          "options": {
+            "timeout": 120000
+          }
+        },
+        "id": "wf2v2-pb-send",
+        "name": "PhantomBuster: SendConnectionList",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          5216,
+          928
+        ],
+        "retryOnFail": true,
+        "maxTries": 2,
+        "credentials": {
+          "httpHeaderAuth": {
+            "id": "KWeabljbYSzoLpjI",
+            "name": "Phantom Header Auth"
+          }
+        },
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Log the PB launch result and exit — 2.2 workflow handles results via PB webhook\nconst result = $input.first().json;\nconst profile = $('Take one profile').first().json.profile;\nconst maxItems = $('Calculate Send Limit').first().json.maxItems;\nreturn [{ json: {\n  success: true,\n  profile,\n  maxItems,\n  containerId: result.containerId || 'unknown',\n  status: result.status || 'launched',\n  message: 'PB launched — results handled by 2.2 workflow via webhook',\n  timestamp: new Date().toISOString()\n}}];"
+        },
+        "id": "wf2v2-done",
+        "name": "Done - PB Launched",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          5440,
+          928
+        ]
+      },
+      {
+        "parameters": {},
+        "type": "n8n-nodes-base.manualTrigger",
+        "typeVersion": 1,
+        "position": [
+          2800,
+          1104
+        ],
+        "id": "wf2v2-manual",
+        "name": "When clicking 'Execute workflow'"
+      },
+      {
+        "parameters": {
+          "amount": "={{ Math.floor(Math.random()*15)}}"
+        },
+        "type": "n8n-nodes-base.wait",
+        "typeVersion": 1.1,
+        "position": [
+          4080,
+          928
+        ],
+        "id": "c36cef08-e462-42a2-a89f-338e6e7bb192",
+        "name": "Wait",
+        "webhookId": "8a06cdef-788d-40ca-a3f4-c8414d8e3761"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Check if conference exhaustion alert needs to be sent\nconst resp = $('Fetch Ready Leads').first().json;\nif (resp.conferenceExhausted) {\n  const msg = `⚠️ Conference Prep Alert: ${resp.conferenceName || 'Unknown'} outreach exhausted for *${resp.exhaustedFor}*. Conference still active (ends ${resp.conferenceEndDate || 'N/A'}). Run more 4.1 crawls or normal ICP scoring continues.`;\n  return [{ json: { sendAlert: true, message: msg } }];\n}\nreturn [{ json: { sendAlert: false } }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          4544,
+          1136
+        ],
+        "id": "wf2v2-conf-alert-check",
+        "name": "Check Conference Exhaustion"
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "should-alert",
+                "leftValue": "={{ $json.sendAlert }}",
+                "rightValue": true,
+                "operator": {
+                  "type": "boolean",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          4768,
+          1136
+        ],
+        "id": "wf2v2-conf-alert-if",
+        "name": "Should Alert?"
+      },
+      {
+        "parameters": {
+          "select": "channel",
+          "channelId": {
+            "__rl": true,
+            "mode": "id",
+            "value": "C0A6ES56MU2"
+          },
+          "text": "={{ $json.message }}",
+          "otherOptions": {}
+        },
+        "type": "n8n-nodes-base.slack",
+        "typeVersion": 2.2,
+        "position": [
+          4992,
+          1072
+        ],
+        "id": "wf2v2-slack-alert",
+        "name": "Slack: Conference Alert",
+        "webhookId": "438d131a-dec5-445d-9dcb-0fc9c5372e78",
+        "credentials": {
+          "slackApi": {
+            "id": "wkLpZSqhXl2iesnC",
+            "name": "Chrt Slack App"
+          }
+        }
+      }
+    ],
+    "connections": {
+      "Schedule Kyle": {
+        "main": [
+          [
+            {
+              "node": "Fetch Doppler cookies",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Set profile Kyle",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Schedule Hudson": {
+        "main": [
+          [
+            {
+              "node": "Fetch Doppler cookies",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Set profile Hudson",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Set profile Kyle": {
+        "main": [
+          [
+            {
+              "node": "selectProfile",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Set profile Hudson": {
+        "main": [
+          [
+            {
+              "node": "selectProfile",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "selectProfile": {
+        "main": [
+          [
+            {
+              "node": "Profile + Doppler",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Fetch Doppler cookies": {
+        "main": [
+          [
+            {
+              "node": "Profile + Doppler",
+              "type": "main",
+              "index": 1
+            }
+          ]
+        ]
+      },
+      "Profile + Doppler": {
+        "main": [
+          [
+            {
+              "node": "Build profile items with cookies",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Build profile items with cookies": {
+        "main": [
+          [
+            {
+              "node": "Take one profile",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Take one profile": {
+        "main": [
+          [
+            {
+              "node": "Calculate Send Limit",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Calculate Send Limit": {
+        "main": [
+          [
+            {
+              "node": "Wait",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Fetch Ready Leads": {
+        "main": [
+          [
+            {
+              "node": "Split Leads",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Check Conference Exhaustion",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Check Conference Exhaustion": {
+        "main": [
+          [
+            {
+              "node": "Should Alert?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Should Alert?": {
+        "main": [
+          [
+            {
+              "node": "Slack: Conference Alert",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          []
+        ]
+      },
+      "Split Leads": {
+        "main": [
+          [
+            {
+              "node": "Append to HoldingSheet",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Append to HoldingSheet": {
+        "main": [
+          [
+            {
+              "node": "Pass One",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Pass One": {
+        "main": [
+          [
+            {
+              "node": "PhantomBuster: SendConnectionList",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "PhantomBuster: SendConnectionList": {
+        "main": [
+          [
+            {
+              "node": "Done - PB Launched",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "When clicking 'Execute workflow'": {
+        "main": [
+          []
+        ]
+      },
+      "Wait": {
+        "main": [
+          [
+            {
+              "node": "Fetch Ready Leads",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "authors": "Hudson Lorfing",
+    "name": "Version 39da0853",
+    "description": "",
+    "autosaved": true
+  },
+  "tags": [],
+  "_folderPath": "",
+  "_fileName": "test---2.1-linkedin-outreach---send-[v2].json"
+}
