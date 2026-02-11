@@ -420,7 +420,7 @@
         "select": "channel",
         "channelId": {
           "__rl": true,
-          "value": "C0A6ES56MU2",
+          "value": "C0AE4BKCD9T",
           "mode": "list",
           "cachedResultName": "automation"
         },
@@ -437,9 +437,9 @@
       "name": "Send a message",
       "webhookId": "c518fe1d-90ac-4623-b9e1-eb867bbbff60",
       "credentials": {
-        "slackOAuth2Api": {
-          "id": "EBe7rpazmQ7oFc5K",
-          "name": "Slack account"
+        "slackApi": {
+          "id": "wkLpZSqhXl2iesnC",
+          "name": "Chrt Slack App"
         }
       }
     },
@@ -482,7 +482,7 @@
         "select": "channel",
         "channelId": {
           "__rl": true,
-          "value": "C0A6ES56MU2",
+          "value": "C0AE4BKCD9T",
           "mode": "list",
           "cachedResultName": "automation"
         },
@@ -499,9 +499,9 @@
       "name": "Send a message1",
       "webhookId": "c518fe1d-90ac-4623-b9e1-eb867bbbff60",
       "credentials": {
-        "slackOAuth2Api": {
-          "id": "EBe7rpazmQ7oFc5K",
-          "name": "Slack account"
+        "slackApi": {
+          "id": "wkLpZSqhXl2iesnC",
+          "name": "Chrt Slack App"
         }
       }
     },

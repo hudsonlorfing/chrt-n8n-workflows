@@ -1341,7 +1341,7 @@
         "channelId": {
           "__rl": true,
           "mode": "id",
-          "value": "C0A6ES56MU2"
+          "value": "C0AE1D1K4AF"
         },
         "text": "={{ '🍪 *LinkedIn Cookie/Session Error - Update in Doppler*\\n\\n*Workflow:* Lead Pipeline Monitor\\n*Profile:* ' + ($('Take one profile').first().json.profile || 'unknown') + '\\n*Error:* ' + ($json.errorMessage || '').substring(0, 300) + '\\n\\n⚠️ Update in Doppler: LINKEDIN_KYLE_SESSION_COOKIE or LINKEDIN_HUDSON_SESSION_COOKIE.' }}",
         "otherOptions": {}
@@ -1973,7 +1973,7 @@
         "channelId": {
           "__rl": true,
           "mode": "id",
-          "value": "C0A6ES56MU2"
+          "value": "C0AE1D1K4AF"
         },
         "text": "={{ 'Add more crawl urls to ' +($('Take one profile').first().json.profile || 'unknown') }}",
         "otherOptions": {}

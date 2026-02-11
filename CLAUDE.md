@@ -92,16 +92,18 @@ Host hostinger-n8n
 
 Two event-driven workflows for the Clerk waitlist → PostHog → HubSpot → Calendly → Linq pipeline.
 
-| Workflow | File | Webhook Path | Purpose |
-|----------|------|-------------|---------|
-| Waitlist Signup Intake | `workflows/waitlist/waitlist-signup-intake.json` | `waitlist-signup` | Clerk webhook → Svix verify → PostHog identify+capture → HubSpot contact |
-| Waitlist Qualified Booked | `workflows/waitlist/waitlist-qualified-booked.json` | `waitlist-calendly-booked` | Calendly webhook → HubSpot update + Task → Linq SMS / Slack fallback |
+| Workflow | ID | File | Webhook Path | Status |
+|----------|-----|------|-------------|--------|
+| Waitlist Signup Intake | `ClxQn8wYxggtgGzy` | `workflows/waitlist/waitlist-signup-intake.json` | `waitlist-signup` | ⬜ Inactive |
+| Waitlist Qualified Booked | `FCxwjiZP1CS49w25` | `workflows/waitlist/waitlist-qualified-booked.json` | `waitlist-calendly-booked` | ⬜ Inactive |
 
 **Secrets (Doppler chrt/prd):** `CLERK_WEBHOOK_SECRET`, `POSTHOG_PROJECT_API_KEY`, `POSTHOG_HOST`, `LINQ_INTEGRATION_TOKEN` (deferred).
 
 **Testing:** Isolated in `workflows/waitlist/testing/`. Import with `import-to-test`, move to test folder in n8n UI. See `workflows/waitlist/testing/README.md` for full setup guide including HubSpot custom properties, Calendly routing form, and test commands.
 
-**HubSpot custom properties required:** `clerk_waitlist_id`, `waitlist_status`, `waitlist_signup_date`, `reason_for_interest`, `qualification_form_completed`, `qualification_form_date`, `calendly_event_url`. See testing README for details.
+**HubSpot custom properties required:** `clerk_waitlist_id`, `waitlist_status`, `waitlist_signup_date`, `reason_for_interest`, `qualification_form_completed`, `qualification_form_date`, `calendly_event_url`, `chrt_segment` (Dropdown: Shipper/Courier/Forwarder/Other), `chrt_lead_source` (Dropdown: LinkedIn/Waitlist/Referral/Conference/Other). See testing README for details.
+
+**Segment Classification:** WF 3.3 classifies contacts into `chrt_segment` via: (1) Master List segment lookup via `segment-lookup.js` Apps Script, (2) Claude AI fallback using `$vars.ANTHROPIC_API_KEY` n8n variable. WF waitlist defaults to `Other`. Backfill via `scripts/hubspot/enrich.py --backfill-segment`.
 
 ### Workflows (Hostinger Self-Hosted)
 

@@ -1023,7 +1023,7 @@
         "channelId": {
           "__rl": true,
           "mode": "id",
-          "value": "C0A6ES56MU2"
+          "value": "C0AE1D1K4AF"
         },
         "text": "={{ '🍪 *LinkedIn Cookie/Session Error - Update in Doppler*\\n\\n*Workflow:* Connection Sync → HubSpot\\n*Profile:* ' + ($json.profile || 'unknown') + '\\n*Error:* ' + ($json.errorMessage || '').substring(0, 300) + '\\n\\n⚠️ Update in Doppler: LINKEDIN_' + ($json.profile === 'kyle' ? 'KYLE' : 'HUDSON') + '_SESSION_COOKIE (workflow pulls cookies from Doppler directly).' }}",
         "otherOptions": {}

@@ -1,4 +1,5 @@
 {
+  "id": "ClxQn8wYxggtgGzy",
   "name": "Waitlist Signup Intake",
   "nodes": [
     {
@@ -169,7 +170,7 @@
         "nodeCredentialType": "hubspotOAuth2Api",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ properties: { clerk_waitlist_id: $('Extract Waitlist Data').first().json.clerkWaitlistId, waitlist_status: 'pending', waitlist_signup_date: $('Extract Waitlist Data').first().json.createdAt, lifecyclestage: 'subscriber' } }) }}",
+        "jsonBody": "={{ JSON.stringify({ properties: { clerk_waitlist_id: $('Extract Waitlist Data').first().json.clerkWaitlistId, waitlist_status: 'pending', waitlist_signup_date: $('Extract Waitlist Data').first().json.createdAt, lifecyclestage: 'subscriber', chrt_segment: 'Other', chrt_lead_source: 'Waitlist' } }) }}",
         "options": {}
       },
       "id": "update-existing-contact",
@@ -192,7 +193,7 @@
         "nodeCredentialType": "hubspotOAuth2Api",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ properties: { email: $('Extract Waitlist Data').first().json.email, firstname: $('Extract Waitlist Data').first().json.firstName, lastname: $('Extract Waitlist Data').first().json.lastName, clerk_waitlist_id: $('Extract Waitlist Data').first().json.clerkWaitlistId, waitlist_status: 'pending', waitlist_signup_date: $('Extract Waitlist Data').first().json.createdAt, lifecyclestage: 'subscriber' } }) }}",
+        "jsonBody": "={{ JSON.stringify({ properties: { email: $('Extract Waitlist Data').first().json.email, firstname: $('Extract Waitlist Data').first().json.firstName, lastname: $('Extract Waitlist Data').first().json.lastName, clerk_waitlist_id: $('Extract Waitlist Data').first().json.clerkWaitlistId, waitlist_status: 'pending', waitlist_signup_date: $('Extract Waitlist Data').first().json.createdAt, lifecyclestage: 'subscriber', chrt_segment: 'Other', chrt_lead_source: 'Waitlist' } }) }}",
         "options": {}
       },
       "id": "create-new-contact",
@@ -219,11 +220,10 @@
     },
     {
       "parameters": {
-        "authentication": "oAuth2",
         "select": "channel",
         "channelId": {
           "__rl": true,
-          "value": "C0A6ES56MU2",
+          "value": "C0AE4E30XC5",
           "mode": "list",
           "cachedResultName": "automation"
         },
@@ -237,9 +237,9 @@
       "position": [860, 1000],
       "onError": "continueRegularOutput",
       "credentials": {
-        "slackOAuth2Api": {
-          "id": "EBe7rpazmQ7oFc5K",
-          "name": "Slack account"
+        "slackApi": {
+          "id": "wkLpZSqhXl2iesnC",
+          "name": "Chrt Slack App"
         }
       }
     }

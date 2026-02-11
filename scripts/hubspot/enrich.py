@@ -10,16 +10,20 @@ Enriches all CONNECTED HubSpot contacts with data from:
 
 Usage:
   # Dry run (no changes):
-  python3 hubspot-enrich.py --dry-run
+  python3 enrich.py --dry-run
 
   # Full run:
-  python3 hubspot-enrich.py
+  python3 enrich.py
+
+  # Backfill chrt_segment + chrt_lead_source for all contacts:
+  python3 enrich.py --backfill-segment --dry-run   # preview
+  python3 enrich.py --backfill-segment              # apply
 
   # Also launch profile scraper for profiles missing email:
-  python3 hubspot-enrich.py --launch-scraper
+  python3 enrich.py --launch-scraper
 
   # Clean up sample/test contacts:
-  python3 hubspot-enrich.py --cleanup
+  python3 enrich.py --cleanup
 """
 
 import argparse
@@ -321,7 +325,8 @@ def load_hubspot_contacts(key):
     props = ('firstname,lastname,email,jobtitle,company,industry,city,state,country,'
              'hs_linkedin_url,hs_lead_status,phone,website,'
              'linkedin_headline,school_name,school_degree,'
-             'previous_company_name,previous_company_position,job_location,linkedin_company_slug')
+             'previous_company_name,previous_company_position,job_location,linkedin_company_slug,'
+             'chrt_segment,chrt_lead_source,clerk_waitlist_id,waitlist_status')
     contacts = []
     after = None
 
@@ -591,6 +596,7 @@ def main():
     parser.add_argument('--cleanup', action='store_true', help='Remove sample/test contacts')
     parser.add_argument('--launch-scraper', action='store_true', help='Launch profile scraper for profiles missing email')
     parser.add_argument('--fix-industry', action='store_true', help='Fix industry values: map raw LinkedIn to HubSpot enum')
+    parser.add_argument('--backfill-segment', action='store_true', help='Backfill chrt_segment and chrt_lead_source for all contacts')
     args = parser.parse_args()
 
     print("=" * 60)
@@ -706,6 +712,266 @@ def main():
 
         if not args.dry_run and not args.cleanup:
             print("\nDone with industry fix. Use --dry-run to preview other changes.")
+            return
+
+    # ── Step Segment: Backfill chrt_segment + chrt_lead_source ──────────
+    if args.backfill_segment:
+        print("\n── Backfilling chrt_segment and chrt_lead_source ──")
+
+        # Build a URL → master profile lookup for segment data
+        master_by_url = {}
+        for p in synced_profiles + unsynced_profiles:
+            url = (p.get('defaultProfileUrl') or '').strip().lower().rstrip('/')
+            if url:
+                master_by_url[url] = p
+
+        # Segment mapping: Master List segment → HubSpot chrt_segment
+        def map_master_segment(raw_segment):
+            if not raw_segment:
+                return ''
+            s = raw_segment.lower().strip()
+            if s.startswith('shipper'):
+                return 'Shipper'
+            if s == 'courier':
+                return 'Courier'
+            if s == 'forwarder':
+                return 'Forwarder'
+            if s in ('skip', 'unknown'):
+                return 'Other'
+            return 'Other'
+
+        # Lead source inference from contact properties
+        def infer_lead_source(contact_props):
+            if contact_props.get('clerk_waitlist_id') or contact_props.get('waitlist_status'):
+                return 'Waitlist'
+            if contact_props.get('hs_linkedin_url'):
+                return 'LinkedIn'
+            return 'Other'
+
+        # AI classification for contacts without a segment
+        SEGMENT_CACHE_FILE = os.path.join(os.path.dirname(__file__), 'segment-classify-cache.json')
+
+        def load_segment_cache():
+            if os.path.exists(SEGMENT_CACHE_FILE):
+                with open(SEGMENT_CACHE_FILE, 'r') as f:
+                    return json.loads(f.read())
+            return {}
+
+        def save_segment_cache(cache):
+            with open(SEGMENT_CACHE_FILE, 'w') as f:
+                json.dump(cache, f, indent=2, sort_keys=True)
+
+        def ai_classify_segments(profiles_to_classify):
+            """Use Claude to classify a batch of profiles into Shipper/Courier/Forwarder/Other.
+
+            Args:
+                profiles_to_classify: list of dicts with keys: name, title, company, industry, headline
+
+            Returns:
+                dict mapping name → segment string
+            """
+            if not profiles_to_classify:
+                return {}
+
+            api_key = _get_anthropic_key()
+            if not api_key:
+                print("  WARNING: No ANTHROPIC_API_KEY — defaulting all to 'Other'")
+                return {p['name']: 'Other' for p in profiles_to_classify}
+
+            profiles_text = '\n'.join(
+                f"  {i+1}. {p['name']} | {p['title']} | {p['company']} | {p['industry']} | {p['headline']}"
+                for i, p in enumerate(profiles_to_classify)
+            )
+
+            prompt = f"""Classify each LinkedIn contact into exactly ONE category for Chrt (a B2B SaaS for time-critical logistics).
+
+Categories:
+- Shipper: Companies that NEED to ship (labs, hospitals, MROs, OPOs, manufacturers, pharmaceutical companies, medical device companies)
+- Courier: Companies that DELIVER (medical couriers, same-day delivery, logistics providers, last-mile companies)
+- Forwarder: Companies that COORDINATE (3PLs, freight brokers, freight forwarders, supply chain intermediaries)
+- Other: Does not fit any above category
+
+Profiles (Name | Title | Company | Industry | Headline):
+{profiles_text}
+
+Return ONLY a JSON object mapping each person's name to their category.
+Example: {{"John Smith": "Shipper", "Jane Doe": "Courier"}}"""
+
+            payload = {
+                'model': 'claude-sonnet-4-20250514',
+                'max_tokens': 4096,
+                'messages': [{'role': 'user', 'content': prompt}],
+            }
+
+            data = json.dumps(payload).encode('utf-8')
+            req = urllib.request.Request(
+                'https://api.anthropic.com/v1/messages',
+                data=data,
+                headers={
+                    'x-api-key': api_key,
+                    'anthropic-version': '2023-06-01',
+                    'Content-Type': 'application/json',
+                },
+                method='POST'
+            )
+
+            try:
+                with urllib.request.urlopen(req, timeout=120) as resp:
+                    result = json.loads(resp.read().decode())
+                    text = result['content'][0]['text']
+                    if '```' in text:
+                        text = text.split('```')[1]
+                        if text.startswith('json'):
+                            text = text[4:]
+                        text = text.strip()
+                    mapping = json.loads(text)
+                    # Validate values
+                    valid_segments = {'Shipper', 'Courier', 'Forwarder', 'Other'}
+                    validated = {}
+                    for k, v in mapping.items():
+                        if v in valid_segments:
+                            validated[k] = v
+                        else:
+                            # Try to normalize
+                            v_lower = v.lower()
+                            if 'shipper' in v_lower:
+                                validated[k] = 'Shipper'
+                            elif 'courier' in v_lower:
+                                validated[k] = 'Courier'
+                            elif 'forwarder' in v_lower:
+                                validated[k] = 'Forwarder'
+                            else:
+                                validated[k] = 'Other'
+                    return validated
+            except Exception as e:
+                print(f"  ERROR calling Claude for segment classification: {e}")
+                return {p['name']: 'Other' for p in profiles_to_classify}
+
+        segment_cache = load_segment_cache()
+        segment_updated = 0
+        source_updated = 0
+        segment_already_set = 0
+        source_already_set = 0
+        needs_ai_classify = []
+
+        for c in hs_contacts:
+            p = c.get('properties', {})
+            fn = (p.get('firstname') or '').strip()
+            ln = (p.get('lastname') or '').strip()
+            name = f"{fn} {ln}".strip()
+            norm = normalize_name(name)
+            contact_id = c['id']
+
+            current_segment = (p.get('chrt_segment') or '').strip()
+            current_source = (p.get('chrt_lead_source') or '').strip()
+
+            updates = {}
+
+            # ── chrt_lead_source ──
+            if not current_source:
+                lead_source = infer_lead_source(p)
+                updates['chrt_lead_source'] = lead_source
+            else:
+                source_already_set += 1
+
+            # ── chrt_segment ──
+            if not current_segment:
+                # 1. Try Master List by name
+                master = master_lookup.get(norm)
+                segment = ''
+                if master:
+                    raw_seg = (master.get('segment') or '').strip()
+                    segment = map_master_segment(raw_seg)
+
+                # 2. Try Master List by URL
+                if not segment:
+                    hs_url = (p.get('hs_linkedin_url') or '').strip().lower().rstrip('/')
+                    if hs_url and hs_url in master_by_url:
+                        raw_seg = (master_by_url[hs_url].get('segment') or '').strip()
+                        segment = map_master_segment(raw_seg)
+
+                # 3. Check segment cache
+                if not segment and name in segment_cache:
+                    segment = segment_cache[name]
+
+                if segment:
+                    updates['chrt_segment'] = segment
+                else:
+                    # Need AI classification — batch later
+                    needs_ai_classify.append({
+                        'contact_id': contact_id,
+                        'name': name,
+                        'title': (p.get('jobtitle') or '').strip(),
+                        'company': (p.get('company') or '').strip(),
+                        'industry': (p.get('industry') or '').strip(),
+                        'headline': (p.get('linkedin_headline') or '').strip(),
+                        'lead_source_update': updates.get('chrt_lead_source', ''),
+                    })
+                    continue  # Will process after AI batch
+            else:
+                segment_already_set += 1
+
+            # Apply updates
+            if updates:
+                if args.dry_run:
+                    print(f"  [DRY RUN] {name} ({contact_id}): {updates}")
+                else:
+                    result = hs_request('PATCH', f"/crm/v3/objects/contacts/{contact_id}", hs_key,
+                                        {'properties': updates})
+                    if result:
+                        print(f"  Updated {name} ({contact_id}): {updates}")
+                    time.sleep(0.15)
+                if 'chrt_segment' in updates:
+                    segment_updated += 1
+                if 'chrt_lead_source' in updates:
+                    source_updated += 1
+
+        # Batch AI classify contacts without a segment
+        if needs_ai_classify:
+            print(f"\n  Classifying {len(needs_ai_classify)} contacts via Claude AI...")
+            # Process in batches of 30
+            for i in range(0, len(needs_ai_classify), 30):
+                batch = needs_ai_classify[i:i+30]
+                print(f"  Batch {i//30 + 1}: classifying {len(batch)} contacts...")
+                ai_results = ai_classify_segments(batch)
+
+                for item in batch:
+                    segment = ai_results.get(item['name'], 'Other')
+                    segment_cache[item['name']] = segment
+
+                    updates = {'chrt_segment': segment}
+                    if item['lead_source_update']:
+                        updates['chrt_lead_source'] = item['lead_source_update']
+
+                    if args.dry_run:
+                        print(f"  [DRY RUN] {item['name']} ({item['contact_id']}): {updates} (AI)")
+                    else:
+                        result = hs_request('PATCH', f"/crm/v3/objects/contacts/{item['contact_id']}", hs_key,
+                                            {'properties': updates})
+                        if result:
+                            print(f"  Updated {item['name']} ({item['contact_id']}): {updates} (AI)")
+                        time.sleep(0.15)
+
+                    segment_updated += 1
+                    if item['lead_source_update']:
+                        source_updated += 1
+
+                # Small delay between batches
+                if i + 30 < len(needs_ai_classify):
+                    time.sleep(1)
+
+            save_segment_cache(segment_cache)
+            print(f"  Segment cache saved ({len(segment_cache)} entries)")
+
+        print(f"\n  Segment backfill results:")
+        print(f"    chrt_segment updated: {segment_updated}")
+        print(f"    chrt_segment already set: {segment_already_set}")
+        print(f"    chrt_lead_source updated: {source_updated}")
+        print(f"    chrt_lead_source already set: {source_already_set}")
+        print(f"    AI classified: {len(needs_ai_classify)}")
+
+        if not args.dry_run and not args.cleanup:
+            print("\nDone with segment backfill.")
             return
 
     # ── Step A: Clean up sample/test contacts ───────────────────────────

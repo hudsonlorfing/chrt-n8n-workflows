@@ -298,11 +298,10 @@
     },
     {
       "parameters": {
-        "authentication": "oAuth2",
         "select": "channel",
         "channelId": {
           "__rl": true,
-          "value": "C0A6ES56MU2",
+          "value": "C0AE4E30XC5",
           "mode": "list",
           "cachedResultName": "automation"
         },
@@ -316,19 +315,18 @@
       "position": [1120, 1100],
       "onError": "continueRegularOutput",
       "credentials": {
-        "slackOAuth2Api": {
-          "id": "EBe7rpazmQ7oFc5K",
-          "name": "Slack account"
+        "slackApi": {
+          "id": "wkLpZSqhXl2iesnC",
+          "name": "Chrt Slack App"
         }
       }
     },
     {
       "parameters": {
-        "authentication": "oAuth2",
         "select": "channel",
         "channelId": {
           "__rl": true,
-          "value": "C0A6ES56MU2",
+          "value": "C0AE4E30XC5",
           "mode": "list",
           "cachedResultName": "automation"
         },
@@ -342,9 +340,9 @@
       "position": [1380, 900],
       "onError": "continueRegularOutput",
       "credentials": {
-        "slackOAuth2Api": {
-          "id": "EBe7rpazmQ7oFc5K",
-          "name": "Slack account"
+        "slackApi": {
+          "id": "wkLpZSqhXl2iesnC",
+          "name": "Chrt Slack App"
         }
       }
     }

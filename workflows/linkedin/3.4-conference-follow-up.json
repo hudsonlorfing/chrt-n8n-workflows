@@ -29,7 +29,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Extract contact data passed from 3.3\nconst item = $input.first().json;\nconst contactData = {\n  firstName: item.firstName || item._hs?.firstName || '',\n  lastName: item.lastName || item._hs?.lastName || '',\n  fullName: item.fullName || ((item.firstName || '') + ' ' + (item.lastName || '')).trim(),\n  title: item.title || item._hs?.jobTitle || '',\n  company: item.company || item._hs?.companyName || '',\n  linkedinUrl: item.linkedInProfileUrl || item.defaultProfileUrl || item.profileUrl || '',\n  hubspotContactId: item._hs?.contactId || item.hubspotContactId || '',\n  email: item.email || item._hs?.email || ''\n};\nreturn [{ json: contactData }];"
+        "jsCode": "// Extract contact data passed from 3.3\nconst item = $input.first().json;\nconst contactData = {\n  firstName: item.firstName || item._hs?.firstName || '',\n  lastName: item.lastName || item._hs?.lastName || '',\n  fullName: item.fullName || ((item.firstName || '') + ' ' + (item.lastName || '')).trim(),\n  title: item.title || item._hs?.jobTitle || '',\n  company: item.company || item._hs?.companyName || '',\n  linkedinUrl: item.linkedInProfileUrl || item.defaultProfileUrl || item.profileUrl || '',\n  hubspotContactId: item._hs?.contactId || item.hubspotContactId || '',\n  email: item.email || item._hs?.email || '',\n  profile: item.profile || 'kyle'\n};\nreturn [{ json: contactData }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -118,7 +118,7 @@
         "nodeCredentialType": "hubspotOAuth2Api",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ properties: { hs_task_subject: $json.subject, hs_task_body: $json.body, hs_task_type: 'LINKED_IN_MESSAGE', hs_task_priority: 'HIGH', hs_task_status: 'NOT_STARTED', hs_timestamp: String(new Date($json.dueDate).getTime()) } }) }}",
+        "jsonBody": "={{ JSON.stringify({ properties: { hs_task_subject: $json.subject, hs_task_body: $json.body, hs_task_type: 'LINKED_IN_MESSAGE', hs_task_priority: 'HIGH', hs_task_status: 'NOT_STARTED', hs_timestamp: String(new Date($json.dueDate).getTime()), hubspot_owner_id: $json.ownerId } }) }}",
         "options": {
           "timeout": 15000
         }

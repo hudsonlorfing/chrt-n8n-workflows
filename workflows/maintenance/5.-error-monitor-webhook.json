@@ -102,7 +102,7 @@
         "channelId": {
           "__rl": true,
           "mode": "id",
-          "value": "C0A6ES56MU2"
+          "value": "C0AE1D1K4AF"
         },
         "text": "={{ '🍪 *Cookie/Session Error - Manual Action Required*\\n\\n*Workflow:* ' + $json.workflowName + '\\n*Node:* ' + $json.errorNode + '\\n*Error:* ' + $json.errorMessage.substring(0, 300) + '\\n\\n⚠️ *Action Required:* Please refresh the LinkedIn cookie or reconnect the session in Phantombuster.\\n\\n<https://chrt.app.n8n.cloud/workflow/' + $json.workflowId + '/executions/' + $json.executionId + '|View Execution>' }}",
         "otherOptions": {}
@@ -162,7 +162,7 @@
         "channelId": {
           "__rl": true,
           "mode": "id",
-          "value": "C0A6ES56MU2"
+          "value": "C0AE1D1K4AF"
         },
         "text": "={{ '🚨 *Workflow Error* (Auto-fix attempted)\\n\\n*Workflow:* ' + $json.details.workflow.name + '\\n*Node:* ' + $json.details.error.node + '\\n*Error:* ' + $json.details.error.message.substring(0, 200) + '\\n\\n<https://chrt.app.n8n.cloud/workflow/' + $json.details.workflow.id + '/executions/' + $json.details.execution.id + '|View Execution>' }}",
         "otherOptions": {}

@@ -409,7 +409,7 @@
         "channelId": {
           "__rl": true,
           "mode": "id",
-          "value": "C0A6ES56MU2"
+          "value": "C0AE4BKCD9T"
         },
         "text": "={{ $json.message }}",
         "otherOptions": {}
@@ -1088,7 +1088,7 @@
           "channelId": {
             "__rl": true,
             "mode": "id",
-            "value": "C0A6ES56MU2"
+            "value": "C0AE4BKCD9T"
           },
           "text": "={{ $json.message }}",
           "otherOptions": {}

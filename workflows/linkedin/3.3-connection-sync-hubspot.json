@@ -120,7 +120,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Merge connection data with email scraper data\n// The email scraper adds email addresses to profiles\nconst items = $input.all();\nconst context = $('Parse Webhook Context').first().json;\n\nreturn items.map(item => {\n  const p = item.json;\n  const profileUrl = (p.linkedinProfileUrl || p.profileUrl || p.linkedinProfileUrl || '').trim();\n  const email = p.email || p.mail || '';\n  const hasRealEmail = !!email && !email.includes('linkedin.com');\n  \n  return {\n    json: {\n      profileUrl,\n      fullName: p.fullName || ((p.firstName || '') + ' ' + (p.lastName || '')).trim(),\n      firstName: p.firstName || '',\n      lastName: p.lastName || '',\n      email,\n      hasRealEmail,\n      personalHeadLine: p.linkedinHeadline || '',\n      schoolUrl: p.linkedinSchoolUrl || '',\n      schoolDegree: p.linkedinSchoolDegree || '',\n      schoolName: p.linkedinSchoolName || '',\n      previousSchoolUrl: p.linkedinPreviousSchoolUrl || '',\n      previousSchoolDegree: p.linkedinPreviousSchoolDegree || '',\n      previousSchoolName: p.linkedinPreviousSchoolName || '',\n      personallocation: p.location || '',\n      jobLocation: p.linkedinJobLocation || '',\n      connectionDegree: p.connectionDegree || '1st',\n      jobTitle: p.linkedinJobTitle || p.jobTitle || '',\n      companyName: p.companyName || p.company || '',\n      companyDescription: p.linkedinCompanyDescription || '',\n      companySize: p.linkedinCompanySize || '',\n      companyHQ: p.linkedinCompanyHeadquarter || '',\n      companyTagline: p.linkedinCompanyTagline || '',\n      companySlug: p.linkedinCompanySlug || '',\n      companyIndustry: p.companyIndustry || '',\n      companyWebsite: p.companyWebsite || '',\n      previousCompanyName: p.previousCompanyName || '',\n      previousCompanySlug: p.linkedinPreviousCompanySlug|| '',\n      previousCompanyPosition: p.linkedinPreviousJobTitle || '',\n      profile: context.profile\n    }\n  };\n});"
+        "jsCode": "// Merge connection data with email scraper data\n// Also fetches segment data from Master List via Apps Script batch lookup\nconst items = $input.all();\nconst context = $('Parse Webhook Context').first().json;\n\n// Collect all profile URLs for batch segment lookup\nconst urls = items.map(item => {\n  const p = item.json;\n  return (p.linkedinProfileUrl || p.profileUrl || '').trim();\n}).filter(u => u);\n\n// Batch fetch segments from Master List via Apps Script\nlet segmentMap = {};\nlet connectionsMap = {};\nif (urls.length > 0) {\n  try {\n    const resp = await fetch('https://script.google.com/macros/s/AKfycbyCSJgwmOIRCVVRnSNlNyhzVXiXChkcvTcN8AyTFMvC0lZggut7CDERUp3n4f_uPi5J/exec', {\n      method: 'POST',\n      headers: { 'Content-Type': 'application/json' },\n      body: JSON.stringify({ urls }),\n      redirect: 'follow'\n    });\n    const data = await resp.json();\n    if (data.ok && data.segments) {\n      segmentMap = data.segments;\n      connectionsMap = data.connections || {};\n      console.log('Segment lookup: found=' + data.found + ' notFound=' + data.notFound + ' connections=' + Object.keys(connectionsMap).length);\n    }\n  } catch (e) {\n    console.log('Segment lookup failed (non-fatal): ' + e.message);\n  }\n}\n\n// Map detailed ICP segment (e.g. \"Shipper-Healthcare\") to HubSpot chrt_segment\nfunction mapSegment(rawSegment) {\n  if (!rawSegment) return '';\n  const s = rawSegment.toLowerCase();\n  if (s.startsWith('shipper')) return 'Shipper';\n  if (s === 'courier') return 'Courier';\n  if (s === 'forwarder') return 'Forwarder';\n  if (s === 'skip' || s === 'unknown') return 'Other';\n  return 'Other';\n}\n\nreturn items.map(item => {\n  const p = item.json;\n  const profileUrl = (p.linkedinProfileUrl || p.profileUrl || p.linkedinProfileUrl || '').trim();\n  const email = p.email || p.mail || '';\n  const hasRealEmail = !!email && !email.includes('linkedin.com');\n  const rawSegment = segmentMap[profileUrl] || '';\n  const chrtSegment = mapSegment(rawSegment);\n\n  return {\n    json: {\n      profileUrl,\n      fullName: p.fullName || ((p.firstName || '') + ' ' + (p.lastName || '')).trim(),\n      firstName: p.firstName || '',\n      lastName: p.lastName || '',\n      email,\n      hasRealEmail,\n      personalHeadLine: p.linkedinHeadline || '',\n      schoolUrl: p.linkedinSchoolUrl || '',\n      schoolDegree: p.linkedinSchoolDegree || '',\n      schoolName: p.linkedinSchoolName || '',\n      previousSchoolUrl: p.linkedinPreviousSchoolUrl || '',\n      previousSchoolDegree: p.linkedinPreviousSchoolDegree || '',\n      previousSchoolName: p.linkedinPreviousSchoolName || '',\n      personallocation: p.location || '',\n      jobLocation: p.linkedinJobLocation || '',\n      connectionDegree: p.connectionDegree || '1st',\n      jobTitle: p.linkedinJobTitle || p.jobTitle || '',\n      companyName: p.companyName || p.company || '',\n      companyDescription: p.linkedinCompanyDescription || '',\n      companySize: p.linkedinCompanySize || '',\n      companyHQ: p.linkedinCompanyHeadquarter || '',\n      companyTagline: p.linkedinCompanyTagline || '',\n      companySlug: p.linkedinCompanySlug || '',\n      companyIndustry: p.companyIndustry || '',\n      companyWebsite: p.companyWebsite || '',\n      previousCompanyName: p.previousCompanyName || '',\n      previousCompanySlug: p.linkedinPreviousCompanySlug|| '',\n      previousCompanyPosition: p.linkedinPreviousJobTitle || '',\n      chrtSegment,\n      rawSegment,\n      needsAiClassify: !chrtSegment,\n      linkedinConnections: (connectionsMap[profileUrl] || []).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(';'),\n      profile: context.profile\n    }\n  };\n});"
       },
       "id": "wf3v2h-merge-data",
       "name": "Merge Connection + Email Data",
@@ -133,7 +133,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Prepare HubSpot data from merged connection + email data\nconst items = $input.all();\nconst today = new Date().toISOString().split('T')[0];\n\nfunction parseLocation(loc) {\n  if (!loc) return { city: '', state: '', country: '' };\n  const parts = loc.split(',').map(s => s.trim());\n  if (parts.length >= 3) return { city: parts[0], state: parts[parts.length - 2], country: parts[parts.length - 1] };\n  if (parts.length === 2) return { city: parts[0], state: parts[1], country: '' };\n  return { city: loc, state: '', country: '' };\n}\n\n// Map LinkedIn industry to HubSpot enum\nconst INDUSTRY_MAP = {\n  'accounting': 'ACCOUNTING',\n  'airlines/aviation': 'AIRLINES_AVIATION',\n  'aviation & aerospace': 'AVIATION_AEROSPACE',\n  'aviation/aerospace': 'AVIATION_AEROSPACE',\n  'banking': 'BANKING',\n  'biotechnology': 'BIOTECHNOLOGY',\n  'broadcast media': 'BROADCAST_MEDIA',\n  'building materials': 'BUILDING_MATERIALS',\n  'chemicals': 'CHEMICALS',\n  'computer software': 'COMPUTER_SOFTWARE',\n  'construction': 'CONSTRUCTION',\n  'consumer electronics': 'CONSUMER_ELECTRONICS',\n  'consumer goods': 'CONSUMER_GOODS',\n  'consumer services': 'CONSUMER_SERVICES',\n  'cosmetics': 'COSMETICS',\n  'defense & space': 'DEFENSE_SPACE',\n  'defense/space': 'DEFENSE_SPACE',\n  'design': 'DESIGN',\n  'education management': 'EDUCATION_MANAGEMENT',\n  'electrical/electronic manufacturing': 'ELECTRICAL_ELECTRONIC_MANUFACTURING',\n  'entertainment': 'ENTERTAINMENT',\n  'environmental services': 'ENVIRONMENTAL_SERVICES',\n  'events services': 'EVENTS_SERVICES',\n  'facilities services': 'FACILITIES_SERVICES',\n  'financial services': 'FINANCIAL_SERVICES',\n  'food & beverages': 'FOOD_BEVERAGES',\n  'food production': 'FOOD_PRODUCTION',\n  'government administration': 'GOVERNMENT_ADMINISTRATION',\n  'health, wellness and fitness': 'HEALTH_WELLNESS_AND_FITNESS',\n  'health/wellness/fitness': 'HEALTH_WELLNESS_AND_FITNESS',\n  'wellness and fitness services': 'HEALTH_WELLNESS_AND_FITNESS',\n  'higher education': 'HIGHER_EDUCATION',\n  'hospital & health care': 'HOSPITAL_HEALTH_CARE',\n  'hospitals and health care': 'HOSPITAL_HEALTH_CARE',\n  'hospitality': 'HOSPITALITY',\n  'human resources': 'HUMAN_RESOURCES',\n  'import and export': 'IMPORT_AND_EXPORT',\n  'import/export': 'IMPORT_AND_EXPORT',\n  'industrial automation': 'INDUSTRIAL_AUTOMATION',\n  'information services': 'INFORMATION_SERVICES',\n  'information technology and services': 'INFORMATION_TECHNOLOGY_AND_SERVICES',\n  'information technology & services': 'INFORMATION_TECHNOLOGY_AND_SERVICES',\n  'insurance': 'INSURANCE',\n  'international trade and development': 'INTERNATIONAL_TRADE_AND_DEVELOPMENT',\n  'internet': 'INTERNET',\n  'legal services': 'LEGAL_SERVICES',\n  'logistics and supply chain': 'LOGISTICS_AND_SUPPLY_CHAIN',\n  'logistics/supply chain': 'LOGISTICS_AND_SUPPLY_CHAIN',\n  'machinery': 'MACHINERY',\n  'management consulting': 'MANAGEMENT_CONSULTING',\n  'maritime': 'MARITIME',\n  'market research': 'MARKET_RESEARCH',\n  'marketing and advertising': 'MARKETING_AND_ADVERTISING',\n  'mechanical or industrial engineering': 'MECHANICAL_OR_INDUSTRIAL_ENGINEERING',\n  'mechanical/industrial engineering': 'MECHANICAL_OR_INDUSTRIAL_ENGINEERING',\n  'media production': 'MEDIA_PRODUCTION',\n  'medical devices': 'MEDICAL_DEVICES',\n  'medical device': 'MEDICAL_DEVICES',\n  'medical practice': 'MEDICAL_PRACTICE',\n  'mental health care': 'MENTAL_HEALTH_CARE',\n  'military': 'MILITARY',\n  'mining & metals': 'MINING_METALS',\n  'oil & energy': 'OIL_ENERGY',\n  'oil/energy': 'OIL_ENERGY',\n  'package/freight delivery': 'PACKAGE_FREIGHT_DELIVERY',\n  'packaging and containers': 'PACKAGING_AND_CONTAINERS',\n  'pharmaceuticals': 'PHARMACEUTICALS',\n  'pharmaceutical manufacturing': 'PHARMACEUTICALS',\n  'plastics': 'PLASTICS',\n  'professional training & coaching': 'PROFESSIONAL_TRAINING_COACHING',\n  'public safety': 'PUBLIC_SAFETY',\n  'publishing': 'PUBLISHING',\n  'railroads': 'TRANSPORTATION_TRUCKING_RAILROAD',\n  'real estate': 'REAL_ESTATE',\n  'renewables & environment': 'RENEWABLES_ENVIRONMENT',\n  'research': 'RESEARCH',\n  'restaurants': 'RESTAURANTS',\n  'retail': 'RETAIL',\n  'security and investigations': 'SECURITY_AND_INVESTIGATIONS',\n  'semiconductors': 'SEMICONDUCTORS',\n  'sporting goods': 'SPORTING_GOODS',\n  'staffing and recruiting': 'STAFFING_AND_RECRUITING',\n  'telecommunications': 'TELECOMMUNICATIONS',\n  'textiles': 'TEXTILES',\n  'transportation/trucking/railroad': 'TRANSPORTATION_TRUCKING_RAILROAD',\n  'truck transportation': 'TRANSPORTATION_TRUCKING_RAILROAD',\n  'utilities': 'UTILITIES',\n  'veterinary': 'VETERINARY',\n  'warehousing': 'WAREHOUSING',\n  'wholesale': 'WHOLESALE',\n  'wireless': 'WIRELESS',\n};\n\nfunction mapIndustry(linkedinIndustry) {\n  if (!linkedinIndustry) return '';\n  const key = linkedinIndustry.toLowerCase().trim();\n  if (INDUSTRY_MAP[key]) return INDUSTRY_MAP[key];\n  // Fallback: try converting to enum format\n  const enumAttempt = key.replace(/[\\s&/]+/g, '_').replace(/_+/g, '_').toUpperCase();\n  return enumAttempt;\n}\n\nreturn items.map(item => {\n  const p = item.json;\n  const loc = parseLocation(p.personallocation || p.location || '');\n  const rawIndustry = p.companyIndustry || p.industry || '';\n\n  return {\n    json: {\n      // Reference fields for downstream nodes (Format Output, Update Sheet)\n      profileUrl: p.profileUrl || '',\n      fullName: p.fullName || '',\n      profile: p.profile || '',\n      // All HubSpot data in _hs\n      _hs: {\n        firstName: p.firstName || '',\n        lastName: p.lastName || '',\n        email: p.email || '',\n        hasRealEmail: p.hasRealEmail || false,\n        companyName: p.companyName || '',\n        jobTitle: p.jobTitle || '',\n        industry: rawIndustry,\n        hubspotIndustry: mapIndustry(rawIndustry),\n        location: p.personallocation || p.location || '',\n        city: loc.city,\n        state: loc.state,\n        country: loc.country,\n        linkedinUrl: p.profileUrl || '',\n        syncDate: today,\n        // Contact enrichment fields\n        linkedinHeadline: p.personalHeadLine || '',\n        schoolName: p.schoolName || '',\n        schoolDegree: p.schoolDegree || '',\n        previousCompanyName: p.previousCompanyName || '',\n        previousCompanyPosition: p.previousCompanyPosition || '',\n        jobLocation: p.jobLocation || '',\n        companySlug: p.companySlug || '',\n        // Company-record fields\n        companyDescription: p.companyDescription || '',\n        companySize: p.companySize || '',\n        companyHQ: p.companyHQ || '',\n        companyWebsite: p.companyWebsite || '',\n        companyTagline: p.companyTagline || '',\n      }\n    }\n  };\n});"
+        "jsCode": "// Prepare HubSpot data from merged connection + email data\nconst items = $input.all();\nconst today = new Date().toISOString().split('T')[0];\n\nfunction parseLocation(loc) {\n  if (!loc) return { city: '', state: '', country: '' };\n  const parts = loc.split(',').map(s => s.trim());\n  if (parts.length >= 3) return { city: parts[0], state: parts[parts.length - 2], country: parts[parts.length - 1] };\n  if (parts.length === 2) return { city: parts[0], state: parts[1], country: '' };\n  return { city: loc, state: '', country: '' };\n}\n\n// Map LinkedIn industry to HubSpot enum\nconst INDUSTRY_MAP = {\n  'accounting': 'ACCOUNTING',\n  'airlines/aviation': 'AIRLINES_AVIATION',\n  'aviation & aerospace': 'AVIATION_AEROSPACE',\n  'aviation/aerospace': 'AVIATION_AEROSPACE',\n  'banking': 'BANKING',\n  'biotechnology': 'BIOTECHNOLOGY',\n  'broadcast media': 'BROADCAST_MEDIA',\n  'building materials': 'BUILDING_MATERIALS',\n  'chemicals': 'CHEMICALS',\n  'computer software': 'COMPUTER_SOFTWARE',\n  'construction': 'CONSTRUCTION',\n  'consumer electronics': 'CONSUMER_ELECTRONICS',\n  'consumer goods': 'CONSUMER_GOODS',\n  'consumer services': 'CONSUMER_SERVICES',\n  'cosmetics': 'COSMETICS',\n  'defense & space': 'DEFENSE_SPACE',\n  'defense/space': 'DEFENSE_SPACE',\n  'design': 'DESIGN',\n  'education management': 'EDUCATION_MANAGEMENT',\n  'electrical/electronic manufacturing': 'ELECTRICAL_ELECTRONIC_MANUFACTURING',\n  'entertainment': 'ENTERTAINMENT',\n  'environmental services': 'ENVIRONMENTAL_SERVICES',\n  'events services': 'EVENTS_SERVICES',\n  'facilities services': 'FACILITIES_SERVICES',\n  'financial services': 'FINANCIAL_SERVICES',\n  'food & beverages': 'FOOD_BEVERAGES',\n  'food production': 'FOOD_PRODUCTION',\n  'government administration': 'GOVERNMENT_ADMINISTRATION',\n  'health, wellness and fitness': 'HEALTH_WELLNESS_AND_FITNESS',\n  'health/wellness/fitness': 'HEALTH_WELLNESS_AND_FITNESS',\n  'wellness and fitness services': 'HEALTH_WELLNESS_AND_FITNESS',\n  'higher education': 'HIGHER_EDUCATION',\n  'hospital & health care': 'HOSPITAL_HEALTH_CARE',\n  'hospitals and health care': 'HOSPITAL_HEALTH_CARE',\n  'hospitality': 'HOSPITALITY',\n  'human resources': 'HUMAN_RESOURCES',\n  'import and export': 'IMPORT_AND_EXPORT',\n  'import/export': 'IMPORT_AND_EXPORT',\n  'industrial automation': 'INDUSTRIAL_AUTOMATION',\n  'information services': 'INFORMATION_SERVICES',\n  'information technology and services': 'INFORMATION_TECHNOLOGY_AND_SERVICES',\n  'information technology & services': 'INFORMATION_TECHNOLOGY_AND_SERVICES',\n  'insurance': 'INSURANCE',\n  'international trade and development': 'INTERNATIONAL_TRADE_AND_DEVELOPMENT',\n  'internet': 'INTERNET',\n  'legal services': 'LEGAL_SERVICES',\n  'logistics and supply chain': 'LOGISTICS_AND_SUPPLY_CHAIN',\n  'logistics/supply chain': 'LOGISTICS_AND_SUPPLY_CHAIN',\n  'machinery': 'MACHINERY',\n  'management consulting': 'MANAGEMENT_CONSULTING',\n  'maritime': 'MARITIME',\n  'market research': 'MARKET_RESEARCH',\n  'marketing and advertising': 'MARKETING_AND_ADVERTISING',\n  'mechanical or industrial engineering': 'MECHANICAL_OR_INDUSTRIAL_ENGINEERING',\n  'mechanical/industrial engineering': 'MECHANICAL_OR_INDUSTRIAL_ENGINEERING',\n  'media production': 'MEDIA_PRODUCTION',\n  'medical devices': 'MEDICAL_DEVICES',\n  'medical device': 'MEDICAL_DEVICES',\n  'medical practice': 'MEDICAL_PRACTICE',\n  'mental health care': 'MENTAL_HEALTH_CARE',\n  'military': 'MILITARY',\n  'mining & metals': 'MINING_METALS',\n  'oil & energy': 'OIL_ENERGY',\n  'oil/energy': 'OIL_ENERGY',\n  'package/freight delivery': 'PACKAGE_FREIGHT_DELIVERY',\n  'packaging and containers': 'PACKAGING_AND_CONTAINERS',\n  'pharmaceuticals': 'PHARMACEUTICALS',\n  'pharmaceutical manufacturing': 'PHARMACEUTICALS',\n  'plastics': 'PLASTICS',\n  'professional training & coaching': 'PROFESSIONAL_TRAINING_COACHING',\n  'public safety': 'PUBLIC_SAFETY',\n  'publishing': 'PUBLISHING',\n  'railroads': 'TRANSPORTATION_TRUCKING_RAILROAD',\n  'real estate': 'REAL_ESTATE',\n  'renewables & environment': 'RENEWABLES_ENVIRONMENT',\n  'research': 'RESEARCH',\n  'restaurants': 'RESTAURANTS',\n  'retail': 'RETAIL',\n  'security and investigations': 'SECURITY_AND_INVESTIGATIONS',\n  'semiconductors': 'SEMICONDUCTORS',\n  'sporting goods': 'SPORTING_GOODS',\n  'staffing and recruiting': 'STAFFING_AND_RECRUITING',\n  'telecommunications': 'TELECOMMUNICATIONS',\n  'textiles': 'TEXTILES',\n  'transportation/trucking/railroad': 'TRANSPORTATION_TRUCKING_RAILROAD',\n  'truck transportation': 'TRANSPORTATION_TRUCKING_RAILROAD',\n  'utilities': 'UTILITIES',\n  'veterinary': 'VETERINARY',\n  'warehousing': 'WAREHOUSING',\n  'wholesale': 'WHOLESALE',\n  'wireless': 'WIRELESS',\n};\n\nfunction mapIndustry(linkedinIndustry) {\n  if (!linkedinIndustry) return '';\n  const key = linkedinIndustry.toLowerCase().trim();\n  if (INDUSTRY_MAP[key]) return INDUSTRY_MAP[key];\n  // Fallback: try converting to enum format\n  const enumAttempt = key.replace(/[\\s&/]+/g, '_').replace(/_+/g, '_').toUpperCase();\n  return enumAttempt;\n}\n\nreturn items.map(item => {\n  const p = item.json;\n  const loc = parseLocation(p.personallocation || p.location || '');\n  const rawIndustry = p.companyIndustry || p.industry || '';\n\n  return {\n    json: {\n      // Reference fields for downstream nodes (Format Output, Update Sheet)\n      profileUrl: p.profileUrl || '',\n      fullName: p.fullName || '',\n      profile: p.profile || '',\n      // All HubSpot data in _hs\n      _hs: {\n        firstName: p.firstName || '',\n        lastName: p.lastName || '',\n        email: p.email || '',\n        hasRealEmail: p.hasRealEmail || false,\n        companyName: p.companyName || '',\n        jobTitle: p.jobTitle || '',\n        industry: rawIndustry,\n        hubspotIndustry: mapIndustry(rawIndustry),\n        location: p.personallocation || p.location || '',\n        city: loc.city,\n        state: loc.state,\n        country: loc.country,\n        linkedinUrl: p.profileUrl || '',\n        syncDate: today,\n        // Contact enrichment fields\n        linkedinHeadline: p.personalHeadLine || '',\n        schoolName: p.schoolName || '',\n        schoolDegree: p.schoolDegree || '',\n        previousCompanyName: p.previousCompanyName || '',\n        previousCompanyPosition: p.previousCompanyPosition || '',\n        jobLocation: p.jobLocation || '',\n        companySlug: p.companySlug || '',\n        // Company-record fields\n        companyDescription: p.companyDescription || '',\n        companySize: p.companySize || '',\n        companyHQ: p.companyHQ || '',\n        companyWebsite: p.companyWebsite || '',\n        companyTagline: p.companyTagline || '',\n        // Segment + Lead Source for new custom properties\n        chrtSegment: p.chrtSegment || 'Other',\n        chrtLeadSource: 'LinkedIn',\n    linkedinConnections: p.linkedinConnections || '',\n        needsAiClassify: p.needsAiClassify || false,\n      }\n    }\n  };\n});"
       },
       "id": "wf3v2h-prepare",
       "name": "Prepare HubSpot Data",
@@ -175,14 +175,14 @@
     },
     {
       "parameters": {
-        "jsCode": "// Loop complete \u2014 summary\nreturn [{ json: { done: true, message: 'HubSpot sync complete' } }];"
+        "jsCode": "// Loop complete — summary\nreturn [{ json: { done: true, message: 'HubSpot sync complete' } }];"
       },
       "id": "wf3v2h-sync-complete",
       "name": "Sync Complete",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4240,
+        4840,
         784
       ]
     },
@@ -226,20 +226,20 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        4400,
+        5000,
         944
       ]
     },
     {
       "parameters": {
-        "jsCode": "// Skip company processing \u2014 no company name provided\nconst preparedData = $('Prepare HubSpot Data').item.json;\nreturn [{ json: { ...preparedData, _hs: { ...preparedData._hs, companyId: null, companyCreated: false, companySkipped: true } } }];"
+        "jsCode": "// Skip company processing — no company name provided\nconst preparedData = $('Prepare HubSpot Data').item.json;\nreturn [{ json: { ...preparedData, _hs: { ...preparedData._hs, companyId: null, companyCreated: false, companySkipped: true } } }];"
       },
       "id": "wf3v2h-skip-company",
       "name": "Skip Company",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4608,
+        5208,
         1152
       ]
     },
@@ -259,7 +259,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        4608,
+        5208,
         944
       ],
       "credentials": {
@@ -300,7 +300,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        4800,
+        5400,
         944
       ]
     },
@@ -313,7 +313,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        5008,
+        5608,
         864
       ]
     },
@@ -333,7 +333,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        5008,
+        5608,
         1072
       ],
       "credentials": {
@@ -354,7 +354,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        5200,
+        5800,
         1072
       ]
     },
@@ -365,7 +365,7 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        5808,
+        6408,
         944
       ]
     },
@@ -377,7 +377,7 @@
         "nodeCredentialType": "hubspotOAuth2Api",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ properties: { jobtitle: $('Merge Search Results').item.json._hs.jobTitle || '', company: $('Merge Search Results').item.json._hs.companyName || '', industry: $('Merge Search Results').item.json._hs.hubspotIndustry || $('Merge Search Results').item.json._hs.industry || '', hs_lead_status: 'CONNECTED', hs_linkedin_url: $('Merge Search Results').item.json._hs.linkedinUrl || '', city: $('Merge Search Results').item.json._hs.city || $('Merge Search Results').item.json._hs.location || '', state: $('Merge Search Results').item.json._hs.state || '', country: $('Merge Search Results').item.json._hs.country || '', linkedin_headline: $('Merge Search Results').item.json._hs.linkedinHeadline || '', school_name: $('Merge Search Results').item.json._hs.schoolName || '', school_degree: $('Merge Search Results').item.json._hs.schoolDegree || '', previous_company_name: $('Merge Search Results').item.json._hs.previousCompanyName || '', previous_company_position: $('Merge Search Results').item.json._hs.previousCompanyPosition || '', job_location: $('Merge Search Results').item.json._hs.jobLocation || '', linkedin_company_slug: $('Merge Search Results').item.json._hs.companySlug || '' } }) }}",
+        "jsonBody": "={{ JSON.stringify({ properties: { jobtitle: $('Merge Search Results').item.json._hs.jobTitle || '', company: $('Merge Search Results').item.json._hs.companyName || '', industry: $('Merge Search Results').item.json._hs.hubspotIndustry || $('Merge Search Results').item.json._hs.industry || '', hs_lead_status: 'CONNECTED', hs_linkedin_url: $('Merge Search Results').item.json._hs.linkedinUrl || '', city: $('Merge Search Results').item.json._hs.city || $('Merge Search Results').item.json._hs.location || '', state: $('Merge Search Results').item.json._hs.state || '', country: $('Merge Search Results').item.json._hs.country || '', linkedin_headline: $('Merge Search Results').item.json._hs.linkedinHeadline || '', school_name: $('Merge Search Results').item.json._hs.schoolName || '', school_degree: $('Merge Search Results').item.json._hs.schoolDegree || '', previous_company_name: $('Merge Search Results').item.json._hs.previousCompanyName || '', previous_company_position: $('Merge Search Results').item.json._hs.previousCompanyPosition || '', job_location: $('Merge Search Results').item.json._hs.jobLocation || '', linkedin_company_slug: $('Merge Search Results').item.json._hs.companySlug || '', chrt_segment: $('Merge Search Results').item.json._hs.chrtSegment || 'Other', chrt_lead_source: $('Merge Search Results').item.json._hs.chrtLeadSource || 'LinkedIn' } }) }}",
         "options": {}
       },
       "id": "wf3v2h-update-contact",
@@ -385,7 +385,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        7392,
+        7992,
         784
       ],
       "credentials": {
@@ -405,7 +405,7 @@
         "nodeCredentialType": "hubspotOAuth2Api",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ properties: { email: $('Merge Company Results').item.json._hs.hasRealEmail ? $('Merge Company Results').item.json._hs.email : undefined, firstname: $('Merge Company Results').item.json._hs.firstName, lastname: $('Merge Company Results').item.json._hs.lastName, jobtitle: $('Merge Company Results').item.json._hs.jobTitle || '', company: $('Merge Company Results').item.json._hs.companyName || '', industry: $('Merge Company Results').item.json._hs.hubspotIndustry || $('Merge Company Results').item.json._hs.industry || '', hs_lead_status: 'CONNECTED', hs_linkedin_url: $('Merge Company Results').item.json._hs.linkedinUrl || '', city: $('Merge Company Results').item.json._hs.city || $('Merge Company Results').item.json._hs.location || '', state: $('Merge Company Results').item.json._hs.state || '', country: $('Merge Company Results').item.json._hs.country || '', linkedin_headline: $('Merge Company Results').item.json._hs.linkedinHeadline || '', school_name: $('Merge Company Results').item.json._hs.schoolName || '', school_degree: $('Merge Company Results').item.json._hs.schoolDegree || '', previous_company_name: $('Merge Company Results').item.json._hs.previousCompanyName || '', previous_company_position: $('Merge Company Results').item.json._hs.previousCompanyPosition || '', job_location: $('Merge Company Results').item.json._hs.jobLocation || '', linkedin_company_slug: $('Merge Company Results').item.json._hs.companySlug || '' } }) }}",
+        "jsonBody": "={{ JSON.stringify({ properties: { email: $('Merge Company Results').item.json._hs.hasRealEmail ? $('Merge Company Results').item.json._hs.email : undefined, firstname: $('Merge Company Results').item.json._hs.firstName, lastname: $('Merge Company Results').item.json._hs.lastName, jobtitle: $('Merge Company Results').item.json._hs.jobTitle || '', company: $('Merge Company Results').item.json._hs.companyName || '', industry: $('Merge Company Results').item.json._hs.hubspotIndustry || $('Merge Company Results').item.json._hs.industry || '', hs_lead_status: 'CONNECTED', hs_linkedin_url: $('Merge Company Results').item.json._hs.linkedinUrl || '', city: $('Merge Company Results').item.json._hs.city || $('Merge Company Results').item.json._hs.location || '', state: $('Merge Company Results').item.json._hs.state || '', country: $('Merge Company Results').item.json._hs.country || '', linkedin_headline: $('Merge Company Results').item.json._hs.linkedinHeadline || '', school_name: $('Merge Company Results').item.json._hs.schoolName || '', school_degree: $('Merge Company Results').item.json._hs.schoolDegree || '', previous_company_name: $('Merge Company Results').item.json._hs.previousCompanyName || '', previous_company_position: $('Merge Company Results').item.json._hs.previousCompanyPosition || '', job_location: $('Merge Company Results').item.json._hs.jobLocation || '', linkedin_company_slug: $('Merge Company Results').item.json._hs.companySlug || '', chrt_segment: $('Merge Company Results').item.json._hs.chrtSegment || 'Other', chrt_lead_source: $('Merge Company Results').item.json._hs.chrtLeadSource || 'LinkedIn' } }) }}",
         "options": {}
       },
       "id": "wf3v2h-create-contact",
@@ -413,7 +413,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        7328,
+        7928,
         1360
       ],
       "credentials": {
@@ -434,7 +434,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        7584,
+        8184,
         784
       ]
     },
@@ -447,7 +447,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        7552,
+        8152,
         1360
       ]
     },
@@ -458,7 +458,7 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        7744,
+        8344,
         976
       ]
     },
@@ -477,11 +477,11 @@
         }
       },
       "id": "wf3v2h-associate",
-      "name": "Associate Contact \u2192 Company",
+      "name": "Associate Contact → Company",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        7936,
+        8536,
         976
       ],
       "credentials": {
@@ -495,14 +495,14 @@
     },
     {
       "parameters": {
-        "jsCode": "// Format output for logging / sheet update + pass data to 3.4\n// Reference Merge Contact Results (not $input which comes from the Associate HTTP call)\nconst contactData = $('Merge Contact Results').item.json;\nconst hs = contactData._hs || {};\nreturn [{ json: {\n  defaultProfileUrl: contactData.profileUrl || hs.linkedinUrl || '',\n  fullName: contactData.fullName || ((hs.firstName || '') + ' ' + (hs.lastName || '')).trim(),\n  firstName: hs.firstName || contactData.firstName || '',\n  lastName: hs.lastName || contactData.lastName || '',\n  title: hs.jobTitle || contactData.title || '',\n  company: hs.companyName || contactData.company || '',\n  linkedInProfileUrl: contactData.profileUrl || hs.linkedinUrl || '',\n  hubspotContactId: hs.contactId || '',\n  contactId: hs.contactId || '',\n  companyId: hs.companyId || '',\n  contactCreated: hs.contactCreated || false,\n  companyCreated: hs.companyCreated || false,\n  companySkipped: hs.companySkipped || false,\n  profile: $('Parse Webhook Context').first().json.profile || 'kyle',\n  syncDate: hs.syncDate || ''\n}}];"
+        "jsCode": "// Format output for logging / sheet update + pass data to 3.4\n// Reference Merge Contact Results (not $input which comes from the Associate HTTP call)\nconst contactData = $('Merge Contact Results').item.json;\nconst hs = contactData._hs || {};\nreturn [{ json: {\n  defaultProfileUrl: contactData.profileUrl || hs.linkedinUrl || '',\n  fullName: contactData.fullName || ((hs.firstName || '') + ' ' + (hs.lastName || '')).trim(),\n  firstName: hs.firstName || contactData.firstName || '',\n  lastName: hs.lastName || contactData.lastName || '',\n  title: hs.jobTitle || contactData.title || '',\n  company: hs.companyName || contactData.company || '',\n  linkedInProfileUrl: contactData.profileUrl || hs.linkedinUrl || '',\n  hubspotContactId: hs.contactId || '',\n  contactId: hs.contactId || '',\n  companyId: hs.companyId || '',\n  contactCreated: hs.contactCreated || false,\n  companyCreated: hs.companyCreated || false,\n  companySkipped: hs.companySkipped || false,\n  profile: $('Parse Webhook Context').first().json.profile || 'kyle',\n  chrtSegment: hs.chrtSegment || 'Other',\n  chrtLeadSource: hs.chrtLeadSource || 'LinkedIn',\n  linkedinConnections: hs.linkedinConnections || '',\n  syncDate: hs.syncDate || ''\n}}];"
       },
       "id": "wf3v2h-format",
       "name": "Format Output",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        8144,
+        8744,
         976
       ]
     },
@@ -988,7 +988,7 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        8336,
+        8936,
         976
       ],
       "alwaysOutputData": true,
@@ -1063,7 +1063,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        5216,
+        5816,
         864
       ]
     },
@@ -1083,7 +1083,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        5408,
+        6008,
         864
       ],
       "credentials": {
@@ -1102,7 +1102,7 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        5632,
+        6232,
         1024
       ]
     },
@@ -1120,7 +1120,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        6016,
+        6616,
         944
       ],
       "id": "wf3v2h-search-url",
@@ -1159,7 +1159,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        6192,
+        6792,
         944
       ],
       "id": "wf3v2h-found-url",
@@ -1179,7 +1179,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        6448,
+        7048,
         1152
       ],
       "id": "wf3v2h-search-name",
@@ -1193,12 +1193,12 @@
     },
     {
       "parameters": {
-        "jsCode": "// Evaluate name search results for best contact match\nconst nameResults = $('Search by Name').item.json;\nconst prepared = $('Prepare HubSpot Data').item.json;\nconst hs = prepared._hs;\nconst results = nameResults.results || [];\n\nif (results.length === 0) {\n  // No match \u2014 will create new contact\n  return [{ json: { ...prepared, _matchResult: 'create', _matchedContact: null } }];\n}\n\nif (results.length === 1) {\n  // Exact single match \u2014 will update\n  return [{ json: { ...prepared, _matchResult: 'update', _matchedContact: results[0] } }];\n}\n\n// Multiple results \u2014 try email tiebreaker\nif (hs.email && hs.hasRealEmail) {\n  const emailMatch = results.find(r =>\n    (r.properties.email || '').toLowerCase() === hs.email.toLowerCase()\n  );\n  if (emailMatch) {\n    return [{ json: { ...prepared, _matchResult: 'update', _matchedContact: emailMatch } }];\n  }\n}\n\n// Still ambiguous \u2014 send to Slack, skip this contact\nconst names = results.map(r =>\n  (r.properties.firstname || '') + ' ' + (r.properties.lastname || '') + ' (ID: ' + r.id + ', email: ' + (r.properties.email || 'none') + ')'\n).join(', ');\nreturn [{ json: { ...prepared, _matchResult: 'ambiguous', _matchedContact: null, _ambiguousDetails: names, _ambiguousCount: results.length } }];"
+        "jsCode": "// Evaluate name search results for best contact match\nconst nameResults = $('Search by Name').item.json;\nconst prepared = $('Prepare HubSpot Data').item.json;\nconst hs = prepared._hs;\nconst results = nameResults.results || [];\n\nif (results.length === 0) {\n  // No match — will create new contact\n  return [{ json: { ...prepared, _matchResult: 'create', _matchedContact: null } }];\n}\n\nif (results.length === 1) {\n  // Exact single match — will update\n  return [{ json: { ...prepared, _matchResult: 'update', _matchedContact: results[0] } }];\n}\n\n// Multiple results — try email tiebreaker\nif (hs.email && hs.hasRealEmail) {\n  const emailMatch = results.find(r =>\n    (r.properties.email || '').toLowerCase() === hs.email.toLowerCase()\n  );\n  if (emailMatch) {\n    return [{ json: { ...prepared, _matchResult: 'update', _matchedContact: emailMatch } }];\n  }\n}\n\n// Still ambiguous — send to Slack, skip this contact\nconst names = results.map(r =>\n  (r.properties.firstname || '') + ' ' + (r.properties.lastname || '') + ' (ID: ' + r.id + ', email: ' + (r.properties.email || 'none') + ')'\n).join(', ');\nreturn [{ json: { ...prepared, _matchResult: 'ambiguous', _matchedContact: null, _ambiguousDetails: names, _ambiguousCount: results.length } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        6656,
+        7256,
         1152
       ],
       "id": "wf3v2h-resolve-match",
@@ -1231,7 +1231,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        6848,
+        7448,
         1152
       ],
       "id": "wf3v2h-match-router",
@@ -1264,7 +1264,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        7072,
+        7672,
         1280
       ],
       "id": "wf3v2h-route-ambiguous",
@@ -1273,16 +1273,16 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.SLACK_WEBHOOK_URL }}",
+        "url": "={{ $env.SLACK_AUTOMATIONS_WEBHOOK_URL }}",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ text: ':warning: *Ambiguous HubSpot Contact Match*\\n' + 'Incoming: ' + $json.fullName + ' (' + ($json._hs.linkedinUrl || 'no URL') + ')\\n' + 'Found ' + $json._ambiguousCount + ' possible matches: ' + $json._ambiguousDetails + '\\n' + 'Skipping auto-sync \u2014 please resolve manually in HubSpot.' }) }}",
+        "jsonBody": "={{ JSON.stringify({ text: ':warning: *Ambiguous HubSpot Contact Match*\\n' + 'Incoming: ' + $json.fullName + ' (' + ($json._hs.linkedinUrl || 'no URL') + ')\\n' + 'Found ' + $json._ambiguousCount + ' possible matches: ' + $json._ambiguousDetails + '\\n' + 'Skipping auto-sync — please resolve manually in HubSpot.' }) }}",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        7328,
+        7928,
         1200
       ],
       "id": "wf3v2h-notify-slack",
@@ -1295,7 +1295,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        6976,
+        7576,
         784
       ],
       "id": "wf3v2h-prep-url-match",
@@ -1308,7 +1308,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        7072,
+        7672,
         1120
       ],
       "id": "wf3v2h-prep-name-match",
@@ -1319,7 +1319,7 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        7184,
+        7784,
         784
       ],
       "id": "wf3v2h-merge-search",
@@ -1327,12 +1327,12 @@
     },
     {
       "parameters": {
-        "jsCode": "// Skip this contact \u2014 ambiguous match logged to Slack\nconst item = $input.first().json;\nreturn [{ json: {\n  defaultProfileUrl: item.profileUrl || item._hs?.linkedinUrl || '',\n  fullName: item.fullName || '',\n  contactId: 'SKIPPED_AMBIGUOUS',\n  companyId: item._hs?.companyId || '',\n  contactCreated: false,\n  companyCreated: item._hs?.companyCreated || false,\n  companySkipped: item._hs?.companySkipped || false,\n  syncDate: item._hs?.syncDate || ''\n} }];"
+        "jsCode": "// Skip this contact — ambiguous match logged to Slack\nconst item = $input.first().json;\nreturn [{ json: {\n  defaultProfileUrl: item.profileUrl || item._hs?.linkedinUrl || '',\n  fullName: item.fullName || '',\n  contactId: 'SKIPPED_AMBIGUOUS',\n  companyId: item._hs?.companyId || '',\n  contactCreated: false,\n  companyCreated: item._hs?.companyCreated || false,\n  companySkipped: item._hs?.companySkipped || false,\n  syncDate: item._hs?.syncDate || ''\n} }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        7552,
+        8152,
         1200
       ],
       "id": "wf3v2h-skip-ambiguous",
@@ -1345,7 +1345,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        5632,
+        6232,
         864
       ],
       "id": "wf3v2h-restore-company-update",
@@ -1365,11 +1365,192 @@
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
       "position": [
-        8544,
+        9144,
         1136
       ],
       "id": "wf3v2h-call-34",
       "name": "Call 3.4 Conference Follow-Up",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "needs-ai-classify",
+              "leftValue": "={{ $json._hs.needsAiClassify }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "wf3v2h-needs-ai",
+      "name": "Needs AI Classify?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        4320,
+        944
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Call Claude API to classify contact segment based on LinkedIn profile data\n// API key fetched from Doppler before the loop started\nconst item = $input.first().json;\nconst hs = item._hs;\n\n// Get API key from Doppler fetch (runs once before loop)\nlet apiKey = '';\ntry {\n  const dopplerData = $('Fetch Anthropic Key').first().json;\n  apiKey = (dopplerData.secrets && dopplerData.secrets.ANTHROPIC_API_KEY && dopplerData.secrets.ANTHROPIC_API_KEY.raw) || '';\n} catch (e) {\n  console.log('Could not read Doppler key: ' + e.message);\n}\n\nif (!apiKey) {\n  console.log('No ANTHROPIC_API_KEY from Doppler - defaulting to Other');\n  return [{ json: { ...item, _hs: { ...hs, chrtSegment: 'Other', needsAiClassify: false } } }];\n}\n\n// Build classification prompt from available profile data\nconst profileInfo = [\n  hs.firstName + ' ' + hs.lastName,\n  'Title: ' + (hs.jobTitle || 'Unknown'),\n  'Company: ' + (hs.companyName || 'Unknown'),\n  'Industry: ' + (hs.industry || 'Unknown'),\n  'Headline: ' + (hs.linkedinHeadline || ''),\n  'Location: ' + (hs.location || ''),\n  'Previous: ' + (hs.previousCompanyName ? hs.previousCompanyPosition + ' at ' + hs.previousCompanyName : 'N/A'),\n].join('\\n');\n\nlet chrtSegment = 'Other';\n\ntry {\n  const resp = await fetch('https://api.anthropic.com/v1/messages', {\n    method: 'POST',\n    headers: {\n      'Content-Type': 'application/json',\n      'x-api-key': apiKey,\n      'anthropic-version': '2023-06-01'\n    },\n    body: JSON.stringify({\n      model: 'claude-sonnet-4-20250514',\n      max_tokens: 100,\n      messages: [{\n        role: 'user',\n        content: 'Classify this LinkedIn contact into exactly ONE category for Chrt (a B2B SaaS for time-critical logistics). Return ONLY the category name, nothing else.\\n\\nCategories:\\n- Shipper: Companies that NEED to ship (labs, hospitals, MROs, OPOs, manufacturers, pharmaceutical companies, medical device companies)\\n- Courier: Companies that DELIVER (medical couriers, same-day delivery, logistics providers, last-mile companies)\\n- Forwarder: Companies that COORDINATE (3PLs, freight brokers, freight forwarders, supply chain intermediaries)\\n- Other: Does not fit any above category\\n\\nProfile:\\n' + profileInfo\n      }]\n    })\n  });\n\n  const data = await resp.json();\n  const text = (data.content && data.content[0] && data.content[0].text || '').trim();\n\n  // Parse the response - should be one of: Shipper, Courier, Forwarder, Other\n  const normalized = text.toLowerCase();\n  if (normalized.includes('shipper')) chrtSegment = 'Shipper';\n  else if (normalized.includes('courier')) chrtSegment = 'Courier';\n  else if (normalized.includes('forwarder')) chrtSegment = 'Forwarder';\n  else chrtSegment = 'Other';\n\n  console.log('AI classified ' + hs.firstName + ' ' + hs.lastName + ' as: ' + chrtSegment);\n} catch (e) {\n  console.log('AI classification failed for ' + hs.firstName + ' ' + hs.lastName + ': ' + e.message);\n  chrtSegment = 'Other';\n}\n\nreturn [{ json: { ...item, _hs: { ...hs, chrtSegment, needsAiClassify: false } } }];"
+      },
+      "id": "wf3v2h-ai-classify",
+      "name": "AI Classify Segment",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4528,
+        864
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "id": "wf3v2h-skip-ai",
+      "name": "Skip AI Classify",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        4528,
+        1056
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "wf3v2h-merge-segment",
+      "name": "Merge Segment Results",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        4720,
+        944
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build HubSpot task for new LinkedIn connection intro message\nconst contact = $input.first().json;\nconst profile = contact.profile || 'kyle';\nconst linkedinConnections = (contact.linkedinConnections || '').split(';').filter(Boolean);\nconst segment = contact.chrtSegment || 'Other';\nconst firstName = contact.firstName || 'there';\nconst fullName = contact.fullName || 'Unknown';\nconst title = contact.title || '';\nconst company = contact.company || '';\nconst linkedinUrl = contact.defaultProfileUrl || contact.linkedInProfileUrl || '';\nconst contactId = contact.contactId || contact.hubspotContactId || '';\n\n// Map profile to HubSpot owner ID\nconst OWNER_MAP = { hudson: '161195184', kyle: '86116626' };\n// Prefer connected profile for task assignment; fall back to webhook profile\nconst connectedOwner = linkedinConnections.length === 1 ? linkedinConnections[0] : profile;\nconst ownerId = OWNER_MAP[connectedOwner] || OWNER_MAP[profile] || OWNER_MAP.hudson;\n\nconst subject = 'Send intro message to ' + fullName + ' - ' + segment;\nconst body = [\n  fullName + ' (' + title + ' at ' + company + ') connected on LinkedIn.',\n  'Segment: ' + segment,\n  'LinkedIn: ' + linkedinUrl,\n  '',\n  'Suggested intro:',\n  'Hey ' + firstName + ', great connecting! I\\'d love to learn more about how ' + company + ' handles time-critical logistics. We\\'re building Chrt to help companies like yours streamline urgent deliveries — happy to share what we\\'re seeing in the space if you\\'re open to a quick chat.'\n].join('\\n');\n\n// Due date: tomorrow at a random business hour\nconst now = new Date();\nconst tomorrow = new Date(now.getTime() + 86400000);\ntomorrow.setHours(9 + Math.floor(Math.random() * 8), Math.floor(Math.random() * 60), 0, 0);\n\nreturn [{ json: {\n  ...contact,\n  _task: {\n    subject,\n    body,\n    dueDate: tomorrow.toISOString(),\n    contactId,\n    ownerId,\n    linkedinUrl\n  }\n}}];"
+      },
+      "id": "wf3v2h-build-intro-task",
+      "name": "Build Intro Task",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        8350,
+        976
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/tasks",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ properties: { hs_task_subject: $json._task.subject, hs_task_body: $json._task.body, hs_task_type: 'LINKED_IN_MESSAGE', hs_task_priority: 'MEDIUM', hs_task_status: 'NOT_STARTED', hs_timestamp: String(new Date($json._task.dueDate).getTime()), hubspot_owner_id: $json._task.ownerId } }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "wf3v2h-create-intro-task",
+      "name": "Create Intro Task",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        8560,
+        976
+      ],
+      "credentials": {
+        "hubspotOAuth2Api": {
+          "id": "3JZVnZQkHgMfXMRx",
+          "name": "HubSpot account"
+        }
+      },
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "={{ 'https://api.hubapi.com/crm/v3/objects/tasks/' + $json.id + '/associations/contacts/' + $('Build Intro Task').first().json._task.contactId + '/task_to_contact' }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotOAuth2Api",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "wf3v2h-assoc-intro-task",
+      "name": "Associate Intro Task",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        8770,
+        976
+      ],
+      "credentials": {
+        "hubspotOAuth2Api": {
+          "id": "3JZVnZQkHgMfXMRx",
+          "name": "HubSpot account"
+        }
+      },
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "https://api.doppler.com/v3/configs/config/secrets",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "project",
+              "value": "developers"
+            },
+            {
+              "name": "config",
+              "value": "hudson"
+            },
+            {
+              "name": "secrets",
+              "value": "ANTHROPIC_API_KEY"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "wf3v2h-fetch-anthropic",
+      "name": "Fetch Anthropic Key",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3800,
+        1200
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "dz2vX61Mpayywfq1",
+          "name": "Doppler API"
+        }
+      },
       "onError": "continueRegularOutput"
     }
   ],
@@ -1459,6 +1640,11 @@
             "node": "Respond to Webhook",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Fetch Anthropic Key",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -1496,7 +1682,7 @@
       "main": [
         [
           {
-            "node": "Has Company Name?",
+            "node": "Needs AI Classify?",
             "type": "main",
             "index": 0
           }
@@ -1653,14 +1839,14 @@
       "main": [
         [
           {
-            "node": "Associate Contact \u2192 Company",
+            "node": "Associate Contact → Company",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Associate Contact \u2192 Company": {
+    "Associate Contact → Company": {
       "main": [
         [
           {
@@ -1675,7 +1861,7 @@
       "main": [
         [
           {
-            "node": "Update HubSpot Status",
+            "node": "Build Intro Task",
             "type": "main",
             "index": 0
           }
@@ -1901,6 +2087,90 @@
           }
         ]
       ]
+    },
+    "Needs AI Classify?": {
+      "main": [
+        [
+          {
+            "node": "AI Classify Segment",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Skip AI Classify",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Classify Segment": {
+      "main": [
+        [
+          {
+            "node": "Merge Segment Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip AI Classify": {
+      "main": [
+        [
+          {
+            "node": "Merge Segment Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Segment Results": {
+      "main": [
+        [
+          {
+            "node": "Has Company Name?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Intro Task": {
+      "main": [
+        [
+          {
+            "node": "Create Intro Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Intro Task": {
+      "main": [
+        [
+          {
+            "node": "Associate Intro Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Associate Intro Task": {
+      "main": [
+        [
+          {
+            "node": "Update HubSpot Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
@@ -1949,7 +2219,7 @@
             "branch": "master",
             "launchDuration": 324,
             "runDuration": 151103,
-            "resultObject": "[{\"companyIndustry\":\"Transportation/Trucking/Railroad\",\"companyName\":\"Medical Couriers\",\"companyWebsite\":\"https://www.medicalcouriers.com/request-a-pick-up/\",\"firstName\":\"RoseMarie\",\"lastName\":\"Curcuru\",\"linkedinCompanyUrl\":\"https://www.linkedin.com/company/medical-couriers-inc/\",\"linkedinCompanySlug\":\"medical-couriers-inc\",\"linkedinCompanyId\":\"6874844\",\"linkedinDescription\":\"As a Chief Operating Officer at Medical Couriers and Moment Logistics LLC, I oversee the daily operations and strategic direction of two of the fastest-growing logistics and supply chain companies in the country. With over 25 years of experience in executive leadership roles, I have a proven track record of delivering results, driving innovation, and enhancing customer satisfaction in a highly competitive and dynamic industry.\\n\\nMy core competencies include operations management, business planning, negotiation, freight, team building, manufacturing process improvement, and new business development. I am passionate about creating efficient, scalable, and sustainable solutions that optimize the performance and profitability of both companies. My mission is to empower and support our talented and diverse teams, foster a culture of excellence and collaboration, and provide the best possible service to our clients.\",\"linkedinFollowersCount\":2674,\"linkedinHeadline\":\"Chief Operating Officer \",\"linkedinIsHiringBadge\":false,\"linkedinIsOpenToWorkBadge\":false,\"linkedinJobDateRange\":\"Feb 2024 - Present\",\"linkedinJobLocation\":\"Sacramento, California, United States\",\"linkedinJobTitle\":\"Chief Operating Officer\",\"linkedinPreviousCompanySlug\":\"moment-logistics-llc\",\"linkedinPreviousJobDateRange\":\"Feb 2024 - Present\",\"linkedinPreviousJobLocation\":\"Sacramento, California, United States\",\"linkedinPreviousJobTitle\":\"Chief Operating Officer\",\"linkedinProfileId\":\"38696197\",\"linkedinProfileSlug\":\"rosemarie-curcuru-771b6110\",\"linkedinProfileUrl\":\"https://linkedin.com/in/rosemarie-curcuru-771b6110\",\"linkedinProfileUrn\":\"ACoAAAJOdQUBPB323oAkw04JGNu0EMkkEIgHNY0\",\"linkedinProfileImageUrn\":\"urn:li:digitalmediaAsset:D5603AQGzOOTEYtAaAw\",\"linkedinProfileImageUrl\":\"https://media.licdn.com/dms/image/v2/D5603AQGzOOTEYtAaAw/profile-displayphoto-shrink_800_800/profile-displayphoto-shrink_800_800/0/1731734646766?e=1772064000&v=beta&t=IKfom1F7tPnwxpq3KvIHb95BerJBO3zfkZEcmUHu688\",\"linkedinSchoolUrl\":\"https://linkedin.com/school/buttecollege\",\"linkedinSchoolCompanySlug\":\"buttecollege\",\"linkedinSchoolDateRange\":\"Sep 1982 - Jun 1984\",\"linkedinSchoolDegree\":\"Business Administration\",\"linkedinSchoolName\":\"Butte College\",\"linkedinSkillsLabel\":\"Account Management, Analytical Skills, Financial Analysis, Logistics, 3PL, Transportation, Freight, Transportation Management, Supply Chain, Shipping, Operations Management, Logistics Management, Supply Chain Management, Team Building, Air Freight, Warehousing, Trucking, Inventory Management, Truckload, Income Statement\",\"location\":\"Sacramento, California, United States\",\"previousCompanyName\":\"Moment Logistics LLC\",\"professionalEmail\":\"rosemarie.curcuru@medicalcouriers.com\",\"connectionDegree\":\"1st\",\"refreshedAt\":\"2026-02-09T00:05:14.257Z\",\"mutualConnectionsUrl\":\"https://www.linkedin.com/search/results/people/?facetNetwork=%5B%22F%22%5D&facetConnectionOf=%5B%22ACoAAAJOdQUBPB323oAkw04JGNu0EMkkEIgHNY0%22%5D&origin=MEMBER_PROFILE_CANNED_SEARCH&RESULT_TYPE=PEOPLE\",\"connectionsUrl\":\"https://www.linkedin.com/search/results/people/?facetConnectionOf=%5B%22ACoAAAJOdQUBPB323oAkw04JGNu0EMkkEIgHNY0%22%5D&facetNetwork=%5B%22F%22%2C%22S%22%5D&origin=MEMBER_PROFILE_CANNED_SEARCH\",\"linkedinConnectionsCount\":2580,\"profileUrl\":\"https://www.linkedin.com/in/rosemarie-curcuru-771b6110/\",\"linkedinCompanyName\":\"Medical Couriers\",\"linkedinCompanyDescription\":\"Medical Couriers, Inc. is a 50+ year old medical-only delivery service that transports over ten million specimens a year across the United States for labs, clinics, hospitals, and universities.\\n\\nWe apply our lifetime of logistics experience to your courier needs to efficiently plan routes, consolidate service and get specimens to where you need them to be on time and in perfect condition.\\n\\nUnlike other medical-only delivery companies, we train our employee drivers to care. That\u2019s why we prepare our drivers with strict protocols to protect the patient, deliver CARE training to convey the human consequence of the work, and execute an 8 point driver checklist before going out the door so they can confidently represent your brand in the field.\\n\\nCall us at 800-652-1147 to experience the Medical Couriers difference.\",\"linkedinCompanyTagline\":\"55 Years of Delivery Integrity\",\"linkedinCompanyFollowerCount\":2317,\"linkedinCompanyWebsite\":\"https://www.medicalcouriers.com/request-a-pick-up/\",\"linkedinCompanyEmployeesCount\":54,\"linkedinCompanySize\":\"51-200 employees\",\"linkedinCompanyHeadquarter\":\"176 Otto Circle, California 95822, US\",\"linkedinCompanyIndustry\":\"Transportation, Logistics, Supply Chain and Storage\",\"linkedinCompanyFounded\":\"1969\",\"linkedinCompanySpecialities\":\"Medical Specimen Transport, Logistics\",\"scraperProfileId\":\"455099309\",\"scraperFullName\":\"Kyle Reagan\"},{\"companyIndustry\":\"Hospital & Health Care\",\"companyName\":\"Orlando Health\",\"companyWebsite\":\"http://www.orlandohealth.com\",\"firstName\":\"Cairo\",\"lastName\":\"Wasfy\",\"linkedinCompanyUrl\":\"https://www.linkedin.com/company/orlando-health/\",\"linkedinCompanySlug\":\"orlando-health\",\"linkedinCompanyId\":\"11083\",\"linkedinDescription\":\"\uf077 Supply Chain Systems\\n\uf077 Business Conversions\\n\uf077 Operational Effectiveness\\n\uf077 Financial Analysis/Modeling\\n\uf077 Competitive Analysis\\n\uf077 MDM\\n\uf077 Pyxis\\n\uf077 Supply Chain People Soft \\n\uf077 Excel, and Excess\\n\uf077 Business Development      \\n\uf077 Project Management\",\"linkedinFollowersCount\":3046,\"linkedinHeadline\":\"Chief Supply Chain Officer\\nOrlando Health\",\"linkedinIsHiringBadge\":false,\"linkedinIsOpenToWorkBadge\":false,\"linkedinJobDateRange\":\"Apr 2024 - Present\",\"linkedinJobLocation\":\"United States\",\"linkedinJobTitle\":\"Chief Supply Chain Officer\",\"linkedinPreviousCompanySlug\":\"ardenthealth\",\"linkedinPreviousJobDateRange\":\"Jun 2022 - Apr 2024\",\"linkedinPreviousJobLocation\":\"Nashville, Tennessee, United States\",\"linkedinPreviousJobTitle\":\"Chief Resource Officer\",\"linkedinProfileId\":\"130610263\",\"linkedinProfileSlug\":\"cairo-wasfy-7878a837\",\"linkedinProfileUrl\":\"https://linkedin.com/in/cairo-wasfy-7878a837\",\"linkedinProfileUrn\":\"ACoAAAfI9FcBpv15IwzgAAdvM7XUPvZ91fe4mu0\",\"linkedinProfileImageUrn\":\"urn:li:digitalmediaAsset:C4E03AQGTIkqMgabUAw\",\"linkedinProfileImageUrl\":\"https://media.licdn.com/dms/image/v2/C4E03AQGTIkqMgabUAw/profile-displayphoto-shrink_800_800/profile-displayphoto-shrink_800_800/0/1580221408483?e=1772064000&v=beta&t=8_W7a-rLz0ntvN-0iO6Z_ASZ7YRwCPKxoElzMtO9Clo\",\"linkedinSchoolUrl\":\"https://linkedin.com/school/uwf\",\"linkedinSchoolCompanySlug\":\"uwf\",\"linkedinSchoolDateRange\":\"1996 - 2001\",\"linkedinSchoolDegree\":\"Master of Business Administration (MBA)\",\"linkedinSchoolName\":\"University of West Florida\",\"linkedinSkillsLabel\":\"Microsoft Office, Microsoft Excel, Microsoft Word, Customer Service, PowerPoint, English, Windows, Research, Outlook, Teaching, Public Speaking, HTML, Strategic Planning, Budgets\",\"location\":\"United States\",\"previousCompanyName\":\"Ardent Health\",\"connectionDegree\":\"1st\",\"refreshedAt\":\"2026-02-09T00:05:39.468Z\",\"mutualConnectionsUrl\":\"https://www.linkedin.com/search/results/people/?facetNetwork=%5B%22F%22%5D&facetConnectionOf=%5B%22ACoAAAfI9FcBpv15IwzgAAdvM7XUPvZ91fe4mu0%22%5D&origin=MEMBER_PROFILE_CANNED_SEARCH&RESULT_TYPE=PEOPLE\",\"connectionsUrl\":\"https://www.linkedin.com/search/results/people/?facetConnectionOf=%5B%22ACoAAAfI9FcBpv15IwzgAAdvM7XUPvZ91fe4mu0%22%5D&facetNetwork=%5B%22F%22%2C%22S%22%5D&origin=MEMBER_PROFILE_CANNED_SEARCH\",\"linkedinConnectionsCount\":2990,\"profileUrl\":\"https://www.linkedin.com/in/cairo-wasfy-7878a837/\",\"linkedinCompanyName\":\"Orlando Health\",\"linkedinCompanyDescription\":\"Orlando Health is a not-for-profit healthcare organization with $7.6 billion of assets under management that serves the southeastern United States. Headquartered in Orlando, Florida, the system was founded more than 100 years ago.\",\"linkedinCompanyTagline\":\"A trusted leader inspiring hope through the advancement of health.\",\"linkedinCompanyFollowerCount\":116274,\"linkedinCompanyWebsite\":\"http://www.orlandohealth.com\",\"linkedinCompanyEmployeesCount\":17895,\"linkedinCompanySize\":\"10001 employees\",\"linkedinCompanyHeadquarter\":\"1414 Kuhl Ave, FL 32806, US\",\"linkedinCompanyIndustry\":\"Hospitals and Health Care\",\"linkedinCompanyFounded\":\"1918\",\"scraperProfileId\":\"455099309\",\"scraperFullName\":\"Kyle Reagan\"},{\"companyIndustry\":\"Hospital & Health Care\",\"companyName\":\"Cedars-Sinai\",\"companyWebsite\":\"https://careers.cshs.org/\",\"firstName\":\"Motz\",\"lastName\":\"Feinberg\",\"linkedinCompanyUrl\":\"https://www.linkedin.com/company/cedars-sinai-medical-center/\",\"linkedinCompanySlug\":\"cedars-sinai-medical-center\",\"linkedinCompanyId\":\"7508\",\"linkedinDescription\":\"Motz Feinberg is a supply chain executive with more than 25 years of experience in industries ranging from manufacturing and consumer goods to military logistics and healthcare.   As Vice President and Chief Supply Chain Officer, Feinberg is leading a supply chain transformation at Cedars-Sinai Health System in Los Angeles.  Prior to joining Cedars-Sinai, Feinberg led Kaiser Permanente\u2019s supply chain transformation. Motz holds three patents and has published multiple articles in healthcare publications as well as several strategic supply chain analyses for the US Air Force.\",\"linkedinFollowersCount\":9677,\"linkedinHeadline\":\"Chief Supply Chain Officer at Cedars-Sinai Health System\",\"linkedinIsHiringBadge\":false,\"linkedinIsOpenToWorkBadge\":false,\"linkedinJobDateRange\":\"Jun 2020 - Present\",\"linkedinJobLocation\":\"Los Angeles Metropolitan Area\",\"linkedinJobTitle\":\"VP & Chief Supply Chain Officer\",\"linkedinPreviousCompanySlug\":\"kaiser-permanente\",\"linkedinPreviousJobDateRange\":\"Jul 2017 - Jun 2020\",\"linkedinPreviousJobTitle\":\"VP Supply Chain Operations\",\"linkedinPreviousSchoolUrl\":\"https://linkedin.com/school/cornelljohnsonmba\",\"linkedinPreviousSchoolCompanySlug\":\"cornelljohnsonmba\",\"linkedinPreviousSchoolDegree\":\"MBA\",\"linkedinPreviousSchoolName\":\"Cornell Johnson Graduate School of Management\",\"linkedinProfileId\":\"17242847\",\"linkedinProfileSlug\":\"motz-feinberg-5bb9365\",\"linkedinProfileUrl\":\"https://linkedin.com/in/motz-feinberg-5bb9365\",\"linkedinProfileUrn\":\"ACoAAAEHGt8BB8b4kptp56Y1YJFHlepUcDOl4QI\",\"linkedinProfileImageUrn\":\"urn:li:digitalmediaAsset:C4E03AQH0neT9JB0cqw\",\"linkedinProfileImageUrl\":\"https://media.licdn.com/dms/image/v2/C4E03AQH0neT9JB0cqw/profile-displayphoto-shrink_800_800/profile-displayphoto-shrink_800_800/0/1627512690900?e=1772064000&v=beta&t=KK4I_DCsBNB2L1zmj1OTP_H_WW-w8yq_UsKwCj8_dkc\",\"linkedinSchoolUrl\":\"https://linkedin.com/school/harvard-business-school\",\"linkedinSchoolCompanySlug\":\"harvard-business-school\",\"linkedinSchoolDegree\":\"Executive Leadership Program\",\"linkedinSchoolName\":\"Harvard Business School\",\"linkedinSkillsLabel\":\"Supply Chain, Decision Support, Key Performance Indicators, MRP, Production Schedules, Supply Chain Management, P&L Accountability, Business Operations, Facilities Management, Organizational Design, Change Management, People Development, Capital Budgeting, Project Management, Six Sigma, Cross-functional Team Leadership, Process Improvement, Continuous Improvement, Lean Manufacturing, Logistics\",\"location\":\"Santa Monica, California, United States\",\"previousCompanyName\":\"Kaiser Permanente\",\"professionalEmail\":\"motz.feinberg@cshs.org\",\"connectionDegree\":\"1st\",\"refreshedAt\":\"2026-02-09T00:06:10.413Z\",\"mutualConnectionsUrl\":\"https://www.linkedin.com/search/results/people/?facetNetwork=%5B%22F%22%5D&facetConnectionOf=%5B%22ACoAAAEHGt8BB8b4kptp56Y1YJFHlepUcDOl4QI%22%5D&origin=MEMBER_PROFILE_CANNED_SEARCH&RESULT_TYPE=PEOPLE\",\"connectionsUrl\":\"https://www.linkedin.com/search/results/people/?facetConnectionOf=%5B%22ACoAAAEHGt8BB8b4kptp56Y1YJFHlepUcDOl4QI%22%5D&facetNetwork=%5B%22F%22%2C%22S%22%5D&origin=MEMBER_PROFILE_CANNED_SEARCH\",\"linkedinConnectionsCount\":9553,\"profileUrl\":\"https://www.linkedin.com/in/motz-feinberg-5bb9365/\",\"linkedinCompanyName\":\"Cedars-Sinai\",\"linkedinCompanyDescription\":\"Since its beginning in 1902, Cedars-Sinai has evolved to meet the healthcare needs of one of the most diverse regions in the nation, continually setting new standards for quality and innovation in patient care, research, teaching and community service.\\n\\nToday, Cedars-Sinai is widely known for its national leadership in transforming healthcare for the benefit of patients.\\n\\nCedars-Sinai receives consistent recognition for our excellence. Our awards include; being named one of America\u2019s Best Hospitals by U.S. News & World Report, receiving the National Research Corporation\u2019s Consumer Choice Award 19 years in a row for providing the highest-quality medical care in Los Angeles, achieving the longest-running Magnet designation for nursing excellence in California, and being recognized as The Advisory Board Company\u2019s 2017 Workplace of the Year, an award Cedars-Sinai has won three years in a row. This annual award recognizes hospitals and health systems nationwide that have outstanding levels of employee engagement.\\n\\nCedars-Sinai is a leader in the clinical care and research of heart disease, cancer and brain disorders, among other areas. Pioneering research achievements include using cardiac stem cells to repair damaged hearts, developing minimally invasive surgical techniques and discovering new types of drugs to target cancer more precisely.\\n\\nCedars-Sinai also impacts the future of healthcare through education programs that encompass everything from highly competitive medical residency and fellowship programs to a biomedical science and translational medicine PhD program, advanced training for nurses and educational opportunities for allied health professionals. Most notably, Cedars-Sinai demonstrates a longstanding commitment to strengthening the Los Angeles community through wide-ranging programs that improve the health of its most vulnerable residents.\",\"linkedinCompanyTagline\":\"Make a difference every single day at Cedars-Sinai\",\"linkedinCompanyFollowerCount\":157846,\"linkedinCompanyWebsite\":\"https://careers.cshs.org/\",\"linkedinCompanyEmployeesCount\":16397,\"linkedinCompanySize\":\"10001 employees\",\"linkedinCompanyHeadquarter\":\"8700 Beverly Blvd., CA 90048, US\",\"linkedinCompanyIndustry\":\"Hospitals and Health Care\",\"scraperProfileId\":\"455099309\",\"scraperFullName\":\"Kyle Reagan\"},{\"companyIndustry\":\"Hospital & Health Care\",\"companyName\":\"Cedars-Sinai\",\"companyWebsite\":\"https://careers.cshs.org/\",\"firstName\":\"Nicholas\",\"lastName\":\"Cline, MHA\",\"linkedinCompanyUrl\":\"https://www.linkedin.com/company/cedars-sinai-medical-center/\",\"linkedinCompanySlug\":\"cedars-sinai-medical-center\",\"linkedinCompanyId\":\"7508\",\"linkedinDescription\":\"As a patient, I have seen both high and low quality healthcare and understand the impact on patients and their families. Through leading a healthcare organization, I positively influence the quality of care provided, enhancing the patient experience. \\n\\nNotable Accomplishments Include:\\nProjects\\n    \u2022\\tEnvironmental Services (EVS) Review: Worked with the EVS Department at one of Sutter Health\u2019s largest hospitals to identify opportunities to strengthen policies and procedures impacting the quality of their work and ultimately improving the infection control efforts. This included enhancing the shift scheduling process and formalizing the quality control audits performed on patient rooms after cleaning. (2015)\\n    \u2022\\tBed Management and Flow Kaizen: Identified process efficiencies in moving patients from the Emergency Department to the Inpatient Floor, reducing costs and enhancing patient experience. This included establishing a process for Inpatient Floor nurses to proactively initiate patient transfers from the Emergency Department and study the patient\u2019s chart before transfer to reduce handoff time. (2016)\\n\\nAwards\\n    \u2022\\tAssociation of Local Government Auditors (ALGA) Gold Knighton Award for Best Audit in 2013 \u2013 Small Audit Shop Category (April 2014)\\n    \u2022\\tCalifornia Association of Certified Public Accountants (CalCPA) \u2013 CalCPA\u2019s leadership certificate program in (January 2011)\\n    \u2022\\tCalifornia State Auditor\u2019s People\u2019s Choice award for excellent mentoring, leading, and team building (January 2010)\",\"linkedinFollowersCount\":2706,\"linkedinHeadline\":\"Director, Supply Chain Operations at Cedars-Sinai\",\"linkedinIsHiringBadge\":true,\"linkedinIsOpenToWorkBadge\":false,\"linkedinJobDateRange\":\"Oct 2024 - Present\",\"linkedinJobLocation\":\"Los Angeles, California, United States\",\"linkedinJobTitle\":\"Director, Supply Chain Operations\",\"linkedinPreviousCompanySlug\":\"kaiser-permanente\",\"linkedinPreviousJobDateRange\":\"Apr 2020 - Oct 2024\",\"linkedinPreviousJobDescription\":\"9/2023 to 10/2024 - Supply Chain Director for the Los Angeles Medical Center (Sunset) service area.\\n \\n4/2020 to 9/2023 - Supply Chain Director for the West LA Medical Center service area.\",\"linkedinPreviousJobLocation\":\"Los Angeles, California, United States\",\"linkedinPreviousJobTitle\":\"Area Director, Supply Chain\",\"linkedinPreviousSchoolUrl\":\"https://linkedin.com/school/sacstate\",\"linkedinPreviousSchoolCompanySlug\":\"sacstate\",\"linkedinPreviousSchoolDateRange\":\"2004 - 2006\",\"linkedinPreviousSchoolDegree\":\"Bachelor of Science (B.S.)\",\"linkedinPreviousSchoolName\":\"California State University-Sacramento\",\"linkedinProfileId\":\"77224362\",\"linkedinProfileSlug\":\"nicholascline\",\"linkedinProfileUrl\":\"https://linkedin.com/in/nicholascline\",\"linkedinProfileUrn\":\"ACoAAASaWaoBn7H_l3J8aF3wbf4un2hiU7ruriM\",\"linkedinProfileImageUrn\":\"urn:li:digitalmediaAsset:C4E03AQGiZcLb-2vyKg\",\"linkedinProfileImageUrl\":\"https://media.licdn.com/dms/image/v2/C4E03AQGiZcLb-2vyKg/profile-displayphoto-shrink_800_800/profile-displayphoto-shrink_800_800/0/1566330646853?e=1772064000&v=beta&t=4tyGlyK-0mv2yvhA4GHmp9-lZgW7T_sUeZcKs3pW3GE\",\"linkedinSchoolUrl\":\"https://linkedin.com/school/university-of-southern-california\",\"linkedinSchoolCompanySlug\":\"university-of-southern-california\",\"linkedinSchoolDateRange\":\"2016 - 2018\",\"linkedinSchoolDegree\":\"Master's Degree\",\"linkedinSchoolDescription\":\"U.S. News & World Report ranks the USC Price School:\\n#2 overall among 262 schools of public affairs\\n#3 out of 15 in Health Policy and Management\",\"linkedinSchoolName\":\"University of Southern California\",\"linkedinSkillsLabel\":\"Auditing, Internal Controls, Internal Audit, Accounting, Sarbanes-Oxley Act, Financial Analysis, Policy, Financial Reporting, Financial Statements, Data Analysis, Team Leadership, Government, Leadership, Microsoft Excel, Financial Accounting, Microsoft Office, Project Management, Risk Assessment, Program Management, GAAP\",\"location\":\"Los Angeles, California, United States\",\"previousCompanyName\":\"Kaiser Permanente\",\"professionalEmail\":\"nicholas.cline@cshs.org\",\"connectionDegree\":\"1st\",\"refreshedAt\":\"2026-02-09T00:06:36.545Z\",\"mutualConnectionsUrl\":\"https://www.linkedin.com/search/results/people/?facetNetwork=%5B%22F%22%5D&facetConnectionOf=%5B%22ACoAAASaWaoBn7H_l3J8aF3wbf4un2hiU7ruriM%22%5D&origin=MEMBER_PROFILE_CANNED_SEARCH&RESULT_TYPE=PEOPLE\",\"connectionsUrl\":\"https://www.linkedin.com/search/results/people/?facetConnectionOf=%5B%22ACoAAASaWaoBn7H_l3J8aF3wbf4un2hiU7ruriM%22%5D&facetNetwork=%5B%22F%22%2C%22S%22%5D&origin=MEMBER_PROFILE_CANNED_SEARCH\",\"linkedinConnectionsCount\":2723,\"profileUrl\":\"https://www.linkedin.com/in/nicholascline/\",\"linkedinCompanyName\":\"Cedars-Sinai\",\"linkedinCompanyDescription\":\"Since its beginning in 1902, Cedars-Sinai has evolved to meet the healthcare needs of one of the most diverse regions in the nation, continually setting new standards for quality and innovation in patient care, research, teaching and community service.\\n\\nToday, Cedars-Sinai is widely known for its national leadership in transforming healthcare for the benefit of patients.\\n\\nCedars-Sinai receives consistent recognition for our excellence. Our awards include; being named one of America\u2019s Best Hospitals by U.S. News & World Report, receiving the National Research Corporation\u2019s Consumer Choice Award 19 years in a row for providing the highest-quality medical care in Los Angeles, achieving the longest-running Magnet designation for nursing excellence in California, and being recognized as The Advisory Board Company\u2019s 2017 Workplace of the Year, an award Cedars-Sinai has won three years in a row. This annual award recognizes hospitals and health systems nationwide that have outstanding levels of employee engagement.\\n\\nCedars-Sinai is a leader in the clinical care and research of heart disease, cancer and brain disorders, among other areas. Pioneering research achievements include using cardiac stem cells to repair damaged hearts, developing minimally invasive surgical techniques and discovering new types of drugs to target cancer more precisely.\\n\\nCedars-Sinai also impacts the future of healthcare through education programs that encompass everything from highly competitive medical residency and fellowship programs to a biomedical science and translational medicine PhD program, advanced training for nurses and educational opportunities for allied health professionals. Most notably, Cedars-Sinai demonstrates a longstanding commitment to strengthening the Los Angeles community through wide-ranging programs that improve the health of its most vulnerable residents.\",\"linkedinCompanyTagline\":\"Make a difference every single day at Cedars-Sinai\",\"linkedinCompanyFollowerCount\":157846,\"linkedinCompanyWebsite\":\"https://careers.cshs.org/\",\"linkedinCompanyEmployeesCount\":16397,\"linkedinCompanySize\":\"10001 employees\",\"linkedinCompanyHeadquarter\":\"8700 Beverly Blvd., CA 90048, US\",\"linkedinCompanyIndustry\":\"Hospitals and Health Care\",\"scraperProfileId\":\"455099309\",\"scraperFullName\":\"Kyle Reagan\"},{\"companyIndustry\":\"Hospital & Health Care\",\"companyName\":\"Children's Hospital Los Angeles (CHLA)\",\"companyWebsite\":\"http://chla.org/careers\",\"firstName\":\"LaVonnye\",\"lastName\":\"Chong, MS, CLS, MT (ASCP)\",\"linkedinCompanyUrl\":\"https://www.linkedin.com/company/childrensla/\",\"linkedinCompanySlug\":\"childrensla\",\"linkedinCompanyId\":\"2476\",\"linkedinDescription\":\"I am a performance-minded, solutions-driven executive who successfully defined organizational strategy and steered daily operations for multifaceted healthcare divisions and complex, regulated clinical environments. \\n\\nProudly, I have built a reputation for forging alliances and partnering with key decision-makers to revamp policies/procedures, drive efficiencies, engage staff, and optimize end-user/patient experience. I leverage forethought and big-picture mindset to enact positive, ongoing change. I source, build, mentor, lead and develop high-performing teams. I instill cohesive cultures of accountability and transparency.\\n\\nSpecialties:\\n\u2605 Strategic Planning \\n\u2605 Operations Management \\n\u2605 Process Improvement \\n\u2605 Fiscal Governance \\n\u2605 Change Management\\n\u2605 Healthcare Administration \\n\u2605 Staff Management \\n\u2605 Negotiations \\n\u2605 Business Partnering \\n\u2605 Talent Acquisition & Hiring\\n\u2605 Employee Engagement & Retention \\n\u2605 Regulatory Compliance \\n\u2605 Lab Operations \\n\u2605 Team Leadership & Mentoring\\n\u2605 Restructuring \\n\u2605 Program Development & Management \\n\u2605 Budget Management \\n\u2605 Human Resources \\n\u2605 Team Building\",\"linkedinFollowersCount\":1791,\"linkedinHeadline\":\"Director of Lab Operations, Chief of Staff at Children\u2019s Hospital Los Angeles\",\"linkedinIsHiringBadge\":false,\"linkedinIsOpenToWorkBadge\":false,\"linkedinJobDateRange\":\"May 2023 - Present\",\"linkedinJobTitle\":\"Director of Operations, Chief of Staff\",\"linkedinPreviousCompanySlug\":\"radychildrens\",\"linkedinPreviousJobDateRange\":\"Jul 2018 - May 2023\",\"linkedinPreviousJobTitle\":\"Director Of Laboratory Services\",\"linkedinPreviousSchoolUrl\":\"https://linkedin.com/school/andrews-university\",\"linkedinPreviousSchoolCompanySlug\":\"andrews-university\",\"linkedinPreviousSchoolDegree\":\"BS\",\"linkedinPreviousSchoolDescription\":\"Completed the business minor\",\"linkedinPreviousSchoolName\":\"Andrews University\",\"linkedinProfileId\":\"70763173\",\"linkedinProfileSlug\":\"lavonnyechong\",\"linkedinProfileUrl\":\"https://linkedin.com/in/lavonnyechong\",\"linkedinProfileUrn\":\"ACoAAAQ3wqUBHYLItAkKoItmhuBf587b0DbxoCk\",\"linkedinProfileImageUrn\":\"urn:li:digitalmediaAsset:D5603AQEruidtUSF9jw\",\"linkedinProfileImageUrl\":\"https://media.licdn.com/dms/image/v2/D5603AQEruidtUSF9jw/profile-displayphoto-crop_800_800/B56ZpA6VrhJwAI-/0/1762025626886?e=1772064000&v=beta&t=fkH_zDgXlNhTKwbjIfIOEDwuC8ZOtt6RcoCy5djl64s\",\"linkedinSchoolUrl\":\"https://linkedin.com/school/johns-hopkins-university\",\"linkedinSchoolCompanySlug\":\"johns-hopkins-university\",\"linkedinSchoolDegree\":\"MS\",\"linkedinSchoolDescription\":\"Concentrations:  Regulatory Affairs and Biotechnology Enterprise\",\"linkedinSchoolName\":\"The Johns Hopkins University\",\"linkedinSkillsLabel\":\"Healthcare, Hospitals, Healthcare Management, Medical Devices, Hematology, Phlebotomy, Laboratory Medicine, Clinical Chemistry, Immunology, Blood Bank, Point of Care, Biotechnology, Laboratory, Medicine, Pathology, Public Health, Quality Improvement, Regulatory Affairs, Clinical Research, HIPAA\",\"location\":\"San Diego, California, United States\",\"previousCompanyName\":\"Rady Children's Hospital-San Diego\",\"professionalEmail\":\"clavonnye@chla.org\",\"connectionDegree\":\"1st\",\"refreshedAt\":\"2026-02-09T00:07:01.454Z\",\"mutualConnectionsUrl\":\"https://www.linkedin.com/search/results/people/?facetNetwork=%5B%22F%22%5D&facetConnectionOf=%5B%22ACoAAAQ3wqUBHYLItAkKoItmhuBf587b0DbxoCk%22%5D&origin=MEMBER_PROFILE_CANNED_SEARCH&RESULT_TYPE=PEOPLE\",\"connectionsUrl\":\"https://www.linkedin.com/search/results/people/?facetConnectionOf=%5B%22ACoAAAQ3wqUBHYLItAkKoItmhuBf587b0DbxoCk%22%5D&facetNetwork=%5B%22F%22%2C%22S%22%5D&origin=MEMBER_PROFILE_CANNED_SEARCH\",\"linkedinConnectionsCount\":1783,\"profileUrl\":\"https://www.linkedin.com/in/lavonnyechong/\",\"linkedinCompanyName\":\"Children's Hospital Los Angeles (CHLA)\",\"linkedinCompanyDescription\":\"Here at CHLA, we believe every child deserves to enjoy all those special moments that childhood has to offer, free from pain and suffering. This is what inspires our staff to be their best\u2014and they\u2019re equipped with everything they need to succeed. If you want to help create more special moments for children where you\u2019re empowered to deliver the highest quality of care, this is the place to do it. At CHLA \u2014 named a top 10 children\u2019s hospital in the nation by U.S. News & World Report\u2014we empower our team members to deliver the highest quality care. As a Magnet-designated hospital, we provide compassionate care for our patients more than 528,000 times each year. If you\u2019re ready to make a difference for thousands of children while improving pediatric medicine, join us. \",\"linkedinCompanyFollowerCount\":115188,\"linkedinCompanyWebsite\":\"http://chla.org/careers\",\"linkedinCompanyEmployeesCount\":6860,\"linkedinCompanySize\":\"1001-5000 employees\",\"linkedinCompanyHeadquarter\":\"4650 Sunset Blvd, CA 90027, US\",\"linkedinCompanyIndustry\":\"Hospitals and Health Care\",\"linkedinCompanyFounded\":\"1901\",\"linkedinCompanySpecialities\":\"BMT, ED, CTICU, NICU, PICU, Transport, Hematology-Oncology, Rehabilitation, Specialty Surgical, Adolescent Medicine, Pediatric\",\"scraperProfileId\":\"455099309\",\"scraperFullName\":\"Kyle Reagan\"}]",
+            "resultObject": "[{\"companyIndustry\":\"Transportation/Trucking/Railroad\",\"companyName\":\"Medical Couriers\",\"companyWebsite\":\"https://www.medicalcouriers.com/request-a-pick-up/\",\"firstName\":\"RoseMarie\",\"lastName\":\"Curcuru\",\"linkedinCompanyUrl\":\"https://www.linkedin.com/company/medical-couriers-inc/\",\"linkedinCompanySlug\":\"medical-couriers-inc\",\"linkedinCompanyId\":\"6874844\",\"linkedinDescription\":\"As a Chief Operating Officer at Medical Couriers and Moment Logistics LLC, I oversee the daily operations and strategic direction of two of the fastest-growing logistics and supply chain companies in the country. With over 25 years of experience in executive leadership roles, I have a proven track record of delivering results, driving innovation, and enhancing customer satisfaction in a highly competitive and dynamic industry.\\n\\nMy core competencies include operations management, business planning, negotiation, freight, team building, manufacturing process improvement, and new business development. I am passionate about creating efficient, scalable, and sustainable solutions that optimize the performance and profitability of both companies. My mission is to empower and support our talented and diverse teams, foster a culture of excellence and collaboration, and provide the best possible service to our clients.\",\"linkedinFollowersCount\":2674,\"linkedinHeadline\":\"Chief Operating Officer \",\"linkedinIsHiringBadge\":false,\"linkedinIsOpenToWorkBadge\":false,\"linkedinJobDateRange\":\"Feb 2024 - Present\",\"linkedinJobLocation\":\"Sacramento, California, United States\",\"linkedinJobTitle\":\"Chief Operating Officer\",\"linkedinPreviousCompanySlug\":\"moment-logistics-llc\",\"linkedinPreviousJobDateRange\":\"Feb 2024 - Present\",\"linkedinPreviousJobLocation\":\"Sacramento, California, United States\",\"linkedinPreviousJobTitle\":\"Chief Operating Officer\",\"linkedinProfileId\":\"38696197\",\"linkedinProfileSlug\":\"rosemarie-curcuru-771b6110\",\"linkedinProfileUrl\":\"https://linkedin.com/in/rosemarie-curcuru-771b6110\",\"linkedinProfileUrn\":\"ACoAAAJOdQUBPB323oAkw04JGNu0EMkkEIgHNY0\",\"linkedinProfileImageUrn\":\"urn:li:digitalmediaAsset:D5603AQGzOOTEYtAaAw\",\"linkedinProfileImageUrl\":\"https://media.licdn.com/dms/image/v2/D5603AQGzOOTEYtAaAw/profile-displayphoto-shrink_800_800/profile-displayphoto-shrink_800_800/0/1731734646766?e=1772064000&v=beta&t=IKfom1F7tPnwxpq3KvIHb95BerJBO3zfkZEcmUHu688\",\"linkedinSchoolUrl\":\"https://linkedin.com/school/buttecollege\",\"linkedinSchoolCompanySlug\":\"buttecollege\",\"linkedinSchoolDateRange\":\"Sep 1982 - Jun 1984\",\"linkedinSchoolDegree\":\"Business Administration\",\"linkedinSchoolName\":\"Butte College\",\"linkedinSkillsLabel\":\"Account Management, Analytical Skills, Financial Analysis, Logistics, 3PL, Transportation, Freight, Transportation Management, Supply Chain, Shipping, Operations Management, Logistics Management, Supply Chain Management, Team Building, Air Freight, Warehousing, Trucking, Inventory Management, Truckload, Income Statement\",\"location\":\"Sacramento, California, United States\",\"previousCompanyName\":\"Moment Logistics LLC\",\"professionalEmail\":\"rosemarie.curcuru@medicalcouriers.com\",\"connectionDegree\":\"1st\",\"refreshedAt\":\"2026-02-09T00:05:14.257Z\",\"mutualConnectionsUrl\":\"https://www.linkedin.com/search/results/people/?facetNetwork=%5B%22F%22%5D&facetConnectionOf=%5B%22ACoAAAJOdQUBPB323oAkw04JGNu0EMkkEIgHNY0%22%5D&origin=MEMBER_PROFILE_CANNED_SEARCH&RESULT_TYPE=PEOPLE\",\"connectionsUrl\":\"https://www.linkedin.com/search/results/people/?facetConnectionOf=%5B%22ACoAAAJOdQUBPB323oAkw04JGNu0EMkkEIgHNY0%22%5D&facetNetwork=%5B%22F%22%2C%22S%22%5D&origin=MEMBER_PROFILE_CANNED_SEARCH\",\"linkedinConnectionsCount\":2580,\"profileUrl\":\"https://www.linkedin.com/in/rosemarie-curcuru-771b6110/\",\"linkedinCompanyName\":\"Medical Couriers\",\"linkedinCompanyDescription\":\"Medical Couriers, Inc. is a 50+ year old medical-only delivery service that transports over ten million specimens a year across the United States for labs, clinics, hospitals, and universities.\\n\\nWe apply our lifetime of logistics experience to your courier needs to efficiently plan routes, consolidate service and get specimens to where you need them to be on time and in perfect condition.\\n\\nUnlike other medical-only delivery companies, we train our employee drivers to care. That’s why we prepare our drivers with strict protocols to protect the patient, deliver CARE training to convey the human consequence of the work, and execute an 8 point driver checklist before going out the door so they can confidently represent your brand in the field.\\n\\nCall us at 800-652-1147 to experience the Medical Couriers difference.\",\"linkedinCompanyTagline\":\"55 Years of Delivery Integrity\",\"linkedinCompanyFollowerCount\":2317,\"linkedinCompanyWebsite\":\"https://www.medicalcouriers.com/request-a-pick-up/\",\"linkedinCompanyEmployeesCount\":54,\"linkedinCompanySize\":\"51-200 employees\",\"linkedinCompanyHeadquarter\":\"176 Otto Circle, California 95822, US\",\"linkedinCompanyIndustry\":\"Transportation, Logistics, Supply Chain and Storage\",\"linkedinCompanyFounded\":\"1969\",\"linkedinCompanySpecialities\":\"Medical Specimen Transport, Logistics\",\"scraperProfileId\":\"455099309\",\"scraperFullName\":\"Kyle Reagan\"},{\"companyIndustry\":\"Hospital & Health Care\",\"companyName\":\"Orlando Health\",\"companyWebsite\":\"http://www.orlandohealth.com\",\"firstName\":\"Cairo\",\"lastName\":\"Wasfy\",\"linkedinCompanyUrl\":\"https://www.linkedin.com/company/orlando-health/\",\"linkedinCompanySlug\":\"orlando-health\",\"linkedinCompanyId\":\"11083\",\"linkedinDescription\":\" Supply Chain Systems\\n Business Conversions\\n Operational Effectiveness\\n Financial Analysis/Modeling\\n Competitive Analysis\\n MDM\\n Pyxis\\n Supply Chain People Soft \\n Excel, and Excess\\n Business Development      \\n Project Management\",\"linkedinFollowersCount\":3046,\"linkedinHeadline\":\"Chief Supply Chain Officer\\nOrlando Health\",\"linkedinIsHiringBadge\":false,\"linkedinIsOpenToWorkBadge\":false,\"linkedinJobDateRange\":\"Apr 2024 - Present\",\"linkedinJobLocation\":\"United States\",\"linkedinJobTitle\":\"Chief Supply Chain Officer\",\"linkedinPreviousCompanySlug\":\"ardenthealth\",\"linkedinPreviousJobDateRange\":\"Jun 2022 - Apr 2024\",\"linkedinPreviousJobLocation\":\"Nashville, Tennessee, United States\",\"linkedinPreviousJobTitle\":\"Chief Resource Officer\",\"linkedinProfileId\":\"130610263\",\"linkedinProfileSlug\":\"cairo-wasfy-7878a837\",\"linkedinProfileUrl\":\"https://linkedin.com/in/cairo-wasfy-7878a837\",\"linkedinProfileUrn\":\"ACoAAAfI9FcBpv15IwzgAAdvM7XUPvZ91fe4mu0\",\"linkedinProfileImageUrn\":\"urn:li:digitalmediaAsset:C4E03AQGTIkqMgabUAw\",\"linkedinProfileImageUrl\":\"https://media.licdn.com/dms/image/v2/C4E03AQGTIkqMgabUAw/profile-displayphoto-shrink_800_800/profile-displayphoto-shrink_800_800/0/1580221408483?e=1772064000&v=beta&t=8_W7a-rLz0ntvN-0iO6Z_ASZ7YRwCPKxoElzMtO9Clo\",\"linkedinSchoolUrl\":\"https://linkedin.com/school/uwf\",\"linkedinSchoolCompanySlug\":\"uwf\",\"linkedinSchoolDateRange\":\"1996 - 2001\",\"linkedinSchoolDegree\":\"Master of Business Administration (MBA)\",\"linkedinSchoolName\":\"University of West Florida\",\"linkedinSkillsLabel\":\"Microsoft Office, Microsoft Excel, Microsoft Word, Customer Service, PowerPoint, English, Windows, Research, Outlook, Teaching, Public Speaking, HTML, Strategic Planning, Budgets\",\"location\":\"United States\",\"previousCompanyName\":\"Ardent Health\",\"connectionDegree\":\"1st\",\"refreshedAt\":\"2026-02-09T00:05:39.468Z\",\"mutualConnectionsUrl\":\"https://www.linkedin.com/search/results/people/?facetNetwork=%5B%22F%22%5D&facetConnectionOf=%5B%22ACoAAAfI9FcBpv15IwzgAAdvM7XUPvZ91fe4mu0%22%5D&origin=MEMBER_PROFILE_CANNED_SEARCH&RESULT_TYPE=PEOPLE\",\"connectionsUrl\":\"https://www.linkedin.com/search/results/people/?facetConnectionOf=%5B%22ACoAAAfI9FcBpv15IwzgAAdvM7XUPvZ91fe4mu0%22%5D&facetNetwork=%5B%22F%22%2C%22S%22%5D&origin=MEMBER_PROFILE_CANNED_SEARCH\",\"linkedinConnectionsCount\":2990,\"profileUrl\":\"https://www.linkedin.com/in/cairo-wasfy-7878a837/\",\"linkedinCompanyName\":\"Orlando Health\",\"linkedinCompanyDescription\":\"Orlando Health is a not-for-profit healthcare organization with $7.6 billion of assets under management that serves the southeastern United States. Headquartered in Orlando, Florida, the system was founded more than 100 years ago.\",\"linkedinCompanyTagline\":\"A trusted leader inspiring hope through the advancement of health.\",\"linkedinCompanyFollowerCount\":116274,\"linkedinCompanyWebsite\":\"http://www.orlandohealth.com\",\"linkedinCompanyEmployeesCount\":17895,\"linkedinCompanySize\":\"10001 employees\",\"linkedinCompanyHeadquarter\":\"1414 Kuhl Ave, FL 32806, US\",\"linkedinCompanyIndustry\":\"Hospitals and Health Care\",\"linkedinCompanyFounded\":\"1918\",\"scraperProfileId\":\"455099309\",\"scraperFullName\":\"Kyle Reagan\"},{\"companyIndustry\":\"Hospital & Health Care\",\"companyName\":\"Cedars-Sinai\",\"companyWebsite\":\"https://careers.cshs.org/\",\"firstName\":\"Motz\",\"lastName\":\"Feinberg\",\"linkedinCompanyUrl\":\"https://www.linkedin.com/company/cedars-sinai-medical-center/\",\"linkedinCompanySlug\":\"cedars-sinai-medical-center\",\"linkedinCompanyId\":\"7508\",\"linkedinDescription\":\"Motz Feinberg is a supply chain executive with more than 25 years of experience in industries ranging from manufacturing and consumer goods to military logistics and healthcare.   As Vice President and Chief Supply Chain Officer, Feinberg is leading a supply chain transformation at Cedars-Sinai Health System in Los Angeles.  Prior to joining Cedars-Sinai, Feinberg led Kaiser Permanente’s supply chain transformation. Motz holds three patents and has published multiple articles in healthcare publications as well as several strategic supply chain analyses for the US Air Force.\",\"linkedinFollowersCount\":9677,\"linkedinHeadline\":\"Chief Supply Chain Officer at Cedars-Sinai Health System\",\"linkedinIsHiringBadge\":false,\"linkedinIsOpenToWorkBadge\":false,\"linkedinJobDateRange\":\"Jun 2020 - Present\",\"linkedinJobLocation\":\"Los Angeles Metropolitan Area\",\"linkedinJobTitle\":\"VP & Chief Supply Chain Officer\",\"linkedinPreviousCompanySlug\":\"kaiser-permanente\",\"linkedinPreviousJobDateRange\":\"Jul 2017 - Jun 2020\",\"linkedinPreviousJobTitle\":\"VP Supply Chain Operations\",\"linkedinPreviousSchoolUrl\":\"https://linkedin.com/school/cornelljohnsonmba\",\"linkedinPreviousSchoolCompanySlug\":\"cornelljohnsonmba\",\"linkedinPreviousSchoolDegree\":\"MBA\",\"linkedinPreviousSchoolName\":\"Cornell Johnson Graduate School of Management\",\"linkedinProfileId\":\"17242847\",\"linkedinProfileSlug\":\"motz-feinberg-5bb9365\",\"linkedinProfileUrl\":\"https://linkedin.com/in/motz-feinberg-5bb9365\",\"linkedinProfileUrn\":\"ACoAAAEHGt8BB8b4kptp56Y1YJFHlepUcDOl4QI\",\"linkedinProfileImageUrn\":\"urn:li:digitalmediaAsset:C4E03AQH0neT9JB0cqw\",\"linkedinProfileImageUrl\":\"https://media.licdn.com/dms/image/v2/C4E03AQH0neT9JB0cqw/profile-displayphoto-shrink_800_800/profile-displayphoto-shrink_800_800/0/1627512690900?e=1772064000&v=beta&t=KK4I_DCsBNB2L1zmj1OTP_H_WW-w8yq_UsKwCj8_dkc\",\"linkedinSchoolUrl\":\"https://linkedin.com/school/harvard-business-school\",\"linkedinSchoolCompanySlug\":\"harvard-business-school\",\"linkedinSchoolDegree\":\"Executive Leadership Program\",\"linkedinSchoolName\":\"Harvard Business School\",\"linkedinSkillsLabel\":\"Supply Chain, Decision Support, Key Performance Indicators, MRP, Production Schedules, Supply Chain Management, P&L Accountability, Business Operations, Facilities Management, Organizational Design, Change Management, People Development, Capital Budgeting, Project Management, Six Sigma, Cross-functional Team Leadership, Process Improvement, Continuous Improvement, Lean Manufacturing, Logistics\",\"location\":\"Santa Monica, California, United States\",\"previousCompanyName\":\"Kaiser Permanente\",\"professionalEmail\":\"motz.feinberg@cshs.org\",\"connectionDegree\":\"1st\",\"refreshedAt\":\"2026-02-09T00:06:10.413Z\",\"mutualConnectionsUrl\":\"https://www.linkedin.com/search/results/people/?facetNetwork=%5B%22F%22%5D&facetConnectionOf=%5B%22ACoAAAEHGt8BB8b4kptp56Y1YJFHlepUcDOl4QI%22%5D&origin=MEMBER_PROFILE_CANNED_SEARCH&RESULT_TYPE=PEOPLE\",\"connectionsUrl\":\"https://www.linkedin.com/search/results/people/?facetConnectionOf=%5B%22ACoAAAEHGt8BB8b4kptp56Y1YJFHlepUcDOl4QI%22%5D&facetNetwork=%5B%22F%22%2C%22S%22%5D&origin=MEMBER_PROFILE_CANNED_SEARCH\",\"linkedinConnectionsCount\":9553,\"profileUrl\":\"https://www.linkedin.com/in/motz-feinberg-5bb9365/\",\"linkedinCompanyName\":\"Cedars-Sinai\",\"linkedinCompanyDescription\":\"Since its beginning in 1902, Cedars-Sinai has evolved to meet the healthcare needs of one of the most diverse regions in the nation, continually setting new standards for quality and innovation in patient care, research, teaching and community service.\\n\\nToday, Cedars-Sinai is widely known for its national leadership in transforming healthcare for the benefit of patients.\\n\\nCedars-Sinai receives consistent recognition for our excellence. Our awards include; being named one of America’s Best Hospitals by U.S. News & World Report, receiving the National Research Corporation’s Consumer Choice Award 19 years in a row for providing the highest-quality medical care in Los Angeles, achieving the longest-running Magnet designation for nursing excellence in California, and being recognized as The Advisory Board Company’s 2017 Workplace of the Year, an award Cedars-Sinai has won three years in a row. This annual award recognizes hospitals and health systems nationwide that have outstanding levels of employee engagement.\\n\\nCedars-Sinai is a leader in the clinical care and research of heart disease, cancer and brain disorders, among other areas. Pioneering research achievements include using cardiac stem cells to repair damaged hearts, developing minimally invasive surgical techniques and discovering new types of drugs to target cancer more precisely.\\n\\nCedars-Sinai also impacts the future of healthcare through education programs that encompass everything from highly competitive medical residency and fellowship programs to a biomedical science and translational medicine PhD program, advanced training for nurses and educational opportunities for allied health professionals. Most notably, Cedars-Sinai demonstrates a longstanding commitment to strengthening the Los Angeles community through wide-ranging programs that improve the health of its most vulnerable residents.\",\"linkedinCompanyTagline\":\"Make a difference every single day at Cedars-Sinai\",\"linkedinCompanyFollowerCount\":157846,\"linkedinCompanyWebsite\":\"https://careers.cshs.org/\",\"linkedinCompanyEmployeesCount\":16397,\"linkedinCompanySize\":\"10001 employees\",\"linkedinCompanyHeadquarter\":\"8700 Beverly Blvd., CA 90048, US\",\"linkedinCompanyIndustry\":\"Hospitals and Health Care\",\"scraperProfileId\":\"455099309\",\"scraperFullName\":\"Kyle Reagan\"},{\"companyIndustry\":\"Hospital & Health Care\",\"companyName\":\"Cedars-Sinai\",\"companyWebsite\":\"https://careers.cshs.org/\",\"firstName\":\"Nicholas\",\"lastName\":\"Cline, MHA\",\"linkedinCompanyUrl\":\"https://www.linkedin.com/company/cedars-sinai-medical-center/\",\"linkedinCompanySlug\":\"cedars-sinai-medical-center\",\"linkedinCompanyId\":\"7508\",\"linkedinDescription\":\"As a patient, I have seen both high and low quality healthcare and understand the impact on patients and their families. Through leading a healthcare organization, I positively influence the quality of care provided, enhancing the patient experience. \\n\\nNotable Accomplishments Include:\\nProjects\\n    •\\tEnvironmental Services (EVS) Review: Worked with the EVS Department at one of Sutter Health’s largest hospitals to identify opportunities to strengthen policies and procedures impacting the quality of their work and ultimately improving the infection control efforts. This included enhancing the shift scheduling process and formalizing the quality control audits performed on patient rooms after cleaning. (2015)\\n    •\\tBed Management and Flow Kaizen: Identified process efficiencies in moving patients from the Emergency Department to the Inpatient Floor, reducing costs and enhancing patient experience. This included establishing a process for Inpatient Floor nurses to proactively initiate patient transfers from the Emergency Department and study the patient’s chart before transfer to reduce handoff time. (2016)\\n\\nAwards\\n    •\\tAssociation of Local Government Auditors (ALGA) Gold Knighton Award for Best Audit in 2013 – Small Audit Shop Category (April 2014)\\n    •\\tCalifornia Association of Certified Public Accountants (CalCPA) – CalCPA’s leadership certificate program in (January 2011)\\n    •\\tCalifornia State Auditor’s People’s Choice award for excellent mentoring, leading, and team building (January 2010)\",\"linkedinFollowersCount\":2706,\"linkedinHeadline\":\"Director, Supply Chain Operations at Cedars-Sinai\",\"linkedinIsHiringBadge\":true,\"linkedinIsOpenToWorkBadge\":false,\"linkedinJobDateRange\":\"Oct 2024 - Present\",\"linkedinJobLocation\":\"Los Angeles, California, United States\",\"linkedinJobTitle\":\"Director, Supply Chain Operations\",\"linkedinPreviousCompanySlug\":\"kaiser-permanente\",\"linkedinPreviousJobDateRange\":\"Apr 2020 - Oct 2024\",\"linkedinPreviousJobDescription\":\"9/2023 to 10/2024 - Supply Chain Director for the Los Angeles Medical Center (Sunset) service area.\\n \\n4/2020 to 9/2023 - Supply Chain Director for the West LA Medical Center service area.\",\"linkedinPreviousJobLocation\":\"Los Angeles, California, United States\",\"linkedinPreviousJobTitle\":\"Area Director, Supply Chain\",\"linkedinPreviousSchoolUrl\":\"https://linkedin.com/school/sacstate\",\"linkedinPreviousSchoolCompanySlug\":\"sacstate\",\"linkedinPreviousSchoolDateRange\":\"2004 - 2006\",\"linkedinPreviousSchoolDegree\":\"Bachelor of Science (B.S.)\",\"linkedinPreviousSchoolName\":\"California State University-Sacramento\",\"linkedinProfileId\":\"77224362\",\"linkedinProfileSlug\":\"nicholascline\",\"linkedinProfileUrl\":\"https://linkedin.com/in/nicholascline\",\"linkedinProfileUrn\":\"ACoAAASaWaoBn7H_l3J8aF3wbf4un2hiU7ruriM\",\"linkedinProfileImageUrn\":\"urn:li:digitalmediaAsset:C4E03AQGiZcLb-2vyKg\",\"linkedinProfileImageUrl\":\"https://media.licdn.com/dms/image/v2/C4E03AQGiZcLb-2vyKg/profile-displayphoto-shrink_800_800/profile-displayphoto-shrink_800_800/0/1566330646853?e=1772064000&v=beta&t=4tyGlyK-0mv2yvhA4GHmp9-lZgW7T_sUeZcKs3pW3GE\",\"linkedinSchoolUrl\":\"https://linkedin.com/school/university-of-southern-california\",\"linkedinSchoolCompanySlug\":\"university-of-southern-california\",\"linkedinSchoolDateRange\":\"2016 - 2018\",\"linkedinSchoolDegree\":\"Master's Degree\",\"linkedinSchoolDescription\":\"U.S. News & World Report ranks the USC Price School:\\n#2 overall among 262 schools of public affairs\\n#3 out of 15 in Health Policy and Management\",\"linkedinSchoolName\":\"University of Southern California\",\"linkedinSkillsLabel\":\"Auditing, Internal Controls, Internal Audit, Accounting, Sarbanes-Oxley Act, Financial Analysis, Policy, Financial Reporting, Financial Statements, Data Analysis, Team Leadership, Government, Leadership, Microsoft Excel, Financial Accounting, Microsoft Office, Project Management, Risk Assessment, Program Management, GAAP\",\"location\":\"Los Angeles, California, United States\",\"previousCompanyName\":\"Kaiser Permanente\",\"professionalEmail\":\"nicholas.cline@cshs.org\",\"connectionDegree\":\"1st\",\"refreshedAt\":\"2026-02-09T00:06:36.545Z\",\"mutualConnectionsUrl\":\"https://www.linkedin.com/search/results/people/?facetNetwork=%5B%22F%22%5D&facetConnectionOf=%5B%22ACoAAASaWaoBn7H_l3J8aF3wbf4un2hiU7ruriM%22%5D&origin=MEMBER_PROFILE_CANNED_SEARCH&RESULT_TYPE=PEOPLE\",\"connectionsUrl\":\"https://www.linkedin.com/search/results/people/?facetConnectionOf=%5B%22ACoAAASaWaoBn7H_l3J8aF3wbf4un2hiU7ruriM%22%5D&facetNetwork=%5B%22F%22%2C%22S%22%5D&origin=MEMBER_PROFILE_CANNED_SEARCH\",\"linkedinConnectionsCount\":2723,\"profileUrl\":\"https://www.linkedin.com/in/nicholascline/\",\"linkedinCompanyName\":\"Cedars-Sinai\",\"linkedinCompanyDescription\":\"Since its beginning in 1902, Cedars-Sinai has evolved to meet the healthcare needs of one of the most diverse regions in the nation, continually setting new standards for quality and innovation in patient care, research, teaching and community service.\\n\\nToday, Cedars-Sinai is widely known for its national leadership in transforming healthcare for the benefit of patients.\\n\\nCedars-Sinai receives consistent recognition for our excellence. Our awards include; being named one of America’s Best Hospitals by U.S. News & World Report, receiving the National Research Corporation’s Consumer Choice Award 19 years in a row for providing the highest-quality medical care in Los Angeles, achieving the longest-running Magnet designation for nursing excellence in California, and being recognized as The Advisory Board Company’s 2017 Workplace of the Year, an award Cedars-Sinai has won three years in a row. This annual award recognizes hospitals and health systems nationwide that have outstanding levels of employee engagement.\\n\\nCedars-Sinai is a leader in the clinical care and research of heart disease, cancer and brain disorders, among other areas. Pioneering research achievements include using cardiac stem cells to repair damaged hearts, developing minimally invasive surgical techniques and discovering new types of drugs to target cancer more precisely.\\n\\nCedars-Sinai also impacts the future of healthcare through education programs that encompass everything from highly competitive medical residency and fellowship programs to a biomedical science and translational medicine PhD program, advanced training for nurses and educational opportunities for allied health professionals. Most notably, Cedars-Sinai demonstrates a longstanding commitment to strengthening the Los Angeles community through wide-ranging programs that improve the health of its most vulnerable residents.\",\"linkedinCompanyTagline\":\"Make a difference every single day at Cedars-Sinai\",\"linkedinCompanyFollowerCount\":157846,\"linkedinCompanyWebsite\":\"https://careers.cshs.org/\",\"linkedinCompanyEmployeesCount\":16397,\"linkedinCompanySize\":\"10001 employees\",\"linkedinCompanyHeadquarter\":\"8700 Beverly Blvd., CA 90048, US\",\"linkedinCompanyIndustry\":\"Hospitals and Health Care\",\"scraperProfileId\":\"455099309\",\"scraperFullName\":\"Kyle Reagan\"},{\"companyIndustry\":\"Hospital & Health Care\",\"companyName\":\"Children's Hospital Los Angeles (CHLA)\",\"companyWebsite\":\"http://chla.org/careers\",\"firstName\":\"LaVonnye\",\"lastName\":\"Chong, MS, CLS, MT (ASCP)\",\"linkedinCompanyUrl\":\"https://www.linkedin.com/company/childrensla/\",\"linkedinCompanySlug\":\"childrensla\",\"linkedinCompanyId\":\"2476\",\"linkedinDescription\":\"I am a performance-minded, solutions-driven executive who successfully defined organizational strategy and steered daily operations for multifaceted healthcare divisions and complex, regulated clinical environments. \\n\\nProudly, I have built a reputation for forging alliances and partnering with key decision-makers to revamp policies/procedures, drive efficiencies, engage staff, and optimize end-user/patient experience. I leverage forethought and big-picture mindset to enact positive, ongoing change. I source, build, mentor, lead and develop high-performing teams. I instill cohesive cultures of accountability and transparency.\\n\\nSpecialties:\\n★ Strategic Planning \\n★ Operations Management \\n★ Process Improvement \\n★ Fiscal Governance \\n★ Change Management\\n★ Healthcare Administration \\n★ Staff Management \\n★ Negotiations \\n★ Business Partnering \\n★ Talent Acquisition & Hiring\\n★ Employee Engagement & Retention \\n★ Regulatory Compliance \\n★ Lab Operations \\n★ Team Leadership & Mentoring\\n★ Restructuring \\n★ Program Development & Management \\n★ Budget Management \\n★ Human Resources \\n★ Team Building\",\"linkedinFollowersCount\":1791,\"linkedinHeadline\":\"Director of Lab Operations, Chief of Staff at Children’s Hospital Los Angeles\",\"linkedinIsHiringBadge\":false,\"linkedinIsOpenToWorkBadge\":false,\"linkedinJobDateRange\":\"May 2023 - Present\",\"linkedinJobTitle\":\"Director of Operations, Chief of Staff\",\"linkedinPreviousCompanySlug\":\"radychildrens\",\"linkedinPreviousJobDateRange\":\"Jul 2018 - May 2023\",\"linkedinPreviousJobTitle\":\"Director Of Laboratory Services\",\"linkedinPreviousSchoolUrl\":\"https://linkedin.com/school/andrews-university\",\"linkedinPreviousSchoolCompanySlug\":\"andrews-university\",\"linkedinPreviousSchoolDegree\":\"BS\",\"linkedinPreviousSchoolDescription\":\"Completed the business minor\",\"linkedinPreviousSchoolName\":\"Andrews University\",\"linkedinProfileId\":\"70763173\",\"linkedinProfileSlug\":\"lavonnyechong\",\"linkedinProfileUrl\":\"https://linkedin.com/in/lavonnyechong\",\"linkedinProfileUrn\":\"ACoAAAQ3wqUBHYLItAkKoItmhuBf587b0DbxoCk\",\"linkedinProfileImageUrn\":\"urn:li:digitalmediaAsset:D5603AQEruidtUSF9jw\",\"linkedinProfileImageUrl\":\"https://media.licdn.com/dms/image/v2/D5603AQEruidtUSF9jw/profile-displayphoto-crop_800_800/B56ZpA6VrhJwAI-/0/1762025626886?e=1772064000&v=beta&t=fkH_zDgXlNhTKwbjIfIOEDwuC8ZOtt6RcoCy5djl64s\",\"linkedinSchoolUrl\":\"https://linkedin.com/school/johns-hopkins-university\",\"linkedinSchoolCompanySlug\":\"johns-hopkins-university\",\"linkedinSchoolDegree\":\"MS\",\"linkedinSchoolDescription\":\"Concentrations:  Regulatory Affairs and Biotechnology Enterprise\",\"linkedinSchoolName\":\"The Johns Hopkins University\",\"linkedinSkillsLabel\":\"Healthcare, Hospitals, Healthcare Management, Medical Devices, Hematology, Phlebotomy, Laboratory Medicine, Clinical Chemistry, Immunology, Blood Bank, Point of Care, Biotechnology, Laboratory, Medicine, Pathology, Public Health, Quality Improvement, Regulatory Affairs, Clinical Research, HIPAA\",\"location\":\"San Diego, California, United States\",\"previousCompanyName\":\"Rady Children's Hospital-San Diego\",\"professionalEmail\":\"clavonnye@chla.org\",\"connectionDegree\":\"1st\",\"refreshedAt\":\"2026-02-09T00:07:01.454Z\",\"mutualConnectionsUrl\":\"https://www.linkedin.com/search/results/people/?facetNetwork=%5B%22F%22%5D&facetConnectionOf=%5B%22ACoAAAQ3wqUBHYLItAkKoItmhuBf587b0DbxoCk%22%5D&origin=MEMBER_PROFILE_CANNED_SEARCH&RESULT_TYPE=PEOPLE\",\"connectionsUrl\":\"https://www.linkedin.com/search/results/people/?facetConnectionOf=%5B%22ACoAAAQ3wqUBHYLItAkKoItmhuBf587b0DbxoCk%22%5D&facetNetwork=%5B%22F%22%2C%22S%22%5D&origin=MEMBER_PROFILE_CANNED_SEARCH\",\"linkedinConnectionsCount\":1783,\"profileUrl\":\"https://www.linkedin.com/in/lavonnyechong/\",\"linkedinCompanyName\":\"Children's Hospital Los Angeles (CHLA)\",\"linkedinCompanyDescription\":\"Here at CHLA, we believe every child deserves to enjoy all those special moments that childhood has to offer, free from pain and suffering. This is what inspires our staff to be their best—and they’re equipped with everything they need to succeed. If you want to help create more special moments for children where you’re empowered to deliver the highest quality of care, this is the place to do it. At CHLA — named a top 10 children’s hospital in the nation by U.S. News & World Report—we empower our team members to deliver the highest quality care. As a Magnet-designated hospital, we provide compassionate care for our patients more than 528,000 times each year. If you’re ready to make a difference for thousands of children while improving pediatric medicine, join us. \",\"linkedinCompanyFollowerCount\":115188,\"linkedinCompanyWebsite\":\"http://chla.org/careers\",\"linkedinCompanyEmployeesCount\":6860,\"linkedinCompanySize\":\"1001-5000 employees\",\"linkedinCompanyHeadquarter\":\"4650 Sunset Blvd, CA 90027, US\",\"linkedinCompanyIndustry\":\"Hospitals and Health Care\",\"linkedinCompanyFounded\":\"1901\",\"linkedinCompanySpecialities\":\"BMT, ED, CTICU, NICU, PICU, Transport, Hematology-Oncology, Rehabilitation, Specialty Surgical, Adolescent Medicine, Pediatric\",\"scraperProfileId\":\"455099309\",\"scraperFullName\":\"Kyle Reagan\"}]",
             "exitMessage": "finished",
             "exitCode": 0
           },
@@ -2195,7 +2465,7 @@
       },
       {
         "parameters": {
-          "jsCode": "// Loop complete \u2014 summary\nreturn [{ json: { done: true, message: 'HubSpot sync complete' } }];"
+          "jsCode": "// Loop complete — summary\nreturn [{ json: { done: true, message: 'HubSpot sync complete' } }];"
         },
         "id": "wf3v2h-sync-complete",
         "name": "Sync Complete",
@@ -2252,7 +2522,7 @@
       },
       {
         "parameters": {
-          "jsCode": "// Skip company processing \u2014 no company name provided\nconst preparedData = $('Prepare HubSpot Data').item.json;\nreturn [{ json: { ...preparedData, _hs: { ...preparedData._hs, companyId: null, companyCreated: false, companySkipped: true } } }];"
+          "jsCode": "// Skip company processing — no company name provided\nconst preparedData = $('Prepare HubSpot Data').item.json;\nreturn [{ json: { ...preparedData, _hs: { ...preparedData._hs, companyId: null, companyCreated: false, companySkipped: true } } }];"
         },
         "id": "wf3v2h-skip-company",
         "name": "Skip Company",
@@ -2497,7 +2767,7 @@
           }
         },
         "id": "wf3v2h-associate",
-        "name": "Associate Contact \u2192 Company",
+        "name": "Associate Contact → Company",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
@@ -3213,7 +3483,7 @@
       },
       {
         "parameters": {
-          "jsCode": "// Evaluate name search results for best contact match\nconst nameResults = $('Search by Name').item.json;\nconst prepared = $('Prepare HubSpot Data').item.json;\nconst hs = prepared._hs;\nconst results = nameResults.results || [];\n\nif (results.length === 0) {\n  // No match \u2014 will create new contact\n  return [{ json: { ...prepared, _matchResult: 'create', _matchedContact: null } }];\n}\n\nif (results.length === 1) {\n  // Exact single match \u2014 will update\n  return [{ json: { ...prepared, _matchResult: 'update', _matchedContact: results[0] } }];\n}\n\n// Multiple results \u2014 try email tiebreaker\nif (hs.email && hs.hasRealEmail) {\n  const emailMatch = results.find(r =>\n    (r.properties.email || '').toLowerCase() === hs.email.toLowerCase()\n  );\n  if (emailMatch) {\n    return [{ json: { ...prepared, _matchResult: 'update', _matchedContact: emailMatch } }];\n  }\n}\n\n// Still ambiguous \u2014 send to Slack, skip this contact\nconst names = results.map(r =>\n  (r.properties.firstname || '') + ' ' + (r.properties.lastname || '') + ' (ID: ' + r.id + ', email: ' + (r.properties.email || 'none') + ')'\n).join(', ');\nreturn [{ json: { ...prepared, _matchResult: 'ambiguous', _matchedContact: null, _ambiguousDetails: names, _ambiguousCount: results.length } }];"
+          "jsCode": "// Evaluate name search results for best contact match\nconst nameResults = $('Search by Name').item.json;\nconst prepared = $('Prepare HubSpot Data').item.json;\nconst hs = prepared._hs;\nconst results = nameResults.results || [];\n\nif (results.length === 0) {\n  // No match — will create new contact\n  return [{ json: { ...prepared, _matchResult: 'create', _matchedContact: null } }];\n}\n\nif (results.length === 1) {\n  // Exact single match — will update\n  return [{ json: { ...prepared, _matchResult: 'update', _matchedContact: results[0] } }];\n}\n\n// Multiple results — try email tiebreaker\nif (hs.email && hs.hasRealEmail) {\n  const emailMatch = results.find(r =>\n    (r.properties.email || '').toLowerCase() === hs.email.toLowerCase()\n  );\n  if (emailMatch) {\n    return [{ json: { ...prepared, _matchResult: 'update', _matchedContact: emailMatch } }];\n  }\n}\n\n// Still ambiguous — send to Slack, skip this contact\nconst names = results.map(r =>\n  (r.properties.firstname || '') + ' ' + (r.properties.lastname || '') + ' (ID: ' + r.id + ', email: ' + (r.properties.email || 'none') + ')'\n).join(', ');\nreturn [{ json: { ...prepared, _matchResult: 'ambiguous', _matchedContact: null, _ambiguousDetails: names, _ambiguousCount: results.length } }];"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
@@ -3293,10 +3563,10 @@
       {
         "parameters": {
           "method": "POST",
-          "url": "={{ $env.SLACK_WEBHOOK_URL }}",
+          "url": "={{ $env.SLACK_AUTOMATIONS_WEBHOOK_URL }}",
           "sendBody": true,
           "specifyBody": "json",
-          "jsonBody": "={{ JSON.stringify({ text: ':warning: *Ambiguous HubSpot Contact Match*\\n' + 'Incoming: ' + $json.fullName + ' (' + ($json._hs.linkedinUrl || 'no URL') + ')\\n' + 'Found ' + $json._ambiguousCount + ' possible matches: ' + $json._ambiguousDetails + '\\n' + 'Skipping auto-sync \u2014 please resolve manually in HubSpot.' }) }}",
+          "jsonBody": "={{ JSON.stringify({ text: ':warning: *Ambiguous HubSpot Contact Match*\\n' + 'Incoming: ' + $json.fullName + ' (' + ($json._hs.linkedinUrl || 'no URL') + ')\\n' + 'Found ' + $json._ambiguousCount + ' possible matches: ' + $json._ambiguousDetails + '\\n' + 'Skipping auto-sync — please resolve manually in HubSpot.' }) }}",
           "options": {}
         },
         "type": "n8n-nodes-base.httpRequest",
@@ -3347,7 +3617,7 @@
       },
       {
         "parameters": {
-          "jsCode": "// Skip this contact \u2014 ambiguous match logged to Slack\nconst item = $input.first().json;\nreturn [{ json: {\n  defaultProfileUrl: item.profileUrl || item._hs?.linkedinUrl || '',\n  fullName: item.fullName || '',\n  contactId: 'SKIPPED_AMBIGUOUS',\n  companyId: item._hs?.companyId || '',\n  contactCreated: false,\n  companyCreated: item._hs?.companyCreated || false,\n  companySkipped: item._hs?.companySkipped || false,\n  syncDate: item._hs?.syncDate || ''\n} }];"
+          "jsCode": "// Skip this contact — ambiguous match logged to Slack\nconst item = $input.first().json;\nreturn [{ json: {\n  defaultProfileUrl: item.profileUrl || item._hs?.linkedinUrl || '',\n  fullName: item.fullName || '',\n  contactId: 'SKIPPED_AMBIGUOUS',\n  companyId: item._hs?.companyId || '',\n  contactCreated: false,\n  companyCreated: item._hs?.companyCreated || false,\n  companySkipped: item._hs?.companySkipped || false,\n  syncDate: item._hs?.syncDate || ''\n} }];"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
@@ -3673,14 +3943,14 @@
         "main": [
           [
             {
-              "node": "Associate Contact \u2192 Company",
+              "node": "Associate Contact → Company",
               "type": "main",
               "index": 0
             }
           ]
         ]
       },
-      "Associate Contact \u2192 Company": {
+      "Associate Contact → Company": {
         "main": [
           [
             {

@@ -236,7 +236,7 @@
     {
       "parameters": {
         "select": "channel",
-        "channelId": { "__rl": true, "mode": "id", "value": "C0A79PHB5JL" },
+        "channelId": { "__rl": true, "mode": "id", "value": "C0AE7NPAWDQ" },
         "messageType": "block",
         "blocksUi": "={{ (() => { const m = $('Detect Meeting Type').first().json; const allApps = ['spiced-analyzer', 'discovery-scorecard', 'demo-scorecard', 'competitor-tracker', 'customer-interview', 'qbr-analyzer', 'onboarding-review', 'churn-risk-analyzer', 'interview-scorecard', 'sprint-retro', 'user-research', 'objection-handler', 'executive-strategy', 'team-sync', 'one-on-one', 'general-notes']; const appOptions = allApps.map(id => ({ text: { type: 'plain_text', text: id }, value: id })); return JSON.stringify({ blocks: [ { type: 'header', text: { type: 'plain_text', text: '🧠 ' + m.title, emoji: true } }, { type: 'section', text: { type: 'mrkdwn', text: '👤 *' + (m.personName || 'Unknown') + '* | ⏱️ ' + m.durationMins + ' min | <' + m.firefliesUrl + '|Fireflies>' } }, { type: 'section', text: { type: 'mrkdwn', text: '*🎯 Recommended Analysis:*\\n' + m.suggestedApps.map(a => '• `' + a.id + '` → ' + Math.round(a.weight * 100) + '%').join('\\n') } }, { type: 'context', elements: [{ type: 'mrkdwn', text: m.meetingType + ' | ' + (m.isExternal ? 'External' : 'Internal') + ' | Confidence: ' + m.appConfidence + '\\n👥 ' + (m.attendees || 'None').substring(0, 100) }] }, { type: 'divider' }, { type: 'input', block_id: 'recording_type_block', optional: true, element: { type: 'static_select', action_id: 'recording_type_select', placeholder: { type: 'plain_text', text: 'Normal meeting...' }, options: [ { text: { type: 'plain_text', text: '👥 Normal Meeting' }, value: 'normal' }, { text: { type: 'plain_text', text: '🎙️ Singular Recording' }, value: 'singular' } ] }, label: { type: 'plain_text', text: '📹 Recording Type' } }, { type: 'input', block_id: 'additional_attendees_block', optional: true, element: { type: 'plain_text_input', action_id: 'additional_attendees_input', placeholder: { type: 'plain_text', text: 'John Smith, Jane Doe' } }, label: { type: 'plain_text', text: '👥 Additional Attendees' } }, { type: 'input', block_id: 'detail_level_block', optional: true, element: { type: 'static_select', action_id: 'detail_level_select', placeholder: { type: 'plain_text', text: 'Standard notes...' }, options: [ { text: { type: 'plain_text', text: '📝 Standard Notes' }, value: 'standard' }, { text: { type: 'plain_text', text: '📚 Context Meeting (detailed)' }, value: 'context' } ] }, label: { type: 'plain_text', text: '📊 Detail Level' } }, { type: 'input', block_id: 'apps_block', optional: true, element: { type: 'multi_static_select', action_id: 'apps_select', placeholder: { type: 'plain_text', text: 'Only if changing...' }, options: appOptions }, label: { type: 'plain_text', text: '🔧 Override Apps?' } }, { type: 'input', block_id: 'custom_context_block', optional: true, element: { type: 'plain_text_input', action_id: 'custom_context_input', multiline: true, placeholder: { type: 'plain_text', text: 'Any specific focus...' } }, label: { type: 'plain_text', text: '💬 Additional Context' } }, { type: 'actions', block_id: 'actions_block', elements: [ { type: 'button', text: { type: 'plain_text', text: '🚀 Analyze', emoji: true }, style: 'primary', action_id: 'analyze_meeting_v2', value: m.hash }, { type: 'button', text: { type: 'plain_text', text: 'Skip', emoji: true }, action_id: 'skip_meeting', value: m.hash } ] } ], text: 'Meeting: ' + m.title }); })() }}",
         "otherOptions": {}
@@ -252,7 +252,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Capture the Slack thread_ts from the Intel Form post response\nconst slackResponse = $input.first().json;\nconst threadTs = slackResponse.ts || slackResponse.message?.ts || null;\nconst channelId = slackResponse.channel || 'C0A79PHB5JL';\nconst meetingId = $('Detect Meeting Type').first().json.meetingId;\n\nif (!threadTs) {\n  console.log('Warning: No thread_ts in Slack response');\n}\n\nreturn [{ json: { meetingId, threadTs, channelId } }];"
+        "jsCode": "// Capture the Slack thread_ts from the Intel Form post response\nconst slackResponse = $input.first().json;\nconst threadTs = slackResponse.ts || slackResponse.message?.ts || null;\nconst channelId = slackResponse.channel || 'C0AE7NPAWDQ';\nconst meetingId = $('Detect Meeting Type').first().json.meetingId;\n\nif (!threadTs) {\n  console.log('Warning: No thread_ts in Slack response');\n}\n\nreturn [{ json: { meetingId, threadTs, channelId } }];"
       },
       "name": "Extract Thread TS",
       "type": "n8n-nodes-base.code",
@@ -333,7 +333,7 @@
     {
       "parameters": {
         "select": "channel",
-        "channelId": { "__rl": true, "mode": "id", "value": "C0A79PHB5JL" },
+        "channelId": { "__rl": true, "mode": "id", "value": "C0AE7NPAWDQ" },
         "text": "={{ '⚠️ *Meeting Processing Failed*\\n\\n📋 Meeting ID: `' + $('Parse Error Type').first().json.meetingId + '`\\n❌ Error: ' + $('Parse Error Type').first().json.errorMessage + '\\n\\n💾 Saved to Supabase for retry\\n🔄 Retry: `/webhook/meeting-intel-retry?id=' + $('Parse Error Type').first().json.meetingId + '`' }}",
         "otherOptions": {}
       },

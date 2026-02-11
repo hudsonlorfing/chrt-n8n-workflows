@@ -124,7 +124,7 @@
         "channelId": {
           "__rl": true,
           "mode": "id",
-          "value": "C0A6ES56MU2"
+          "value": "C0AE1D1K4AF"
         },
         "text": "={{ '🚨 *LinkedIn Outreach STOPPED - Critical Error*\\n\\n*Error Type:* ' + $json.criticalErrorType + '\\n*Message:* ' + $json.resultMessage + '\\n*Profile:* ' + ($json.profile || 'unknown') + '\\n\\n*Action Required:* Check PhantomBuster credentials and LinkedIn session cookie.\\n\\n_Workflow has been stopped to prevent further issues. Please fix credentials and manually restart._' }}",
         "otherOptions": {}
@@ -539,7 +539,7 @@
           "channelId": {
             "__rl": true,
             "mode": "id",
-            "value": "C0A6ES56MU2"
+            "value": "C0AE1D1K4AF"
           },
           "text": "={{ '🚨 *LinkedIn Outreach STOPPED - Critical Error*\\n\\n*Error Type:* ' + $json.criticalErrorType + '\\n*Message:* ' + $json.resultMessage + '\\n*Profile:* ' + ($json.profile || 'unknown') + '\\n\\n*Action Required:* Check PhantomBuster credentials and LinkedIn session cookie.\\n\\n_Workflow has been stopped to prevent further issues. Please fix credentials and manually restart._' }}",
           "otherOptions": {}
