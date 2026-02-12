@@ -1,0 +1,908 @@
+{
+  "updatedAt": "2026-02-10T21:57:45.923Z",
+  "createdAt": "2026-02-10T20:59:17.387Z",
+  "id": "ClxQn8wYxggtgGzy",
+  "name": "Waitlist Signup Intake",
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "waitlist-signup",
+        "responseMode": "responseNode",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "id": "clerk-waitlist-webhook",
+      "name": "Clerk Waitlist Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -2000,
+        1000
+      ],
+      "webhookId": "waitlist-signup-webhook"
+    },
+    {
+      "parameters": {
+        "url": "https://api.doppler.com/v3/configs/config/secrets",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "project",
+              "value": "chrt"
+            },
+            {
+              "name": "config",
+              "value": "prd"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "fetch-doppler-secrets",
+      "name": "Fetch Doppler Secrets",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1740,
+        1000
+      ],
+      "notesInFlow": true,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "dz2vX61Mpayywfq1",
+          "name": "Doppler API"
+        }
+      },
+      "notes": "Fetches CLERK_WEBHOOK_SECRET, POSTHOG_PROJECT_API_KEY, POSTHOG_HOST from Doppler (chrt/prd)."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Verify Clerk webhook signature using Svix HMAC-SHA256\nconst crypto = require('crypto');\n\n// Helper to extract Doppler secret value (handles object or string format)\nfunction sec(val) {\n  if (!val) return '';\n  if (typeof val === 'string') return val;\n  return val.computed || val.raw || '';\n}\n\n// Get secrets from Doppler response (current input)\nconst dopplerResp = $input.first().json;\nconst secrets = dopplerResp.secrets || dopplerResp;\nconst webhookSecret = sec(secrets.CLERK_WEBHOOK_SECRET);\n\nif (!webhookSecret) {\n  throw new Error('CLERK_WEBHOOK_SECRET not found in Doppler — add it to chrt/prd config');\n}\n\n// Get webhook headers and body from the trigger node\nconst wh = $('Clerk Waitlist Webhook').first();\nconst headers = wh.json.headers || {};\nconst svixId = headers['svix-id'];\nconst svixTimestamp = headers['svix-timestamp'];\nconst svixSignature = headers['svix-signature'];\n\nif (!svixId || !svixTimestamp || !svixSignature) {\n  throw new Error('Missing required Svix headers (svix-id, svix-timestamp, svix-signature)');\n}\n\n// Replay attack prevention: reject timestamps older than 5 minutes\nconst ts = parseInt(svixTimestamp, 10);\nconst now = Math.floor(Date.now() / 1000);\nif (Math.abs(now - ts) > 300) {\n  throw new Error('Svix timestamp outside 5-minute tolerance — possible replay attack');\n}\n\n// Get raw body for signature verification\n// Prefer binary (rawBody enabled) for byte-exact verification; fallback to JSON.stringify\nlet body;\nif (wh.binary && wh.binary.data && wh.binary.data.data) {\n  body = Buffer.from(wh.binary.data.data, 'base64').toString('utf8');\n} else {\n  body = JSON.stringify(wh.json.body);\n}\n\n// Decode the Svix signing secret: strip 'whsec_' prefix, base64 decode\nconst secretStr = webhookSecret.startsWith('whsec_') ? webhookSecret.slice(6) : webhookSecret;\nconst secretBytes = Buffer.from(secretStr, 'base64');\n\n// Compute HMAC-SHA256 signature\nconst signedContent = `${svixId}.${svixTimestamp}.${body}`;\nconst computed = crypto.createHmac('sha256', secretBytes).update(signedContent).digest('base64');\nconst expected = `v1,${computed}`;\n\n// Svix sends multiple signatures (space-separated) for key rotation\nif (!svixSignature.split(' ').includes(expected)) {\n  throw new Error('Invalid Svix webhook signature — verification failed');\n}\n\n// Verification passed — return parsed Clerk event + Doppler secrets for downstream\nconst payload = JSON.parse(body);\nreturn [{ json: { ...payload, _secrets: secrets } }];"
+      },
+      "id": "verify-svix-signature",
+      "name": "Verify Svix Signature",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1480,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, message: 'Webhook received and verified' }) }}"
+      },
+      "id": "respond-to-webhook",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        -1220,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract and normalize waitlist data from verified Clerk payload\nconst input = $input.first().json;\nconst data = input.data || {};\nconst secrets = input._secrets || {};\n\nconst email = (data.email_address || '').toLowerCase().trim();\nif (!email) {\n  throw new Error('No email_address in Clerk waitlist payload');\n}\n\nconst clerkWaitlistId = data.id || '';\nconst status = data.status || 'pending';\nconst createdAt = data.created_at\n  ? new Date(data.created_at).toISOString().split('T')[0]\n  : new Date().toISOString().split('T')[0];\n\n// Naive name extraction from email local part (john.doe@ -> John, Doe)\nlet firstName = '';\nlet lastName = '';\nconst localPart = email.split('@')[0] || '';\nconst cleaned = localPart.replace(/[0-9_+]/g, '.').replace(/\\.+/g, '.');\nconst parts = cleaned.split('.').filter(p => p.length > 0);\nif (parts.length >= 2) {\n  firstName = parts[0].charAt(0).toUpperCase() + parts[0].slice(1).toLowerCase();\n  lastName = parts[parts.length - 1].charAt(0).toUpperCase() + parts[parts.length - 1].slice(1).toLowerCase();\n} else if (parts.length === 1 && parts[0]) {\n  firstName = parts[0].charAt(0).toUpperCase() + parts[0].slice(1).toLowerCase();\n}\n\n// Extract PostHog credentials from Doppler secrets\nfunction sec(val) {\n  if (!val) return '';\n  if (typeof val === 'string') return val;\n  return val.computed || val.raw || '';\n}\n\nconst posthogApiKey = sec(secrets.POSTHOG_PROJECT_API_KEY);\nconst posthogHost = sec(secrets.POSTHOG_HOST) || 'https://us.i.posthog.com';\n\nreturn [{\n  json: {\n    email,\n    clerkWaitlistId,\n    status,\n    createdAt,\n    firstName,\n    lastName,\n    posthogApiKey,\n    posthogHost\n  }\n}];"
+      },
+      "id": "extract-waitlist-data",
+      "name": "Extract Waitlist Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -960,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.posthogHost + '/capture/' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ api_key: $json.posthogApiKey, event: '$identify', distinct_id: $json.email, properties: { '$set': { email: $json.email, clerk_waitlist_id: $json.clerkWaitlistId, source: 'waitlist_pipeline', waitlist_status: 'pending', first_name: $json.firstName, last_name: $json.lastName } } }) }}",
+        "options": {
+          "timeout": 5000
+        }
+      },
+      "id": "posthog-identify",
+      "name": "PostHog Identify",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -700,
+        1000
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Extract Waitlist Data').first().json.posthogHost + '/capture/' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ api_key: $('Extract Waitlist Data').first().json.posthogApiKey, event: 'waitlist_joined', distinct_id: $('Extract Waitlist Data').first().json.email, properties: { signup_date: $('Extract Waitlist Data').first().json.createdAt, clerk_waitlist_id: $('Extract Waitlist Data').first().json.clerkWaitlistId } }) }}",
+        "options": {
+          "timeout": 5000
+        }
+      },
+      "id": "posthog-capture",
+      "name": "PostHog Capture",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -440,
+        1000
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/contacts/search",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ filterGroups: [{ filters: [{ propertyName: 'email', operator: 'EQ', value: $('Extract Waitlist Data').first().json.email }] }], properties: ['firstname', 'lastname', 'email', 'lifecyclestage', 'clerk_waitlist_id', 'waitlist_status'] }) }}",
+        "options": {}
+      },
+      "id": "search-hubspot-contact",
+      "name": "Search HubSpot Contact",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -180,
+        1000
+      ],
+      "credentials": {
+        "hubspotOAuth2Api": {
+          "id": "3JZVnZQkHgMfXMRx",
+          "name": "HubSpot account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "contact-exists",
+              "leftValue": "={{ $json.total }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "contact-exists-check",
+      "name": "Contact Exists?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        80,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ 'https://api.hubapi.com/crm/v3/objects/contacts/' + $json.results[0].id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ properties: { clerk_waitlist_id: $('Extract Waitlist Data').first().json.clerkWaitlistId, waitlist_status: 'pending', waitlist_signup_date: $('Extract Waitlist Data').first().json.createdAt, lifecyclestage: 'subscriber', chrt_segment: 'Other', chrt_lead_source: 'Waitlist' } }) }}",
+        "options": {}
+      },
+      "id": "update-existing-contact",
+      "name": "Update Existing Contact",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        340,
+        900
+      ],
+      "credentials": {
+        "hubspotOAuth2Api": {
+          "id": "3JZVnZQkHgMfXMRx",
+          "name": "HubSpot account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.hubapi.com/crm/v3/objects/contacts",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ properties: { email: $('Extract Waitlist Data').first().json.email, firstname: $('Extract Waitlist Data').first().json.firstName, lastname: $('Extract Waitlist Data').first().json.lastName, clerk_waitlist_id: $('Extract Waitlist Data').first().json.clerkWaitlistId, waitlist_status: 'pending', waitlist_signup_date: $('Extract Waitlist Data').first().json.createdAt, lifecyclestage: 'subscriber', chrt_segment: 'Other', chrt_lead_source: 'Waitlist' } }) }}",
+        "options": {}
+      },
+      "id": "create-new-contact",
+      "name": "Create New Contact",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        340,
+        1100
+      ],
+      "credentials": {
+        "hubspotOAuth2Api": {
+          "id": "3JZVnZQkHgMfXMRx",
+          "name": "HubSpot account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch"
+      },
+      "id": "merge-contact-results",
+      "name": "Merge Contact Results",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        600,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C0AE4E30XC5",
+          "mode": "list",
+          "cachedResultName": "automation"
+        },
+        "text": "={{ '📋 *New Waitlist Signup*\\n\\n*Email:* ' + $('Extract Waitlist Data').first().json.email + '\\n*Name:* ' + ($('Extract Waitlist Data').first().json.firstName || '') + ' ' + ($('Extract Waitlist Data').first().json.lastName || '') + '\\n*Clerk ID:* ' + $('Extract Waitlist Data').first().json.clerkWaitlistId + '\\n*Date:* ' + $('Extract Waitlist Data').first().json.createdAt + '\\n*HubSpot:* ' + ($json.id ? 'Contact ' + $json.id : 'See CRM') }}",
+        "otherOptions": {}
+      },
+      "id": "slack-notification",
+      "name": "Slack Notification",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [
+        860,
+        1000
+      ],
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "slackApi": {
+          "id": "wkLpZSqhXl2iesnC",
+          "name": "Chrt Slack App"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Clerk Waitlist Webhook": {
+      "main": [
+        [
+          {
+            "node": "Fetch Doppler Secrets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Doppler Secrets": {
+      "main": [
+        [
+          {
+            "node": "Verify Svix Signature",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify Svix Signature": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond to Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract Waitlist Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Waitlist Data": {
+      "main": [
+        [
+          {
+            "node": "PostHog Identify",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PostHog Identify": {
+      "main": [
+        [
+          {
+            "node": "PostHog Capture",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PostHog Capture": {
+      "main": [
+        [
+          {
+            "node": "Search HubSpot Contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search HubSpot Contact": {
+      "main": [
+        [
+          {
+            "node": "Contact Exists?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Contact Exists?": {
+      "main": [
+        [
+          {
+            "node": "Update Existing Contact",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create New Contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Existing Contact": {
+      "main": [
+        [
+          {
+            "node": "Merge Contact Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create New Contact": {
+      "main": [
+        [
+          {
+            "node": "Merge Contact Results",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Contact Results": {
+      "main": [
+        [
+          {
+            "node": "Slack Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "YWP69Qgq0ZlCN7Gj",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": null,
+  "versionId": "db79d390-8a44-4654-bfdb-37b22db74556",
+  "activeVersionId": "db79d390-8a44-4654-bfdb-37b22db74556",
+  "triggerCount": 1,
+  "shared": [
+    {
+      "updatedAt": "2026-02-10T21:57:26.653Z",
+      "createdAt": "2026-02-10T21:57:26.653Z",
+      "role": "workflow:owner",
+      "workflowId": "ClxQn8wYxggtgGzy",
+      "projectId": "O7lTivDfRl72aS23"
+    }
+  ],
+  "activeVersion": {
+    "updatedAt": "2026-02-10T21:55:20.398Z",
+    "createdAt": "2026-02-10T21:55:20.398Z",
+    "versionId": "db79d390-8a44-4654-bfdb-37b22db74556",
+    "workflowId": "ClxQn8wYxggtgGzy",
+    "nodes": [
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "waitlist-signup",
+          "responseMode": "responseNode",
+          "options": {
+            "rawBody": true
+          }
+        },
+        "id": "clerk-waitlist-webhook",
+        "name": "Clerk Waitlist Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          -2000,
+          1000
+        ],
+        "webhookId": "waitlist-signup-webhook"
+      },
+      {
+        "parameters": {
+          "url": "https://api.doppler.com/v3/configs/config/secrets",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpHeaderAuth",
+          "sendQuery": true,
+          "queryParameters": {
+            "parameters": [
+              {
+                "name": "project",
+                "value": "chrt"
+              },
+              {
+                "name": "config",
+                "value": "prd"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "fetch-doppler-secrets",
+        "name": "Fetch Doppler Secrets",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          -1740,
+          1000
+        ],
+        "notesInFlow": true,
+        "credentials": {
+          "httpHeaderAuth": {
+            "id": "dz2vX61Mpayywfq1",
+            "name": "Doppler API"
+          }
+        },
+        "notes": "Fetches CLERK_WEBHOOK_SECRET, POSTHOG_PROJECT_API_KEY, POSTHOG_HOST from Doppler (chrt/prd)."
+      },
+      {
+        "parameters": {
+          "jsCode": "// Verify Clerk webhook signature using Svix HMAC-SHA256\nconst crypto = require('crypto');\n\n// Helper to extract Doppler secret value (handles object or string format)\nfunction sec(val) {\n  if (!val) return '';\n  if (typeof val === 'string') return val;\n  return val.computed || val.raw || '';\n}\n\n// Get secrets from Doppler response (current input)\nconst dopplerResp = $input.first().json;\nconst secrets = dopplerResp.secrets || dopplerResp;\nconst webhookSecret = sec(secrets.CLERK_WEBHOOK_SECRET);\n\nif (!webhookSecret) {\n  throw new Error('CLERK_WEBHOOK_SECRET not found in Doppler — add it to chrt/prd config');\n}\n\n// Get webhook headers and body from the trigger node\nconst wh = $('Clerk Waitlist Webhook').first();\nconst headers = wh.json.headers || {};\nconst svixId = headers['svix-id'];\nconst svixTimestamp = headers['svix-timestamp'];\nconst svixSignature = headers['svix-signature'];\n\nif (!svixId || !svixTimestamp || !svixSignature) {\n  throw new Error('Missing required Svix headers (svix-id, svix-timestamp, svix-signature)');\n}\n\n// Replay attack prevention: reject timestamps older than 5 minutes\nconst ts = parseInt(svixTimestamp, 10);\nconst now = Math.floor(Date.now() / 1000);\nif (Math.abs(now - ts) > 300) {\n  throw new Error('Svix timestamp outside 5-minute tolerance — possible replay attack');\n}\n\n// Get raw body for signature verification\n// Prefer binary (rawBody enabled) for byte-exact verification; fallback to JSON.stringify\nlet body;\nif (wh.binary && wh.binary.data && wh.binary.data.data) {\n  body = Buffer.from(wh.binary.data.data, 'base64').toString('utf8');\n} else {\n  body = JSON.stringify(wh.json.body);\n}\n\n// Decode the Svix signing secret: strip 'whsec_' prefix, base64 decode\nconst secretStr = webhookSecret.startsWith('whsec_') ? webhookSecret.slice(6) : webhookSecret;\nconst secretBytes = Buffer.from(secretStr, 'base64');\n\n// Compute HMAC-SHA256 signature\nconst signedContent = `${svixId}.${svixTimestamp}.${body}`;\nconst computed = crypto.createHmac('sha256', secretBytes).update(signedContent).digest('base64');\nconst expected = `v1,${computed}`;\n\n// Svix sends multiple signatures (space-separated) for key rotation\nif (!svixSignature.split(' ').includes(expected)) {\n  throw new Error('Invalid Svix webhook signature — verification failed');\n}\n\n// Verification passed — return parsed Clerk event + Doppler secrets for downstream\nconst payload = JSON.parse(body);\nreturn [{ json: { ...payload, _secrets: secrets } }];"
+        },
+        "id": "verify-svix-signature",
+        "name": "Verify Svix Signature",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -1480,
+          1000
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ JSON.stringify({ ok: true, message: 'Webhook received and verified' }) }}"
+        },
+        "id": "respond-to-webhook",
+        "name": "Respond to Webhook",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [
+          -1220,
+          1000
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "// Extract and normalize waitlist data from verified Clerk payload\nconst input = $input.first().json;\nconst data = input.data || {};\nconst secrets = input._secrets || {};\n\nconst email = (data.email_address || '').toLowerCase().trim();\nif (!email) {\n  throw new Error('No email_address in Clerk waitlist payload');\n}\n\nconst clerkWaitlistId = data.id || '';\nconst status = data.status || 'pending';\nconst createdAt = data.created_at\n  ? new Date(data.created_at).toISOString().split('T')[0]\n  : new Date().toISOString().split('T')[0];\n\n// Naive name extraction from email local part (john.doe@ -> John, Doe)\nlet firstName = '';\nlet lastName = '';\nconst localPart = email.split('@')[0] || '';\nconst cleaned = localPart.replace(/[0-9_+]/g, '.').replace(/\\.+/g, '.');\nconst parts = cleaned.split('.').filter(p => p.length > 0);\nif (parts.length >= 2) {\n  firstName = parts[0].charAt(0).toUpperCase() + parts[0].slice(1).toLowerCase();\n  lastName = parts[parts.length - 1].charAt(0).toUpperCase() + parts[parts.length - 1].slice(1).toLowerCase();\n} else if (parts.length === 1 && parts[0]) {\n  firstName = parts[0].charAt(0).toUpperCase() + parts[0].slice(1).toLowerCase();\n}\n\n// Extract PostHog credentials from Doppler secrets\nfunction sec(val) {\n  if (!val) return '';\n  if (typeof val === 'string') return val;\n  return val.computed || val.raw || '';\n}\n\nconst posthogApiKey = sec(secrets.POSTHOG_PROJECT_API_KEY);\nconst posthogHost = sec(secrets.POSTHOG_HOST) || 'https://us.i.posthog.com';\n\nreturn [{\n  json: {\n    email,\n    clerkWaitlistId,\n    status,\n    createdAt,\n    firstName,\n    lastName,\n    posthogApiKey,\n    posthogHost\n  }\n}];"
+        },
+        "id": "extract-waitlist-data",
+        "name": "Extract Waitlist Data",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -960,
+          1000
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "={{ $json.posthogHost + '/capture/' }}",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ api_key: $json.posthogApiKey, event: '$identify', distinct_id: $json.email, properties: { '$set': { email: $json.email, clerk_waitlist_id: $json.clerkWaitlistId, source: 'waitlist_pipeline', waitlist_status: 'pending', first_name: $json.firstName, last_name: $json.lastName } } }) }}",
+          "options": {
+            "timeout": 5000
+          }
+        },
+        "id": "posthog-identify",
+        "name": "PostHog Identify",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          -700,
+          1000
+        ],
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "={{ $('Extract Waitlist Data').first().json.posthogHost + '/capture/' }}",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ api_key: $('Extract Waitlist Data').first().json.posthogApiKey, event: 'waitlist_joined', distinct_id: $('Extract Waitlist Data').first().json.email, properties: { signup_date: $('Extract Waitlist Data').first().json.createdAt, clerk_waitlist_id: $('Extract Waitlist Data').first().json.clerkWaitlistId } }) }}",
+          "options": {
+            "timeout": 5000
+          }
+        },
+        "id": "posthog-capture",
+        "name": "PostHog Capture",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          -440,
+          1000
+        ],
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.hubapi.com/crm/v3/objects/contacts/search",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "hubspotOAuth2Api",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ filterGroups: [{ filters: [{ propertyName: 'email', operator: 'EQ', value: $('Extract Waitlist Data').first().json.email }] }], properties: ['firstname', 'lastname', 'email', 'lifecyclestage', 'clerk_waitlist_id', 'waitlist_status'] }) }}",
+          "options": {}
+        },
+        "id": "search-hubspot-contact",
+        "name": "Search HubSpot Contact",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          -180,
+          1000
+        ],
+        "credentials": {
+          "hubspotOAuth2Api": {
+            "id": "3JZVnZQkHgMfXMRx",
+            "name": "HubSpot account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "contact-exists",
+                "leftValue": "={{ $json.total }}",
+                "rightValue": 0,
+                "operator": {
+                  "type": "number",
+                  "operation": "gt"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "contact-exists-check",
+        "name": "Contact Exists?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          80,
+          1000
+        ]
+      },
+      {
+        "parameters": {
+          "method": "PATCH",
+          "url": "={{ 'https://api.hubapi.com/crm/v3/objects/contacts/' + $json.results[0].id }}",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "hubspotOAuth2Api",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ properties: { clerk_waitlist_id: $('Extract Waitlist Data').first().json.clerkWaitlistId, waitlist_status: 'pending', waitlist_signup_date: $('Extract Waitlist Data').first().json.createdAt, lifecyclestage: 'subscriber', chrt_segment: 'Other', chrt_lead_source: 'Waitlist' } }) }}",
+          "options": {}
+        },
+        "id": "update-existing-contact",
+        "name": "Update Existing Contact",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          340,
+          900
+        ],
+        "credentials": {
+          "hubspotOAuth2Api": {
+            "id": "3JZVnZQkHgMfXMRx",
+            "name": "HubSpot account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.hubapi.com/crm/v3/objects/contacts",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "hubspotOAuth2Api",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ properties: { email: $('Extract Waitlist Data').first().json.email, firstname: $('Extract Waitlist Data').first().json.firstName, lastname: $('Extract Waitlist Data').first().json.lastName, clerk_waitlist_id: $('Extract Waitlist Data').first().json.clerkWaitlistId, waitlist_status: 'pending', waitlist_signup_date: $('Extract Waitlist Data').first().json.createdAt, lifecyclestage: 'subscriber', chrt_segment: 'Other', chrt_lead_source: 'Waitlist' } }) }}",
+          "options": {}
+        },
+        "id": "create-new-contact",
+        "name": "Create New Contact",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          340,
+          1100
+        ],
+        "credentials": {
+          "hubspotOAuth2Api": {
+            "id": "3JZVnZQkHgMfXMRx",
+            "name": "HubSpot account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "mode": "chooseBranch"
+        },
+        "id": "merge-contact-results",
+        "name": "Merge Contact Results",
+        "type": "n8n-nodes-base.merge",
+        "typeVersion": 3,
+        "position": [
+          600,
+          1000
+        ]
+      },
+      {
+        "parameters": {
+          "select": "channel",
+          "channelId": {
+            "__rl": true,
+            "value": "C0AE4E30XC5",
+            "mode": "list",
+            "cachedResultName": "automation"
+          },
+          "text": "={{ '📋 *New Waitlist Signup*\\n\\n*Email:* ' + $('Extract Waitlist Data').first().json.email + '\\n*Name:* ' + ($('Extract Waitlist Data').first().json.firstName || '') + ' ' + ($('Extract Waitlist Data').first().json.lastName || '') + '\\n*Clerk ID:* ' + $('Extract Waitlist Data').first().json.clerkWaitlistId + '\\n*Date:* ' + $('Extract Waitlist Data').first().json.createdAt + '\\n*HubSpot:* ' + ($json.id ? 'Contact ' + $json.id : 'See CRM') }}",
+          "otherOptions": {}
+        },
+        "id": "slack-notification",
+        "name": "Slack Notification",
+        "type": "n8n-nodes-base.slack",
+        "typeVersion": 2.4,
+        "position": [
+          860,
+          1000
+        ],
+        "onError": "continueRegularOutput",
+        "credentials": {
+          "slackApi": {
+            "id": "wkLpZSqhXl2iesnC",
+            "name": "Chrt Slack App"
+          }
+        }
+      }
+    ],
+    "connections": {
+      "Clerk Waitlist Webhook": {
+        "main": [
+          [
+            {
+              "node": "Fetch Doppler Secrets",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Fetch Doppler Secrets": {
+        "main": [
+          [
+            {
+              "node": "Verify Svix Signature",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Verify Svix Signature": {
+        "main": [
+          [
+            {
+              "node": "Respond to Webhook",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Respond to Webhook": {
+        "main": [
+          [
+            {
+              "node": "Extract Waitlist Data",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Extract Waitlist Data": {
+        "main": [
+          [
+            {
+              "node": "PostHog Identify",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "PostHog Identify": {
+        "main": [
+          [
+            {
+              "node": "PostHog Capture",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "PostHog Capture": {
+        "main": [
+          [
+            {
+              "node": "Search HubSpot Contact",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Search HubSpot Contact": {
+        "main": [
+          [
+            {
+              "node": "Contact Exists?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Contact Exists?": {
+        "main": [
+          [
+            {
+              "node": "Update Existing Contact",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Create New Contact",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Update Existing Contact": {
+        "main": [
+          [
+            {
+              "node": "Merge Contact Results",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Create New Contact": {
+        "main": [
+          [
+            {
+              "node": "Merge Contact Results",
+              "type": "main",
+              "index": 1
+            }
+          ]
+        ]
+      },
+      "Merge Contact Results": {
+        "main": [
+          [
+            {
+              "node": "Slack Notification",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "authors": "Hudson Lorfing",
+    "name": null,
+    "description": null,
+    "autosaved": false
+  },
+  "tags": [],
+  "_folderPath": "",
+  "_fileName": "waitlist-signup-intake.json"
+}
