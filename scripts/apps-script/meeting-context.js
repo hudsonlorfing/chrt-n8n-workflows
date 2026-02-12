@@ -39,8 +39,14 @@ function doPost(e) {
       return _resolveContext(payload, startTime);
     } else if (action === 'extract-memory') {
       return _extractMemory(payload, startTime);
+    } else if (action === 'get-person-summary') {
+      return _getPersonSummary(payload, startTime);
+    } else if (action === 'get-crm-activity') {
+      return _getCrmActivity(payload, startTime);
+    } else if (action === 'get-meeting-prep') {
+      return _getMeetingPrep(payload, startTime);
     } else {
-      return _jsonResponse({ error: 'Unknown action: ' + action + '. Use resolve-context or extract-memory.' }, 400);
+      return _jsonResponse({ error: 'Unknown action: ' + action + '. Use resolve-context, extract-memory, get-person-summary, get-crm-activity, or get-meeting-prep.' }, 400);
     }
   } catch (err) {
     console.error('Fatal error: ' + err.message);
@@ -341,6 +347,833 @@ function _extractMemory(payload, startTime) {
 
   console.log('extract-memory completed: ' + factsCreated + ' created, ' + factsSuperseded + ' superseded');
   return _jsonResponse(result);
+}
+
+// ─── Action: get-person-summary ───
+// Input:  { action: "get-person-summary", name: "trent", email: null, days_back: 90 }
+// Output: { disambiguation_needed, matches, timeline, action_items, decisions, score_trend, memory_facts }
+
+function _getPersonSummary(payload, startTime) {
+  var name = (payload.name || '').trim();
+  var email = (payload.email || '').trim().toLowerCase();
+  var daysBack = parseInt(payload.days_back || '90', 10);
+
+  if (!name && !email) {
+    return _jsonResponse({ error: 'name or email is required' }, 400);
+  }
+
+  var secrets = _getSecrets();
+
+  // Step 1: Find participants matching the name or email
+  var participants;
+  if (email) {
+    participants = _supabaseGet(
+      secrets,
+      '/rest/v1/meeting_participants?email=eq.' + encodeURIComponent(email) +
+      '&select=name,email,hubspot_properties,meeting_id' +
+      '&order=created_at.desc&limit=50'
+    );
+  } else {
+    var nameSearch = encodeURIComponent('*' + name + '*');
+    participants = _supabaseGet(
+      secrets,
+      '/rest/v1/meeting_participants?name=ilike.' + nameSearch +
+      '&select=name,email,hubspot_properties,meeting_id' +
+      '&order=created_at.desc&limit=50'
+    );
+  }
+
+  if (!participants || participants.length === 0) {
+    return _jsonResponse({
+      disambiguation_needed: false,
+      matches: [],
+      message: 'No participants found matching "' + (name || email) + '".',
+      elapsed_ms: Date.now() - startTime
+    });
+  }
+
+  // Step 2: Group by distinct person (unique email or name+company)
+  var people = {};
+  for (var i = 0; i < participants.length; i++) {
+    var p = participants[i];
+    var hsProps = p.hubspot_properties || {};
+    var company = hsProps.company || '';
+    var key = p.email ? p.email.toLowerCase() : ((p.name || '') + '|' + company).toLowerCase();
+
+    if (!people[key]) {
+      people[key] = {
+        name: p.name || '',
+        email: p.email || '',
+        company: company,
+        title: hsProps.jobtitle || '',
+        meeting_ids: [],
+        meeting_count: 0
+      };
+    }
+    if (p.meeting_id && people[key].meeting_ids.indexOf(p.meeting_id) === -1) {
+      people[key].meeting_ids.push(p.meeting_id);
+      people[key].meeting_count++;
+    }
+  }
+
+  var peopleList = [];
+  var keys = Object.keys(people);
+  for (var j = 0; j < keys.length; j++) {
+    peopleList.push(people[keys[j]]);
+  }
+
+  // Filter out internal Chrt team members
+  var externalPeople = peopleList.filter(function(p) {
+    var emailDomain = p.email ? p.email.split('@')[1] : '';
+    return !_isGenericDomain(emailDomain) || !p.email;
+  });
+
+  // If no external people, use all
+  if (externalPeople.length === 0) externalPeople = peopleList;
+
+  // Step 3: Disambiguation check
+  if (externalPeople.length > 1) {
+    // Get last meeting date for each person
+    for (var d = 0; d < externalPeople.length; d++) {
+      var person = externalPeople[d];
+      if (person.meeting_ids.length > 0) {
+        var lastMeeting = _supabaseGet(
+          secrets,
+          '/rest/v1/meetings?id=in.(' + person.meeting_ids.slice(0, 3).join(',') + ')' +
+          '&select=meeting_date&order=meeting_date.desc&limit=1'
+        );
+        person.last_meeting_date = (lastMeeting && lastMeeting[0]) ? lastMeeting[0].meeting_date : null;
+      }
+    }
+    return _jsonResponse({
+      disambiguation_needed: true,
+      matches: externalPeople.map(function(p) {
+        return {
+          name: p.name,
+          email: p.email,
+          company: p.company,
+          title: p.title,
+          meeting_count: p.meeting_count,
+          last_meeting_date: p.last_meeting_date || null
+        };
+      }),
+      elapsed_ms: Date.now() - startTime
+    });
+  }
+
+  // Step 4: Single person — build full summary
+  var targetPerson = externalPeople[0];
+  return _buildPersonSummaryResponse(secrets, targetPerson, daysBack, startTime);
+}
+
+function _buildPersonSummaryResponse(secrets, targetPerson, daysBack, startTime) {
+  var meetingIds = targetPerson.meeting_ids;
+
+  // If we don't have meeting IDs from participants table, fall back to search
+  if (meetingIds.length === 0 && targetPerson.email) {
+    var participantRows = _supabaseGet(
+      secrets,
+      '/rest/v1/meeting_participants?email=eq.' + encodeURIComponent(targetPerson.email) +
+      '&select=meeting_id&order=created_at.desc&limit=20'
+    );
+    meetingIds = (participantRows || []).map(function(r) { return r.meeting_id; });
+  }
+
+  if (meetingIds.length === 0) {
+    return _jsonResponse({
+      disambiguation_needed: false,
+      person: { name: targetPerson.name, email: targetPerson.email, company: targetPerson.company },
+      timeline: [],
+      action_items: [],
+      decisions: [],
+      score_trend: [],
+      memory_facts: [],
+      message: 'No meetings found for this person.',
+      elapsed_ms: Date.now() - startTime
+    });
+  }
+
+  // Fetch meetings with date filter
+  var cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - daysBack);
+  var cutoffStr = cutoff.toISOString().split('T')[0];
+
+  var idsFilter = meetingIds.join(',');
+  var meetings = _supabaseGet(
+    secrets,
+    '/rest/v1/meetings?id=in.(' + idsFilter + ')' +
+    '&meeting_date=gte.' + cutoffStr +
+    '&order=meeting_date.desc&limit=15' +
+    '&select=id,title,meeting_date,duration_mins,meeting_type,status,attendees_raw'
+  );
+
+  if (!meetings || meetings.length === 0) {
+    return _jsonResponse({
+      disambiguation_needed: false,
+      person: { name: targetPerson.name, email: targetPerson.email, company: targetPerson.company },
+      timeline: [],
+      action_items: [],
+      decisions: [],
+      score_trend: [],
+      memory_facts: [],
+      message: 'No meetings found in the last ' + daysBack + ' days.',
+      elapsed_ms: Date.now() - startTime
+    });
+  }
+
+  // Fetch analyses for these meetings
+  var analysisMeetingIds = meetings.map(function(m) { return m.id; });
+  var analyses = _supabaseGet(
+    secrets,
+    '/rest/v1/meeting_analyses?meeting_id=in.(' + analysisMeetingIds.join(',') + ')' +
+    '&select=meeting_id,structured_data,scores&order=created_at.desc'
+  );
+
+  // Build analysis map (latest per meeting)
+  var analysisMap = {};
+  if (analyses) {
+    for (var a = 0; a < analyses.length; a++) {
+      if (!analysisMap[analyses[a].meeting_id]) {
+        analysisMap[analyses[a].meeting_id] = analyses[a];
+      }
+    }
+  }
+
+  // Build timeline, aggregate action items, decisions, scores
+  var timeline = [];
+  var allActionItems = [];
+  var allDecisions = [];
+  var scoreTrend = [];
+
+  for (var m = 0; m < meetings.length; m++) {
+    var mtg = meetings[m];
+    var analysis = analysisMap[mtg.id];
+    var sd = analysis ? (analysis.structured_data || {}) : {};
+    if (typeof sd === 'string') { try { sd = JSON.parse(sd); } catch(e) { sd = {}; } }
+    var scores = analysis ? (analysis.scores || sd.scores || {}) : {};
+
+    timeline.push({
+      meeting_id: mtg.id,
+      title: mtg.title,
+      date: mtg.meeting_date,
+      duration: mtg.duration_mins,
+      type: mtg.meeting_type,
+      summary: (sd.summary || '').substring(0, 200)
+    });
+
+    // Aggregate action items with source
+    var items = sd.action_items || [];
+    for (var ai = 0; ai < items.length; ai++) {
+      var item = items[ai];
+      allActionItems.push({
+        task: typeof item === 'string' ? item : (item.task || item.description || JSON.stringify(item)),
+        owner: typeof item === 'object' ? (item.owner || '') : '',
+        due: typeof item === 'object' ? (item.due || '') : '',
+        from_meeting: mtg.title,
+        from_date: mtg.meeting_date
+      });
+    }
+
+    // Aggregate decisions
+    var decs = sd.decisions || [];
+    for (var di = 0; di < decs.length; di++) {
+      allDecisions.push({
+        decision: typeof decs[di] === 'string' ? decs[di] : JSON.stringify(decs[di]),
+        from_meeting: mtg.title,
+        from_date: mtg.meeting_date
+      });
+    }
+
+    // Score trend
+    if (Object.keys(scores).length > 0) {
+      scoreTrend.push({
+        date: mtg.meeting_date,
+        meeting: mtg.title,
+        scores: scores
+      });
+    }
+  }
+
+  // Fetch agent memory facts
+  var memoryFacts = [];
+  if (targetPerson.email) {
+    var personMemory = _supabaseGet(
+      secrets,
+      '/rest/v1/agent_memory?is_active=eq.true' +
+      '&or=(entity_id.eq.' + encodeURIComponent(targetPerson.email) +
+      ',entity_name.ilike.*' + encodeURIComponent(targetPerson.email.split('@')[0]) + '*)' +
+      '&order=created_at.desc&limit=20'
+    );
+    if (personMemory) {
+      memoryFacts = personMemory.map(function(f) {
+        return {
+          type: f.entity_type,
+          fact: f.fact,
+          confidence: f.confidence
+        };
+      });
+    }
+
+    // Company memory
+    var companyDomain = targetPerson.email.split('@')[1];
+    if (companyDomain && !_isGenericDomain(companyDomain)) {
+      var companyMemory = _supabaseGet(
+        secrets,
+        '/rest/v1/agent_memory?is_active=eq.true' +
+        '&entity_type=eq.company' +
+        '&entity_id=eq.' + encodeURIComponent(companyDomain) +
+        '&order=created_at.desc&limit=10'
+      );
+      if (companyMemory) {
+        for (var cm = 0; cm < companyMemory.length; cm++) {
+          memoryFacts.push({
+            type: 'company',
+            fact: companyMemory[cm].fact,
+            confidence: companyMemory[cm].confidence
+          });
+        }
+      }
+    }
+  }
+
+  return _jsonResponse({
+    disambiguation_needed: false,
+    person: {
+      name: targetPerson.name,
+      email: targetPerson.email,
+      company: targetPerson.company,
+      title: targetPerson.title
+    },
+    timeline: timeline,
+    action_items: allActionItems.slice(0, 20),
+    decisions: allDecisions.slice(0, 15),
+    score_trend: scoreTrend,
+    memory_facts: memoryFacts,
+    meeting_count: meetings.length,
+    elapsed_ms: Date.now() - startTime
+  });
+}
+
+// ─── Action: get-crm-activity ───
+// Input:  { action: "get-crm-activity", email: "trent@labcorp.com", contact_id: null, days_back: 30 }
+// Output: { emails, calls, notes, summary, contact }
+
+function _getCrmActivity(payload, startTime) {
+  var email = (payload.email || '').trim().toLowerCase();
+  var contactId = payload.contact_id || null;
+  var daysBack = parseInt(payload.days_back || '30', 10);
+
+  if (!email && !contactId) {
+    return _jsonResponse({ error: 'email or contact_id is required' }, 400);
+  }
+
+  var secrets = _getSecrets();
+  var hsToken = secrets.HUBSPOT_ACCESS_TOKEN;
+
+  if (!hsToken) {
+    return _jsonResponse({ error: 'No HUBSPOT_ACCESS_TOKEN available. Cannot fetch CRM activity.' }, 500);
+  }
+
+  // Step 1: Resolve contact_id from email if needed
+  if (!contactId && email) {
+    var hsData = _hubspotLookup(secrets, email, null);
+    if (hsData && hsData.contact_id) {
+      contactId = hsData.contact_id;
+    } else {
+      return _jsonResponse({
+        emails: [],
+        calls: [],
+        notes: [],
+        summary: 'No HubSpot contact found for ' + email + '.',
+        contact: null,
+        elapsed_ms: Date.now() - startTime
+      });
+    }
+  }
+
+  // Step 2: Build date filter
+  var cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - daysBack);
+  var cutoffMs = cutoff.getTime();
+
+  // Step 3: Parallel fetch emails, calls, notes using fetchAll
+  var searchBase = 'https://api.hubapi.com/crm/v3/objects/';
+  var authHeaders = { 'Authorization': 'Bearer ' + hsToken, 'Content-Type': 'application/json' };
+
+  var emailPayload = JSON.stringify({
+    filterGroups: [{
+      filters: [
+        { propertyName: 'associations.contact', operator: 'EQ', value: contactId },
+        { propertyName: 'hs_timestamp', operator: 'GTE', value: String(cutoffMs) }
+      ]
+    }],
+    properties: ['hs_email_subject', 'hs_email_text', 'hs_email_direction', 'hs_timestamp'],
+    sorts: [{ propertyName: 'hs_timestamp', direction: 'DESCENDING' }],
+    limit: 5
+  });
+
+  var callPayload = JSON.stringify({
+    filterGroups: [{
+      filters: [
+        { propertyName: 'associations.contact', operator: 'EQ', value: contactId },
+        { propertyName: 'hs_timestamp', operator: 'GTE', value: String(cutoffMs) }
+      ]
+    }],
+    properties: ['hs_call_title', 'hs_call_body', 'hs_call_duration', 'hs_call_disposition', 'hs_timestamp'],
+    sorts: [{ propertyName: 'hs_timestamp', direction: 'DESCENDING' }],
+    limit: 5
+  });
+
+  var notePayload = JSON.stringify({
+    filterGroups: [{
+      filters: [
+        { propertyName: 'associations.contact', operator: 'EQ', value: contactId },
+        { propertyName: 'hs_timestamp', operator: 'GTE', value: String(cutoffMs) }
+      ]
+    }],
+    properties: ['hs_note_body', 'hs_timestamp'],
+    sorts: [{ propertyName: 'hs_timestamp', direction: 'DESCENDING' }],
+    limit: 5
+  });
+
+  var requests = [
+    { url: searchBase + 'emails/search', method: 'post', contentType: 'application/json', headers: authHeaders, payload: emailPayload, muteHttpExceptions: true },
+    { url: searchBase + 'calls/search', method: 'post', contentType: 'application/json', headers: authHeaders, payload: callPayload, muteHttpExceptions: true },
+    { url: searchBase + 'notes/search', method: 'post', contentType: 'application/json', headers: authHeaders, payload: notePayload, muteHttpExceptions: true }
+  ];
+
+  var responses;
+  try {
+    responses = UrlFetchApp.fetchAll(requests);
+  } catch (fetchErr) {
+    console.error('HubSpot fetchAll failed: ' + fetchErr.message);
+    return _jsonResponse({
+      emails: [],
+      calls: [],
+      notes: [],
+      summary: 'Error fetching CRM activity: ' + fetchErr.message,
+      elapsed_ms: Date.now() - startTime
+    });
+  }
+
+  // Step 4: Parse responses
+  var emails = [];
+  var calls = [];
+  var notes = [];
+  var totalEmails = 0;
+  var sentEmails = 0;
+  var receivedEmails = 0;
+
+  // Parse emails
+  try {
+    if (responses[0].getResponseCode() === 200) {
+      var emailData = JSON.parse(responses[0].getContentText());
+      totalEmails = emailData.total || 0;
+      var emailResults = emailData.results || [];
+      for (var i = 0; i < emailResults.length; i++) {
+        var ep = emailResults[i].properties;
+        var direction = ep.hs_email_direction || 'UNKNOWN';
+        if (direction === 'EMAIL' || direction === 'FORWARDED_EMAIL') sentEmails++;
+        else if (direction === 'INCOMING_EMAIL') receivedEmails++;
+        emails.push({
+          date: ep.hs_timestamp ? new Date(parseInt(ep.hs_timestamp)).toISOString().split('T')[0] : null,
+          direction: direction === 'INCOMING_EMAIL' ? 'received' : 'sent',
+          subject: (ep.hs_email_subject || '').substring(0, 120),
+          snippet: (ep.hs_email_text || '').substring(0, 200)
+        });
+      }
+    }
+  } catch (emailErr) {
+    console.error('Email parse error: ' + emailErr.message);
+  }
+
+  // Parse calls
+  var totalCalls = 0;
+  try {
+    if (responses[1].getResponseCode() === 200) {
+      var callData = JSON.parse(responses[1].getContentText());
+      totalCalls = callData.total || 0;
+      var callResults = callData.results || [];
+      for (var j = 0; j < callResults.length; j++) {
+        var cp = callResults[j].properties;
+        calls.push({
+          date: cp.hs_timestamp ? new Date(parseInt(cp.hs_timestamp)).toISOString().split('T')[0] : null,
+          title: (cp.hs_call_title || '').substring(0, 120),
+          duration_secs: cp.hs_call_duration ? parseInt(cp.hs_call_duration) : null,
+          disposition: cp.hs_call_disposition || '',
+          notes: (cp.hs_call_body || '').substring(0, 200)
+        });
+      }
+    }
+  } catch (callErr) {
+    console.error('Call parse error: ' + callErr.message);
+  }
+
+  // Parse notes
+  var totalNotes = 0;
+  try {
+    if (responses[2].getResponseCode() === 200) {
+      var noteData = JSON.parse(responses[2].getContentText());
+      totalNotes = noteData.total || 0;
+      var noteResults = noteData.results || [];
+      for (var k = 0; k < noteResults.length; k++) {
+        var np = noteResults[k].properties;
+        notes.push({
+          date: np.hs_timestamp ? new Date(parseInt(np.hs_timestamp)).toISOString().split('T')[0] : null,
+          body: (np.hs_note_body || '').replace(/<[^>]*>/g, '').substring(0, 200)
+        });
+      }
+    }
+  } catch (noteErr) {
+    console.error('Note parse error: ' + noteErr.message);
+  }
+
+  var summaryParts = [];
+  if (totalEmails > 0) summaryParts.push(totalEmails + ' email(s) (' + sentEmails + ' sent, ' + receivedEmails + ' received)');
+  if (totalCalls > 0) summaryParts.push(totalCalls + ' call(s)');
+  if (totalNotes > 0) summaryParts.push(totalNotes + ' note(s)');
+  var summary = summaryParts.length > 0
+    ? summaryParts.join(', ') + ' in last ' + daysBack + ' days'
+    : 'No CRM activity found in last ' + daysBack + ' days';
+
+  return _jsonResponse({
+    emails: emails,
+    calls: calls,
+    notes: notes,
+    summary: summary,
+    contact_id: contactId,
+    elapsed_ms: Date.now() - startTime
+  });
+}
+
+// ─── Action: get-meeting-prep ───
+// Input:  { action: "get-meeting-prep", name: "trent", email: "trent@labcorp.com", days_back: 90 }
+// Output: Composed prep brief with CRM context, relationship arc, open items, key quotes, scores, CRM activity
+
+function _getMeetingPrep(payload, startTime) {
+  var name = (payload.name || '').trim();
+  var email = (payload.email || '').trim().toLowerCase();
+  var daysBack = parseInt(payload.days_back || '90', 10);
+
+  if (!name && !email) {
+    return _jsonResponse({ error: 'name or email is required' }, 400);
+  }
+
+  var secrets = _getSecrets();
+
+  // Step 1: Resolve person (reuse person summary logic)
+  var participants;
+  if (email) {
+    participants = _supabaseGet(
+      secrets,
+      '/rest/v1/meeting_participants?email=eq.' + encodeURIComponent(email) +
+      '&select=name,email,hubspot_contact_id,hubspot_properties,meeting_id' +
+      '&order=created_at.desc&limit=50'
+    );
+  } else {
+    var nameSearch = encodeURIComponent('*' + name + '*');
+    participants = _supabaseGet(
+      secrets,
+      '/rest/v1/meeting_participants?name=ilike.' + nameSearch +
+      '&select=name,email,hubspot_contact_id,hubspot_properties,meeting_id' +
+      '&order=created_at.desc&limit=50'
+    );
+  }
+
+  if (!participants || participants.length === 0) {
+    return _jsonResponse({
+      prep: null,
+      message: 'No participants found matching "' + (name || email) + '".',
+      elapsed_ms: Date.now() - startTime
+    });
+  }
+
+  // Group by distinct person
+  var people = {};
+  for (var i = 0; i < participants.length; i++) {
+    var p = participants[i];
+    var hsProps = p.hubspot_properties || {};
+    var company = hsProps.company || '';
+    var key = p.email ? p.email.toLowerCase() : ((p.name || '') + '|' + company).toLowerCase();
+    if (!people[key]) {
+      people[key] = {
+        name: p.name || '',
+        email: p.email || '',
+        company: company,
+        title: hsProps.jobtitle || '',
+        hubspot_contact_id: p.hubspot_contact_id || null,
+        meeting_ids: []
+      };
+    }
+    if (p.meeting_id && people[key].meeting_ids.indexOf(p.meeting_id) === -1) {
+      people[key].meeting_ids.push(p.meeting_id);
+    }
+  }
+
+  var peopleList = [];
+  var keys = Object.keys(people);
+  for (var j = 0; j < keys.length; j++) {
+    peopleList.push(people[keys[j]]);
+  }
+
+  // Filter out generic domains (internal team)
+  var externalPeople = peopleList.filter(function(p) {
+    var domain = p.email ? p.email.split('@')[1] : '';
+    return !_isGenericDomain(domain) || !p.email;
+  });
+  if (externalPeople.length === 0) externalPeople = peopleList;
+
+  // If multiple people, return disambiguation
+  if (externalPeople.length > 1) {
+    return _jsonResponse({
+      disambiguation_needed: true,
+      matches: externalPeople.map(function(p) {
+        return { name: p.name, email: p.email, company: p.company, title: p.title, meeting_count: p.meeting_ids.length };
+      }),
+      elapsed_ms: Date.now() - startTime
+    });
+  }
+
+  var target = externalPeople[0];
+
+  // Step 2: Fetch meetings with analyses (same as person summary)
+  var meetingIds = target.meeting_ids;
+  if (meetingIds.length === 0 && target.email) {
+    var pRows = _supabaseGet(
+      secrets,
+      '/rest/v1/meeting_participants?email=eq.' + encodeURIComponent(target.email) +
+      '&select=meeting_id&order=created_at.desc&limit=20'
+    );
+    meetingIds = (pRows || []).map(function(r) { return r.meeting_id; });
+  }
+
+  var cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - daysBack);
+  var cutoffStr = cutoff.toISOString().split('T')[0];
+
+  var meetings = [];
+  if (meetingIds.length > 0) {
+    meetings = _supabaseGet(
+      secrets,
+      '/rest/v1/meetings?id=in.(' + meetingIds.join(',') + ')' +
+      '&meeting_date=gte.' + cutoffStr +
+      '&order=meeting_date.desc&limit=15' +
+      '&select=id,title,meeting_date,duration_mins,meeting_type,status'
+    ) || [];
+  }
+
+  // Fetch analyses
+  var analysisMap = {};
+  if (meetings.length > 0) {
+    var mIds = meetings.map(function(m) { return m.id; });
+    var analyses = _supabaseGet(
+      secrets,
+      '/rest/v1/meeting_analyses?meeting_id=in.(' + mIds.join(',') + ')' +
+      '&select=meeting_id,structured_data,scores&order=created_at.desc'
+    ) || [];
+    for (var a = 0; a < analyses.length; a++) {
+      if (!analysisMap[analyses[a].meeting_id]) {
+        analysisMap[analyses[a].meeting_id] = analyses[a];
+      }
+    }
+  }
+
+  // Step 3: HubSpot contact + deal data
+  var crmContext = { contact: null, deals: [] };
+  if (target.email) {
+    var hsData = _hubspotLookup(secrets, target.email, target.hubspot_contact_id);
+    if (hsData) {
+      crmContext.contact = {
+        name: hsData.name || target.name,
+        company: hsData.company || target.company,
+        title: hsData.jobtitle || target.title,
+        lifecycle_stage: hsData.lifecyclestage || '',
+        lead_status: hsData.hs_lead_status || '',
+        last_activity: hsData.notes_last_updated || ''
+      };
+      if (hsData.deals && hsData.deals.length > 0) {
+        crmContext.deals = hsData.deals.map(function(d) {
+          return {
+            name: d.dealname || '',
+            stage: d.dealstage || '',
+            amount: d.amount || '',
+            close_date: d.closedate || '',
+            pipeline: d.pipeline || ''
+          };
+        });
+      }
+    }
+  }
+
+  // Step 4: CRM activity (emails/calls/notes) — lightweight version
+  var crmActivity = { summary: '', emails: [], calls: [] };
+  if (target.email) {
+    try {
+      // Call our own getCrmActivity function internally
+      var actPayload = { email: target.email, days_back: 30 };
+      // We can't call _getCrmActivity directly because it returns an HTTP response,
+      // so we replicate the core logic briefly
+      var hsToken = secrets.HUBSPOT_ACCESS_TOKEN;
+      if (hsToken) {
+        var contactIdForActivity = null;
+        if (crmContext.contact && crmContext.contact.contact_id) {
+          contactIdForActivity = crmContext.contact.contact_id;
+        } else {
+          var hsLookup = _hubspotLookup(secrets, target.email, null);
+          if (hsLookup) contactIdForActivity = hsLookup.contact_id;
+        }
+        if (contactIdForActivity) {
+          var actCutoff = new Date();
+          actCutoff.setDate(actCutoff.getDate() - 30);
+          var actCutoffMs = actCutoff.getTime();
+          var searchBase = 'https://api.hubapi.com/crm/v3/objects/';
+          var authH = { 'Authorization': 'Bearer ' + hsToken, 'Content-Type': 'application/json' };
+
+          var emailPay = JSON.stringify({
+            filterGroups: [{ filters: [
+              { propertyName: 'associations.contact', operator: 'EQ', value: contactIdForActivity },
+              { propertyName: 'hs_timestamp', operator: 'GTE', value: String(actCutoffMs) }
+            ]}],
+            properties: ['hs_email_subject', 'hs_email_direction', 'hs_timestamp'],
+            sorts: [{ propertyName: 'hs_timestamp', direction: 'DESCENDING' }],
+            limit: 3
+          });
+          var callPay = JSON.stringify({
+            filterGroups: [{ filters: [
+              { propertyName: 'associations.contact', operator: 'EQ', value: contactIdForActivity },
+              { propertyName: 'hs_timestamp', operator: 'GTE', value: String(actCutoffMs) }
+            ]}],
+            properties: ['hs_call_title', 'hs_call_disposition', 'hs_timestamp'],
+            sorts: [{ propertyName: 'hs_timestamp', direction: 'DESCENDING' }],
+            limit: 3
+          });
+
+          var actResps = UrlFetchApp.fetchAll([
+            { url: searchBase + 'emails/search', method: 'post', contentType: 'application/json', headers: authH, payload: emailPay, muteHttpExceptions: true },
+            { url: searchBase + 'calls/search', method: 'post', contentType: 'application/json', headers: authH, payload: callPay, muteHttpExceptions: true }
+          ]);
+
+          try {
+            if (actResps[0].getResponseCode() === 200) {
+              var ed = JSON.parse(actResps[0].getContentText());
+              crmActivity.summary += (ed.total || 0) + ' email(s)';
+              crmActivity.emails = (ed.results || []).map(function(r) {
+                var ep = r.properties;
+                return { subject: ep.hs_email_subject || '', direction: ep.hs_email_direction === 'INCOMING_EMAIL' ? 'received' : 'sent' };
+              });
+            }
+          } catch(e) {}
+          try {
+            if (actResps[1].getResponseCode() === 200) {
+              var cd = JSON.parse(actResps[1].getContentText());
+              crmActivity.summary += ', ' + (cd.total || 0) + ' call(s)';
+              crmActivity.calls = (cd.results || []).map(function(r) {
+                return { title: r.properties.hs_call_title || '', disposition: r.properties.hs_call_disposition || '' };
+              });
+            }
+          } catch(e) {}
+          crmActivity.summary += ' (last 30 days)';
+        }
+      }
+    } catch (actErr) {
+      console.error('CRM activity for prep failed: ' + actErr.message);
+    }
+  }
+
+  // Step 5: Build the prep brief
+  var relationshipArc = [];
+  var allActionItems = [];
+  var allFollowUps = [];
+  var keyQuotes = [];
+  var scoreTrend = [];
+
+  for (var m = 0; m < meetings.length; m++) {
+    var mtg = meetings[m];
+    var analysis = analysisMap[mtg.id];
+    var sd = analysis ? (analysis.structured_data || {}) : {};
+    if (typeof sd === 'string') { try { sd = JSON.parse(sd); } catch(e) { sd = {}; } }
+    var scores = analysis ? (analysis.scores || sd.scores || {}) : {};
+
+    relationshipArc.push({
+      date: mtg.meeting_date,
+      title: mtg.title,
+      type: mtg.meeting_type,
+      summary: (sd.summary || '').substring(0, 200)
+    });
+
+    var items = sd.action_items || [];
+    for (var ai = 0; ai < items.length; ai++) {
+      var item = items[ai];
+      allActionItems.push({
+        task: typeof item === 'string' ? item : (item.task || item.description || ''),
+        owner: typeof item === 'object' ? (item.owner || '') : '',
+        due: typeof item === 'object' ? (item.due || '') : '',
+        from_meeting: mtg.title,
+        from_date: mtg.meeting_date
+      });
+    }
+
+    var fups = sd.follow_ups || [];
+    for (var fi = 0; fi < fups.length; fi++) {
+      allFollowUps.push({
+        item: typeof fups[fi] === 'string' ? fups[fi] : JSON.stringify(fups[fi]),
+        from_meeting: mtg.title,
+        from_date: mtg.meeting_date
+      });
+    }
+
+    var quotes = sd.key_quotes || [];
+    for (var qi = 0; qi < Math.min(quotes.length, 3); qi++) {
+      var q = quotes[qi];
+      keyQuotes.push({
+        text: typeof q === 'string' ? q : (q.text || q.quote || ''),
+        speaker: typeof q === 'object' ? (q.speaker || '') : '',
+        from_meeting: mtg.title,
+        from_date: mtg.meeting_date
+      });
+    }
+
+    if (Object.keys(scores).length > 0) {
+      scoreTrend.push({ date: mtg.meeting_date, meeting: mtg.title, scores: scores });
+    }
+  }
+
+  // Step 6: Agent memory
+  var memoryFacts = [];
+  if (target.email) {
+    var pm = _supabaseGet(
+      secrets,
+      '/rest/v1/agent_memory?is_active=eq.true' +
+      '&or=(entity_id.eq.' + encodeURIComponent(target.email) +
+      ',entity_name.ilike.*' + encodeURIComponent(target.email.split('@')[0]) + '*)' +
+      '&order=created_at.desc&limit=10'
+    );
+    if (pm) {
+      memoryFacts = pm.map(function(f) { return { type: f.entity_type, fact: f.fact }; });
+    }
+  }
+
+  return _jsonResponse({
+    disambiguation_needed: false,
+    person: {
+      name: target.name,
+      email: target.email,
+      company: target.company,
+      title: target.title
+    },
+    crm_context: crmContext,
+    relationship_arc: relationshipArc,
+    open_items: {
+      action_items: allActionItems.slice(0, 15),
+      follow_ups: allFollowUps.slice(0, 10)
+    },
+    key_quotes: keyQuotes.slice(0, 8),
+    score_trend: scoreTrend,
+    crm_activity: crmActivity,
+    memory_facts: memoryFacts,
+    meeting_count: meetings.length,
+    elapsed_ms: Date.now() - startTime
+  });
 }
 
 // ─── HubSpot Helpers ───

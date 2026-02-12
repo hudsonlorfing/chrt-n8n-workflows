@@ -61,7 +61,7 @@ Host hostinger-n8n
 
 | Workflow | ID | Status |
 |----------|-----|--------|
-| 1.0 Lead Ingestion & ICP Scoring [V2] | `f4PepQxbygW1QeWZ` | ✅ Active |
+| 1.0 Lead Ingestion & ICP Scoring [V2] | `5cV9fofnBEo2kBHr` | ✅ Active |
 | 2.1 LinkedIn Outreach - Send [V2] | `nfB8uIOOktCneJ2M` | ✅ Active |
 | 2.2 LinkedIn Outreach - Results [V2] | `X2cJpTw9nj4D9GiO` | ✅ Active |
 | 3.1 Connection Sync - Launch [V2] | `Qts1zslbqxab1aHc` | ✅ Active |
@@ -78,7 +78,7 @@ Host hostinger-n8n
 | 5. Error Monitor Webhook | `YWP69Qgq0ZlCN7Gj` | ⚠️ Error Trigger |
 | 6. Fireflies Meeting Processor | `D8nDH8ECyadToNHp` | ✅ Active |
 | 7. Slack Interaction Handler | `0PjeQ9VgbUgE5lnD` | ✅ Active |
-| 8. Slack Follow-Up Agent | `9t7EPqjlUUirs2fw` | ⚠️ Inactive (needs Slack Events API) |
+| 8. Slack Follow-Up Agent | `9t7EPqjlUUirs2fw` | ✅ Active |
 | 9. Google Sheets Reader (Claude Tool) | `w8FzfVMwIFAhUwNG` | ✅ Active |
 
 **Other:**
