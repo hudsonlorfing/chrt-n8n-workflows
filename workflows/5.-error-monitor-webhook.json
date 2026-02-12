@@ -1,0 +1,384 @@
+{
+  "updatedAt": "2026-01-27T16:11:31.277Z",
+  "createdAt": "2025-12-27T02:10:18.332Z",
+  "id": "YWP69Qgq0ZlCN7Gj",
+  "name": "5. Error Monitor Webhook",
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "error-trigger",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse error data from Error Trigger node\nconst data = $input.first().json;\n\nconst execution = data.execution || {};\nconst workflow = data.workflow || {};\n\n// Check if this was a manual trigger - skip those\nconst mode = execution.mode || '';\nif (mode === 'manual') {\n  return [{ json: { skip: true, reason: 'Manual trigger - not monitoring' } }];\n}\n\n// Extract error details\nconst workflowId = workflow.id || 'unknown';\nconst workflowName = workflow.name || 'Unknown Workflow';\nconst executionId = execution.id || 'unknown';\nconst errorMessage = execution.error?.message || 'Unknown error';\nconst errorNode = execution.error?.node?.name || execution.lastNodeExecuted || 'Unknown node';\nconst errorStack = execution.error?.stack || '';\nconst startedAt = execution.startedAt || new Date().toISOString();\n\n// Check if this is a cookie/connection error that requires manual intervention\nconst cookieErrorPatterns = [\n  /invalid.*cookie/i, /cookie.*invalid/i, /cookie.*expired/i, /expired.*cookie/i,\n  /cannot connect/i, /connection.*refused/i, /ECONNREFUSED/i,\n  /linkedin.*disconnected/i, /disconnected.*linkedin/i,\n  /session.*expired/i, /authentication.*failed/i, /unauthorized/i,\n  /ERR_INVALID_COOKIE/i, /login.*required/i, /please.*log.*in/i,\n  /phantombuster.*session/i, /browser.*session/i,\n  /too many requests/i, /rate.*limit/i\n];\n\nconst combined = `${errorMessage} ${errorStack}`;\nconst isCookieError = cookieErrorPatterns.some(pattern => pattern.test(combined));\n\nreturn [{\n  json: {\n    skip: false,\n    isCookieError,\n    workflowId,\n    workflowName,\n    executionId,\n    errorMessage,\n    errorNode,\n    errorStack,\n    startedAt,\n    mode,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "parse-error",
+      "name": "Parse Error Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "not-skip",
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-should-process",
+      "name": "Should Process?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "is-cookie-error",
+              "leftValue": "={{ $json.isCookieError }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-cookie-error",
+      "name": "Cookie/Connection Error?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "C0A6ES56MU2"
+        },
+        "text": "={{ '🍪 *Cookie/Session Error - Manual Action Required*\\n\\n*Workflow:* ' + $json.workflowName + '\\n*Node:* ' + $json.errorNode + '\\n*Error:* ' + $json.errorMessage.substring(0, 300) + '\\n\\n⚠️ *Action Required:* Please refresh the LinkedIn cookie or reconnect the session in Phantombuster.\\n\\n<https://chrt.app.n8n.cloud/workflow/' + $json.workflowId + '/executions/' + $json.executionId + '|View Execution>' }}",
+        "otherOptions": {}
+      },
+      "id": "slack-cookie-alert",
+      "name": "Slack: Cookie Alert",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        880,
+        100
+      ],
+      "credentials": {
+        "slackApi": {
+          "id": "wkLpZSqhXl2iesnC",
+          "name": "Chrt Slack App"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format error for Cursor auto-fix\nconst error = $input.first().json;\n\n// Map workflow IDs to file paths\nconst workflowPaths = {\n  'a56vnrPo9dsg5mmf': 'workflows/linkedin/3.-connection-sync-→-hubspot.json',\n  'YWP69Qgq0ZlCN7Gj': 'workflows/5.-error-monitor-webhook.json',\n  'r4ICnvhdbQwejSdH': 'workflows/linkedin/1.-lead-discovery-→-sheets.json',\n  'kjjYKQEXv67Vl5MS': 'workflows/linkedin/2.-invite-automation.json',\n  'dWFsEXELFTJU0W01': 'workflows/linkedin/4.-lead-pipeline-monitor.json'\n};\n\nconst workflowPath = workflowPaths[error.workflowId] || `workflows/${error.workflowName.toLowerCase().replace(/[^a-z0-9]/g, '-')}.json`;\n\nconst cursorPrompt = `You are an n8n workflow expert. An error occurred in a workflow that needs fixing.\n\n## Error Details\n- **Workflow:** ${error.workflowName} (ID: ${error.workflowId})\n- **Execution ID:** ${error.executionId}\n- **Failing Node:** ${error.errorNode}\n- **Error Message:** ${error.errorMessage}\n- **Error Stack:** ${(error.errorStack || '').substring(0, 500)}\n\n## Instructions\n1. Read the workflow file at: Chrt/workflows/chrt-n8n-workflows/${workflowPath}\n2. Find the node named \"${error.errorNode}\"\n3. Analyze the error and determine the root cause\n4. Fix the issue - common fixes include:\n   - Adding defensive null/undefined checks with optional chaining (?.)\n   - Adding neverError: true for HTTP requests\n   - Fixing expression syntax\n   - Adding fallback values with || operator\n   - Filtering out invalid items before processing\n5. Update BOTH the main nodes array AND the activeVersion.nodes array\n6. Push the fix using: ./scripts/n8n-debug.sh update <filepath> <workflowId>\n\n## Workflow Context\n- Base path: /Users/hudsonlorfing/Documents/Business/Chrt/workflows/chrt-n8n-workflows\n- n8n instance: https://chrt.app.n8n.cloud\n- Use the n8n-workflow-development skill for patterns and best practices\n\nPlease fix this workflow error.`;\n\nreturn [{\n  json: {\n    summary: `Error in ${error.workflowName} at node '${error.errorNode}'`,\n    details: {\n      workflow: { id: error.workflowId, name: error.workflowName, path: workflowPath },\n      execution: { id: error.executionId, startedAt: error.startedAt, mode: error.mode },\n      error: { node: error.errorNode, message: error.errorMessage, stack: (error.errorStack || '').substring(0, 500) }\n    },\n    cursor: {\n      prompt: cursorPrompt,\n      workingDirectory: '/Users/hudsonlorfing/Documents/Business',\n      workflowPath: `Chrt/workflows/chrt-n8n-workflows/${workflowPath}`\n    },\n    n8nUrl: `https://chrt.app.n8n.cloud/workflow/${error.workflowId}/executions/${error.executionId}`,\n    timestamp: error.timestamp\n  }\n}];"
+      },
+      "id": "format-error",
+      "name": "Format Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://srv1230891.hstgr.cloud:3848/cursor-auto-fix",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ prompt: $json.cursor.prompt, workingDirectory: $json.cursor.workingDirectory, workflowPath: $json.cursor.workflowPath, context: { workflowId: $json.details.workflow.id, workflowName: $json.details.workflow.name, executionId: $json.details.execution.id, errorNode: $json.details.error.node, errorMessage: $json.details.error.message, n8nUrl: $json.n8nUrl } }) }}",
+        "options": {
+          "timeout": 180000
+        }
+      },
+      "id": "call-cursor-autofix",
+      "name": "Call Cursor Auto-Fix",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        -100
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "C0A6ES56MU2"
+        },
+        "text": "={{ '🚨 *Workflow Error* (Auto-fix attempted)\\n\\n*Workflow:* ' + $json.details.workflow.name + '\\n*Node:* ' + $json.details.error.node + '\\n*Error:* ' + $json.details.error.message.substring(0, 200) + '\\n\\n<https://chrt.app.n8n.cloud/workflow/' + $json.details.workflow.id + '/executions/' + $json.details.execution.id + '|View Execution>' }}",
+        "otherOptions": {}
+      },
+      "id": "slack-error-notify",
+      "name": "Slack: Error Alert",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        -300
+      ],
+      "credentials": {
+        "slackApi": {
+          "id": "wkLpZSqhXl2iesnC",
+          "name": "Chrt Slack App"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "done-success",
+      "name": "Done (Auto-Fix Started)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1320,
+        -100
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "done-skipped",
+      "name": "Done (Skipped)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        660,
+        200
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "done-cookie-alert",
+      "name": "Done (Cookie Alert)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Log that Cursor auto-fix failed\nconst error = $('Format Error').first().json;\n\nreturn [{\n  json: {\n    status: 'cursor_failed',\n    summary: error.summary,\n    n8nUrl: error.n8nUrl,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "log-error",
+      "name": "Log Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        0
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "done-logged",
+      "name": "Done (Logged)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1540,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Parse Error Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Error Data": {
+      "main": [
+        [
+          {
+            "node": "Should Process?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Should Process?": {
+      "main": [
+        [
+          {
+            "node": "Cookie/Connection Error?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Done (Skipped)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cookie/Connection Error?": {
+      "main": [
+        [
+          {
+            "node": "Slack: Cookie Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack: Cookie Alert": {
+      "main": [
+        [
+          {
+            "node": "Done (Cookie Alert)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Error": {
+      "main": [
+        [
+          {
+            "node": "Call Cursor Auto-Fix",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Slack: Error Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Cursor Auto-Fix": {
+      "main": [
+        [
+          {
+            "node": "Done (Auto-Fix Started)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Error": {
+      "main": [
+        [
+          {
+            "node": "Done (Logged)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false,
+    "errorWorkflow": ""
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": null,
+  "versionId": "139ed939-ad60-4e8c-9ebd-ed69796aad0a",
+  "activeVersionId": null,
+  "triggerCount": 0,
+  "shared": [
+    {
+      "updatedAt": "2026-01-01T08:23:49.208Z",
+      "createdAt": "2026-01-01T08:23:49.208Z",
+      "role": "workflow:owner",
+      "workflowId": "YWP69Qgq0ZlCN7Gj",
+      "projectId": "O7lTivDfRl72aS23"
+    }
+  ],
+  "activeVersion": null,
+  "tags": [],
+  "_folderPath": "",
+  "_fileName": "5.-error-monitor-webhook.json"
+}
