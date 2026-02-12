@@ -1,0 +1,219 @@
+{
+  "updatedAt": "2026-01-04T09:59:04.870Z",
+  "createdAt": "2026-01-04T09:47:59.727Z",
+  "id": "w8FzfVMwIFAhUwNG",
+  "name": "8. Google Sheets Reader (Claude Tool)",
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "sheets-reader",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        256,
+        304
+      ],
+      "webhookId": "sheets-reader-webhook"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $json.body.sheetId || '1jXRlG0UNlkAi-mHoaS3jLjVx5Je9zIBrCjgDiB2rBI4' }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "={{ $json.body.tabName || '' }}",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "google-sheets",
+      "name": "Read Sheet Data",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        480,
+        304
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "0sqf5kGc5V6Ztyyc",
+          "name": "Google Sheets SeaDev"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {\n  success: true,\n  sheetId: $('Webhook').item.json.body.sheetId || '1jXRlG0UNlkAi-mHoaS3jLjVx5Je9zIBrCjgDiB2rBI4',\n  tabName: $('Webhook').item.json.body.tabName || 'Default',\n  rowCount: $input.all().length,\n  columns: Object.keys($input.first().json),\n  data: $input.all().map(item => item.json)\n} }}",
+        "options": {}
+      },
+      "id": "respond-webhook",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        704,
+        304
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Read Sheet Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Sheet Data": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": {},
+  "versionId": "47124a3b-5791-4c5e-bbf7-8d8eba627a92",
+  "activeVersionId": "47124a3b-5791-4c5e-bbf7-8d8eba627a92",
+  "triggerCount": 1,
+  "shared": [
+    {
+      "updatedAt": "2026-01-04T09:48:00.680Z",
+      "createdAt": "2026-01-04T09:48:00.680Z",
+      "role": "workflow:owner",
+      "workflowId": "w8FzfVMwIFAhUwNG",
+      "projectId": "O7lTivDfRl72aS23"
+    }
+  ],
+  "activeVersion": {
+    "updatedAt": "2026-01-04T09:59:08.000Z",
+    "createdAt": "2026-01-04T09:59:04.871Z",
+    "versionId": "47124a3b-5791-4c5e-bbf7-8d8eba627a92",
+    "workflowId": "w8FzfVMwIFAhUwNG",
+    "nodes": [
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "sheets-reader",
+          "responseMode": "responseNode",
+          "options": {
+            "allowedOrigins": "*"
+          }
+        },
+        "id": "webhook-trigger",
+        "name": "Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          256,
+          304
+        ],
+        "webhookId": "sheets-reader-webhook"
+      },
+      {
+        "parameters": {
+          "documentId": {
+            "__rl": true,
+            "value": "={{ $json.body.sheetId || '1jXRlG0UNlkAi-mHoaS3jLjVx5Je9zIBrCjgDiB2rBI4' }}",
+            "mode": "id"
+          },
+          "sheetName": {
+            "__rl": true,
+            "value": "={{ $json.body.tabName || '' }}",
+            "mode": "name"
+          },
+          "options": {}
+        },
+        "id": "google-sheets",
+        "name": "Read Sheet Data",
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.5,
+        "position": [
+          480,
+          304
+        ],
+        "credentials": {
+          "googleSheetsOAuth2Api": {
+            "id": "0sqf5kGc5V6Ztyyc",
+            "name": "Google Sheets SeaDev"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ {\n  success: true,\n  sheetId: $('Webhook').item.json.body.sheetId || '1jXRlG0UNlkAi-mHoaS3jLjVx5Je9zIBrCjgDiB2rBI4',\n  tabName: $('Webhook').item.json.body.tabName || 'Default',\n  rowCount: $input.all().length,\n  columns: Object.keys($input.first().json),\n  data: $input.all().map(item => item.json)\n} }}",
+          "options": {}
+        },
+        "id": "respond-webhook",
+        "name": "Respond to Webhook",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [
+          704,
+          304
+        ]
+      }
+    ],
+    "connections": {
+      "Webhook": {
+        "main": [
+          [
+            {
+              "node": "Read Sheet Data",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Read Sheet Data": {
+        "main": [
+          [
+            {
+              "node": "Respond to Webhook",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "authors": "Hudson Lorfing",
+    "name": "Version 47124a3b",
+    "description": "",
+    "autosaved": false
+  },
+  "tags": [],
+  "_folderPath": "",
+  "_fileName": "8.-google-sheets-reader-(claude-tool).json"
+}
