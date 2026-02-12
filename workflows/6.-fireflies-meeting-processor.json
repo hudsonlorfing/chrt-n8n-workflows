@@ -1,0 +1,1422 @@
+{
+  "updatedAt": "2026-02-10T20:48:07.831Z",
+  "createdAt": "2026-01-05T08:02:32.274Z",
+  "id": "D8nDH8ECyadToNHp",
+  "name": "6. Fireflies Meeting Processor",
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "meeting-intel",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        300
+      ],
+      "webhookId": "meeting-intel",
+      "id": "4b3d66fb-7345-4a91-bbda-9582887fe2f3"
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "meeting-intel-retry",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "name": "Retry Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        500
+      ],
+      "webhookId": "meeting-intel-retry",
+      "id": "retry-webhook-001"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ JSON.stringify({status: 'received', meetingId: $json.meetingId || $json.body?.meetingId || 'unknown'}) }}"
+      },
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        220,
+        300
+      ],
+      "id": "8cdc14c9-588c-4a24-800d-0560c6a6deb0"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Handle both webhook payload and retry query params\nconst input = $input.first().json;\n\n// Check for retry via query params\nif (input.query?.id) {\n  return [{ json: { meetingId: input.query.id, eventType: 'Manual retry', isRetry: true } }];\n}\n\n// Standard webhook payload\nconst body = input.body || input;\nconst meetingId = body.meetingId || body.meeting_id || body.id;\n\nif (!meetingId) {\n  throw new Error('No meetingId in webhook payload: ' + JSON.stringify(body).substring(0, 200));\n}\n\nconsole.log('Received Fireflies webhook for meeting:', meetingId);\nreturn [{ json: { meetingId, eventType: body.eventType || 'Transcription completed', isRetry: false } }];"
+      },
+      "name": "Extract Meeting ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ],
+      "id": "3ab5003b-f0fd-4847-a86f-88e0f4312d5d"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://utvoxshpxzsgsliworwh.supabase.co/rest/v1/meetings",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=representation,resolution=merge-duplicates"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ fireflies_id: $json.meetingId, title: 'Processing...', status: 'pending' }) }}",
+        "options": {}
+      },
+      "name": "Supabase: Insert Meeting",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        300
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "HRBgSj7d6TFZA8kL",
+          "name": "Supabase account 2"
+        }
+      },
+      "id": "supabase-insert-001"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.fireflies.ai/graphql",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ query: `{ transcript(id: \"${$('Extract Meeting ID').first().json.meetingId}\") { id title date duration organizer_email participants sentences { speaker_name text } summary { overview } } }` }) }}",
+        "options": {
+          "retry": {
+            "enabled": true,
+            "maxRetries": 3,
+            "waitBetweenRetries": 5000
+          }
+        }
+      },
+      "name": "Fireflies: Fetch Transcript",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "E59l4LdE1u7lD39v",
+          "name": "Fireflies API"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "id": "fbc729ff-e7a0-4d53-8f38-29602655580d"
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst transcript = response.data?.transcript;\n\nif (!transcript) {\n  const error = response.errors?.[0]?.message || 'Transcript not found';\n  throw new Error('Fireflies API error: ' + error);\n}\n\n// Build transcript text from sentences (used for detection, NOT stored)\nconst transcriptText = (transcript.sentences || []).map(s => `${s.speaker_name}: ${s.text}`).join('\\n');\n\n// Parse date\nconst dateMs = transcript.date || Date.now();\nconst dateStr = new Date(dateMs).toISOString().split('T')[0];\nconst durationMins = Math.round(transcript.duration || 0);\n\n// Generate hash\nconst hash = require('crypto').createHash('md5').update(transcript.id + transcript.title).digest('hex').substring(0, 8);\n\nconst title = transcript.title || 'Untitled Meeting';\nconst attendees = transcript.participants || [];\n\n// Extract person name\nlet personName = '';\nconst withMatch = title.match(/(?:with|w\\/|and|&|x)\\s+([A-Z][a-z]+(?:\\s+[A-Z][a-z]+)*)/i);\nif (withMatch) {\n  personName = withMatch[1].trim();\n} else {\n  personName = attendees.find(a => !a.toLowerCase().includes('hudson')) || '';\n  if (personName.includes('@')) {\n    personName = personName.split('@')[0].split('.').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');\n  }\n}\nif (!personName) personName = title.replace(/^(?:chat|call|meeting|sync|1:1|1-1)\\s*/i, '').trim();\n\nconst firefliesUrl = `https://app.fireflies.ai/view/${transcript.id}`;\n\nreturn [{ json: {\n  meetingId: transcript.id,\n  hash,\n  title,\n  personName,\n  meetingDate: new Date(dateMs).toISOString(),\n  dateStr,\n  durationMins,\n  attendees: attendees.join(', '),\n  attendeesList: attendees,\n  transcript: transcriptText,\n  firefliesUrl,\n  firefliesSummary: transcript.summary?.overview || '',\n  organizerEmail: transcript.organizer_email || ''\n} }];"
+      },
+      "name": "Process Transcript",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        200
+      ],
+      "id": "37b5849c-d20a-4d97-b5bd-4b5fa094d115"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://utvoxshpxzsgsliworwh.supabase.co/rest/v1/meetings?fireflies_id=eq.{{ $json.meetingId }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ hash: $json.hash, title: $json.title, person_name: $json.personName, meeting_date: $json.meetingDate, date_str: $json.dateStr, duration_mins: $json.durationMins, attendees_raw: $json.attendees, fireflies_url: $json.firefliesUrl, fireflies_summary: $json.firefliesSummary, status: 'transcript_fetched' }) }}",
+        "options": {}
+      },
+      "name": "Supabase: Update Meeting",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        200
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "HRBgSj7d6TFZA8kL",
+          "name": "Supabase account 2"
+        }
+      },
+      "id": "supabase-update-transcript-001"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "has-transcript",
+              "leftValue": "={{ $('Process Transcript').first().json.transcript.length }}",
+              "rightValue": 50,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "Has Valid Transcript?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1540,
+        200
+      ],
+      "id": "dcb68a11-9050-4886-a05d-3b741d8845ff"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Chrt-only inline meeting type detection\n// Replaces the old VPS auto-detect endpoint\nconst meeting = $('Process Transcript').first().json;\nconst title = (meeting.title || '').toLowerCase();\nconst attendees = meeting.attendeesList || [];\nconst transcript = (meeting.transcript || '').substring(0, 3000).toLowerCase();\nconst duration = meeting.durationMins || 0;\n\n// Chrt domain patterns\nconst chrtDomains = ['chrt.com', 'getchrt.com'];\nconst isInternal = attendees.every(a => {\n  if (!a.includes('@')) return true;\n  const domain = a.split('@')[1]?.toLowerCase();\n  return chrtDomains.some(d => domain?.includes(d));\n});\nconst isExternal = !isInternal;\n\n// Meeting type detection based on title keywords and content\nlet meetingType = 'general';\nlet suggestedApps = [{ id: 'general-notes', weight: 1.0 }];\nlet appConfidence = 'low';\n\n// Sales Discovery\nif (isExternal && /discovery|intro|initial|first call/.test(title)) {\n  meetingType = 'sales_discovery';\n  suggestedApps = [{id:'discovery-scorecard',weight:0.5},{id:'spiced-analyzer',weight:0.3},{id:'competitor-tracker',weight:0.2}];\n  appConfidence = 'high';\n}\n// Sales Demo\nelse if (isExternal && /demo|presentation|walkthrough|platform overview|product tour/.test(title)) {\n  meetingType = 'sales_demo';\n  suggestedApps = [{id:'demo-scorecard',weight:0.6},{id:'objection-handler',weight:0.25},{id:'competitor-tracker',weight:0.15}];\n  appConfidence = 'high';\n}\n// QBR / Check-in\nelse if (isExternal && /qbr|quarterly|check-in|review|catch up/.test(title)) {\n  meetingType = 'customer_checkin';\n  suggestedApps = [{id:'churn-risk-analyzer',weight:0.4},{id:'qbr-analyzer',weight:0.4},{id:'general-notes',weight:0.2}];\n  appConfidence = 'high';\n}\n// Onboarding\nelse if (isExternal && /onboarding|kickoff|implementation|setup/.test(title)) {\n  meetingType = 'customer_onboarding';\n  suggestedApps = [{id:'onboarding-review',weight:0.7},{id:'general-notes',weight:0.3}];\n  appConfidence = 'high';\n}\n// Customer Research\nelse if (isExternal && /research|interview|feedback|user interview/.test(title)) {\n  meetingType = 'customer_research';\n  suggestedApps = [{id:'customer-interview',weight:0.6},{id:'user-research',weight:0.4}];\n  appConfidence = 'high';\n}\n// Candidate Interview\nelse if (isExternal && /interview|screen|candidate|hiring/.test(title)) {\n  meetingType = 'candidate_interview';\n  suggestedApps = [{id:'interview-scorecard',weight:1.0}];\n  appConfidence = 'high';\n}\n// Executive Strategy (internal)\nelse if (!isExternal && /strategy|pricing|organizational|leadership|executive|ceo|cfo|board/.test(title)) {\n  meetingType = 'executive_strategy';\n  suggestedApps = [{id:'executive-strategy',weight:0.6},{id:'qbr-analyzer',weight:0.25},{id:'general-notes',weight:0.15}];\n  appConfidence = 'high';\n}\n// Team Sync (internal)\nelse if (!isExternal && /standup|sync|team meeting|weekly/.test(title)) {\n  meetingType = 'team_sync';\n  suggestedApps = [{id:'team-sync',weight:0.7},{id:'sprint-retro',weight:0.3}];\n  appConfidence = 'medium';\n}\n// 1:1 (internal)\nelse if (!isExternal && /1:1|1-1|one on one/.test(title)) {\n  meetingType = 'one_on_one';\n  suggestedApps = [{id:'one-on-one',weight:1.0}];\n  appConfidence = 'medium';\n}\n// Content-based fallback for external meetings\nelse if (isExternal) {\n  if (/spiced|qualification|pain point|impact|critical event/.test(transcript)) {\n    meetingType = 'sales_discovery';\n    suggestedApps = [{id:'discovery-scorecard',weight:0.4},{id:'spiced-analyzer',weight:0.4},{id:'general-notes',weight:0.2}];\n    appConfidence = 'medium';\n  } else if (/competitor|alternative|compared|switching/.test(transcript)) {\n    meetingType = 'sales_demo';\n    suggestedApps = [{id:'demo-scorecard',weight:0.4},{id:'competitor-tracker',weight:0.3},{id:'general-notes',weight:0.3}];\n    appConfidence = 'low';\n  } else {\n    meetingType = 'external_general';\n    suggestedApps = [{id:'general-notes',weight:0.5},{id:'spiced-analyzer',weight:0.3},{id:'competitor-tracker',weight:0.2}];\n    appConfidence = 'low';\n  }\n}\n\nreturn [{ json: {\n  ...meeting,\n  isExternal,\n  meetingType,\n  suggestedApps,\n  appConfidence\n} }];"
+      },
+      "name": "Detect Meeting Type",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        100
+      ],
+      "id": "detect-meeting-type-001"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://utvoxshpxzsgsliworwh.supabase.co/rest/v1/meetings?fireflies_id=eq.{{ $json.meetingId }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ is_external: $json.isExternal, meeting_type: $json.meetingType, suggested_apps: $json.suggestedApps, app_confidence: $json.appConfidence, status: 'ready' }) }}",
+        "options": {}
+      },
+      "name": "Supabase: Update Detection",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1980,
+        100
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "HRBgSj7d6TFZA8kL",
+          "name": "Supabase account 2"
+        }
+      },
+      "id": "supabase-update-detection-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract participants from attendees list for Supabase meeting_participants\nconst meeting = $('Detect Meeting Type').first().json;\nconst attendees = meeting.attendeesList || [];\nconst chrtDomains = ['chrt.com', 'getchrt.com'];\n\n// Get meeting UUID from the Supabase insert response\nconst supabaseResponse = $('Supabase: Insert Meeting').first().json;\nconst meetingUuid = Array.isArray(supabaseResponse) ? supabaseResponse[0]?.id : supabaseResponse?.id;\n\nconst participants = attendees.map(attendee => {\n  let name = attendee;\n  let email = '';\n  let isInternal = false;\n\n  if (attendee.includes('@')) {\n    email = attendee.toLowerCase();\n    const domain = email.split('@')[1];\n    isInternal = chrtDomains.some(d => domain?.includes(d));\n    name = email.split('@')[0].split('.').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');\n  } else {\n    // Check if name matches known Chrt team\n    isInternal = /hudson|aaron|kyle/i.test(attendee);\n  }\n\n  return {\n    meeting_id: meetingUuid,\n    name: name,\n    email: email || null,\n    is_internal: isInternal,\n    role_in_meeting: null\n  };\n}).filter(p => p.name);\n\nreturn participants.map(p => ({ json: p }));"
+      },
+      "name": "Extract Participants",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        100
+      ],
+      "id": "extract-participants-001"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://utvoxshpxzsgsliworwh.supabase.co/rest/v1/meeting_participants",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ meeting_id: $json.meeting_id, name: $json.name, email: $json.email, is_internal: $json.is_internal, role_in_meeting: $json.role_in_meeting }) }}",
+        "options": {}
+      },
+      "name": "Supabase: Insert Participant",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2420,
+        100
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "HRBgSj7d6TFZA8kL",
+          "name": "Supabase account 2"
+        }
+      },
+      "continueOnFail": true,
+      "id": "supabase-insert-participant-001"
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "C0AE7NPAWDQ"
+        },
+        "messageType": "block",
+        "blocksUi": "={{ (() => { const m = $('Detect Meeting Type').first().json; const allApps = ['spiced-analyzer', 'discovery-scorecard', 'demo-scorecard', 'competitor-tracker', 'customer-interview', 'qbr-analyzer', 'onboarding-review', 'churn-risk-analyzer', 'interview-scorecard', 'sprint-retro', 'user-research', 'objection-handler', 'executive-strategy', 'team-sync', 'one-on-one', 'general-notes']; const appOptions = allApps.map(id => ({ text: { type: 'plain_text', text: id }, value: id })); return JSON.stringify({ blocks: [ { type: 'header', text: { type: 'plain_text', text: '🧠 ' + m.title, emoji: true } }, { type: 'section', text: { type: 'mrkdwn', text: '👤 *' + (m.personName || 'Unknown') + '* | ⏱️ ' + m.durationMins + ' min | <' + m.firefliesUrl + '|Fireflies>' } }, { type: 'section', text: { type: 'mrkdwn', text: '*🎯 Recommended Analysis:*\\n' + m.suggestedApps.map(a => '• `' + a.id + '` → ' + Math.round(a.weight * 100) + '%').join('\\n') } }, { type: 'context', elements: [{ type: 'mrkdwn', text: m.meetingType + ' | ' + (m.isExternal ? 'External' : 'Internal') + ' | Confidence: ' + m.appConfidence + '\\n👥 ' + (m.attendees || 'None').substring(0, 100) }] }, { type: 'divider' }, { type: 'input', block_id: 'recording_type_block', optional: true, element: { type: 'static_select', action_id: 'recording_type_select', placeholder: { type: 'plain_text', text: 'Normal meeting...' }, options: [ { text: { type: 'plain_text', text: '👥 Normal Meeting' }, value: 'normal' }, { text: { type: 'plain_text', text: '🎙️ Singular Recording' }, value: 'singular' } ] }, label: { type: 'plain_text', text: '📹 Recording Type' } }, { type: 'input', block_id: 'additional_attendees_block', optional: true, element: { type: 'plain_text_input', action_id: 'additional_attendees_input', placeholder: { type: 'plain_text', text: 'John Smith, Jane Doe' } }, label: { type: 'plain_text', text: '👥 Additional Attendees' } }, { type: 'input', block_id: 'detail_level_block', optional: true, element: { type: 'static_select', action_id: 'detail_level_select', placeholder: { type: 'plain_text', text: 'Standard notes...' }, options: [ { text: { type: 'plain_text', text: '📝 Standard Notes' }, value: 'standard' }, { text: { type: 'plain_text', text: '📚 Context Meeting (detailed)' }, value: 'context' } ] }, label: { type: 'plain_text', text: '📊 Detail Level' } }, { type: 'input', block_id: 'apps_block', optional: true, element: { type: 'multi_static_select', action_id: 'apps_select', placeholder: { type: 'plain_text', text: 'Only if changing...' }, options: appOptions }, label: { type: 'plain_text', text: '🔧 Override Apps?' } }, { type: 'input', block_id: 'custom_context_block', optional: true, element: { type: 'plain_text_input', action_id: 'custom_context_input', multiline: true, placeholder: { type: 'plain_text', text: 'Any specific focus...' } }, label: { type: 'plain_text', text: '💬 Additional Context' } }, { type: 'actions', block_id: 'actions_block', elements: [ { type: 'button', text: { type: 'plain_text', text: '🚀 Analyze', emoji: true }, style: 'primary', action_id: 'analyze_meeting_v2', value: m.hash }, { type: 'button', text: { type: 'plain_text', text: 'Skip', emoji: true }, action_id: 'skip_meeting', value: m.hash } ] } ], text: 'Meeting: ' + m.title }); })() }}",
+        "otherOptions": {}
+      },
+      "name": "Slack: Intel Form",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        2640,
+        -100
+      ],
+      "id": "aaee7e6c-553c-4dc2-8fbd-d6d97dba2d4b",
+      "credentials": {
+        "slackApi": {
+          "id": "wkLpZSqhXl2iesnC",
+          "name": "Chrt Slack App"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Capture the Slack thread_ts from the Intel Form post response\nconst slackResponse = $input.first().json;\nconst threadTs = slackResponse.ts || slackResponse.message?.ts || null;\nconst channelId = slackResponse.channel || 'C0AE7NPAWDQ';\nconst meetingId = $('Detect Meeting Type').first().json.meetingId;\n\nif (!threadTs) {\n  console.log('Warning: No thread_ts in Slack response');\n}\n\nreturn [{ json: { meetingId, threadTs, channelId } }];"
+      },
+      "name": "Extract Thread TS",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2860,
+        -100
+      ],
+      "id": "extract-thread-ts-001"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://utvoxshpxzsgsliworwh.supabase.co/rest/v1/meetings?fireflies_id=eq.{{ $json.meetingId }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ slack_channel_id: $json.channelId, slack_thread_ts: $json.threadTs }) }}",
+        "options": {}
+      },
+      "name": "Supabase: Save Thread TS",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3080,
+        -100
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "HRBgSj7d6TFZA8kL",
+          "name": "Supabase account 2"
+        }
+      },
+      "id": "supabase-save-thread-ts-001"
+    },
+    {
+      "parameters": {},
+      "name": "Invalid Transcript",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1760,
+        300
+      ],
+      "id": "ea802433-ef50-4b3c-9280-4eea935dc3a9"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse error for clean message\nconst rawError = JSON.stringify($json).substring(0, 1000);\nconst meetingId = $('Extract Meeting ID').first().json.meetingId;\n\nlet errorType = 'unknown';\nlet errorMessage = 'Unknown error occurred';\n\nif (rawError.includes('502') || rawError.includes('Bad gateway')) {\n  errorType = 'api_unavailable';\n  errorMessage = 'Fireflies API temporarily unavailable (502)';\n} else if (rawError.includes('503') || rawError.includes('Service Unavailable')) {\n  errorType = 'api_unavailable';\n  errorMessage = 'Fireflies API service unavailable (503)';\n} else if (rawError.includes('401') || rawError.includes('Unauthorized')) {\n  errorType = 'auth_failed';\n  errorMessage = 'Fireflies API authentication failed';\n} else if (rawError.includes('403') || rawError.includes('Forbidden')) {\n  errorType = 'auth_failed';\n  errorMessage = 'Fireflies API access forbidden';\n} else if (rawError.includes('429') || rawError.includes('rate limit')) {\n  errorType = 'rate_limited';\n  errorMessage = 'Fireflies API rate limit exceeded';\n} else if (rawError.includes('404') || rawError.includes('not found')) {\n  errorType = 'not_found';\n  errorMessage = 'Meeting transcript not found in Fireflies';\n} else if (rawError.includes('timeout') || rawError.includes('ETIMEDOUT')) {\n  errorType = 'timeout';\n  errorMessage = 'Fireflies API request timed out';\n}\n\nreturn [{ json: { errorType, errorMessage, meetingId, rawError: rawError.substring(0, 200) } }];"
+      },
+      "name": "Parse Error Type",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        400
+      ],
+      "id": "parse-error-type-001"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://utvoxshpxzsgsliworwh.supabase.co/rest/v1/meetings?fireflies_id=eq.{{ $json.meetingId }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ status: 'failed', error_type: $json.errorType, error_message: $json.errorMessage }) }}",
+        "options": {}
+      },
+      "name": "Supabase: Mark Failed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        400
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "HRBgSj7d6TFZA8kL",
+          "name": "Supabase account 2"
+        }
+      },
+      "id": "supabase-mark-failed-001"
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "C0AE7NPAWDQ"
+        },
+        "text": "={{ '⚠️ *Meeting Processing Failed*\\n\\n📋 Meeting ID: `' + $('Parse Error Type').first().json.meetingId + '`\\n❌ Error: ' + $('Parse Error Type').first().json.errorMessage + '\\n\\n💾 Saved to Supabase for retry\\n🔄 Retry: `/webhook/meeting-intel-retry?id=' + $('Parse Error Type').first().json.meetingId + '`' }}",
+        "otherOptions": {}
+      },
+      "name": "Slack: API Error",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        1540,
+        400
+      ],
+      "id": "7b68c755-369e-4974-a3bb-0c645fcee945",
+      "credentials": {
+        "slackApi": {
+          "id": "wkLpZSqhXl2iesnC",
+          "name": "Chrt Slack App"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Handle retry webhook - just pass through to Extract Meeting ID\nconst query = $input.first().json.query || {};\nconst meetingId = query.id;\n\nif (!meetingId) {\n  throw new Error('Meeting ID required. Use ?id=<fireflies_meeting_id>');\n}\n\nreturn [{ json: { meetingId, eventType: 'Manual retry', isRetry: true, query } }];"
+      },
+      "name": "Parse Retry Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        500
+      ],
+      "id": "parse-retry-request-001"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retry Webhook": {
+      "main": [
+        [
+          {
+            "node": "Parse Retry Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Retry Request": {
+      "main": [
+        [
+          {
+            "node": "Supabase: Insert Meeting",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond OK": {
+      "main": [
+        [
+          {
+            "node": "Extract Meeting ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Meeting ID": {
+      "main": [
+        [
+          {
+            "node": "Supabase: Insert Meeting",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase: Insert Meeting": {
+      "main": [
+        [
+          {
+            "node": "Fireflies: Fetch Transcript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fireflies: Fetch Transcript": {
+      "main": [
+        [
+          {
+            "node": "Process Transcript",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Parse Error Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Transcript": {
+      "main": [
+        [
+          {
+            "node": "Supabase: Update Meeting",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase: Update Meeting": {
+      "main": [
+        [
+          {
+            "node": "Has Valid Transcript?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Valid Transcript?": {
+      "main": [
+        [
+          {
+            "node": "Detect Meeting Type",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Invalid Transcript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Detect Meeting Type": {
+      "main": [
+        [
+          {
+            "node": "Supabase: Update Detection",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase: Update Detection": {
+      "main": [
+        [
+          {
+            "node": "Extract Participants",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Slack: Intel Form",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Participants": {
+      "main": [
+        [
+          {
+            "node": "Supabase: Insert Participant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack: Intel Form": {
+      "main": [
+        [
+          {
+            "node": "Extract Thread TS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Thread TS": {
+      "main": [
+        [
+          {
+            "node": "Supabase: Save Thread TS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Error Type": {
+      "main": [
+        [
+          {
+            "node": "Supabase: Mark Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase: Mark Failed": {
+      "main": [
+        [
+          {
+            "node": "Slack: API Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "YWP69Qgq0ZlCN7Gj",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": null,
+  "versionId": "328b42f2-dad6-4343-9f75-28a49a680b7c",
+  "activeVersionId": "328b42f2-dad6-4343-9f75-28a49a680b7c",
+  "triggerCount": 2,
+  "shared": [
+    {
+      "updatedAt": "2026-01-05T09:19:17.698Z",
+      "createdAt": "2026-01-05T09:19:17.698Z",
+      "role": "workflow:owner",
+      "workflowId": "D8nDH8ECyadToNHp",
+      "projectId": "O7lTivDfRl72aS23"
+    }
+  ],
+  "activeVersion": {
+    "updatedAt": "2026-02-10T20:47:17.088Z",
+    "createdAt": "2026-02-10T20:47:17.088Z",
+    "versionId": "328b42f2-dad6-4343-9f75-28a49a680b7c",
+    "workflowId": "D8nDH8ECyadToNHp",
+    "nodes": [
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "meeting-intel",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "name": "Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          0,
+          300
+        ],
+        "webhookId": "meeting-intel",
+        "id": "4b3d66fb-7345-4a91-bbda-9582887fe2f3"
+      },
+      {
+        "parameters": {
+          "httpMethod": "GET",
+          "path": "meeting-intel-retry",
+          "responseMode": "lastNode",
+          "options": {}
+        },
+        "name": "Retry Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          0,
+          500
+        ],
+        "webhookId": "meeting-intel-retry",
+        "id": "retry-webhook-001"
+      },
+      {
+        "parameters": {
+          "respondWith": "text",
+          "responseBody": "={{ JSON.stringify({status: 'received', meetingId: $json.meetingId || $json.body?.meetingId || 'unknown'}) }}"
+        },
+        "name": "Respond OK",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [
+          220,
+          300
+        ],
+        "id": "8cdc14c9-588c-4a24-800d-0560c6a6deb0"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Handle both webhook payload and retry query params\nconst input = $input.first().json;\n\n// Check for retry via query params\nif (input.query?.id) {\n  return [{ json: { meetingId: input.query.id, eventType: 'Manual retry', isRetry: true } }];\n}\n\n// Standard webhook payload\nconst body = input.body || input;\nconst meetingId = body.meetingId || body.meeting_id || body.id;\n\nif (!meetingId) {\n  throw new Error('No meetingId in webhook payload: ' + JSON.stringify(body).substring(0, 200));\n}\n\nconsole.log('Received Fireflies webhook for meeting:', meetingId);\nreturn [{ json: { meetingId, eventType: body.eventType || 'Transcription completed', isRetry: false } }];"
+        },
+        "name": "Extract Meeting ID",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          440,
+          300
+        ],
+        "id": "3ab5003b-f0fd-4847-a86f-88e0f4312d5d"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://utvoxshpxzsgsliworwh.supabase.co/rest/v1/meetings",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "supabaseApi",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Prefer",
+                "value": "return=representation,resolution=merge-duplicates"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ fireflies_id: $json.meetingId, title: 'Processing...', status: 'pending' }) }}",
+          "options": {}
+        },
+        "name": "Supabase: Insert Meeting",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          660,
+          300
+        ],
+        "credentials": {
+          "supabaseApi": {
+            "id": "HRBgSj7d6TFZA8kL",
+            "name": "Supabase account 2"
+          }
+        },
+        "id": "supabase-insert-001"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.fireflies.ai/graphql",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpHeaderAuth",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ query: `{ transcript(id: \"${$('Extract Meeting ID').first().json.meetingId}\") { id title date duration organizer_email participants sentences { speaker_name text } summary { overview } } }` }) }}",
+          "options": {
+            "retry": {
+              "enabled": true,
+              "maxRetries": 3,
+              "waitBetweenRetries": 5000
+            }
+          }
+        },
+        "name": "Fireflies: Fetch Transcript",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          880,
+          300
+        ],
+        "credentials": {
+          "httpHeaderAuth": {
+            "id": "E59l4LdE1u7lD39v",
+            "name": "Fireflies API"
+          }
+        },
+        "onError": "continueErrorOutput",
+        "id": "fbc729ff-e7a0-4d53-8f38-29602655580d"
+      },
+      {
+        "parameters": {
+          "jsCode": "const response = $input.first().json;\nconst transcript = response.data?.transcript;\n\nif (!transcript) {\n  const error = response.errors?.[0]?.message || 'Transcript not found';\n  throw new Error('Fireflies API error: ' + error);\n}\n\n// Build transcript text from sentences (used for detection, NOT stored)\nconst transcriptText = (transcript.sentences || []).map(s => `${s.speaker_name}: ${s.text}`).join('\\n');\n\n// Parse date\nconst dateMs = transcript.date || Date.now();\nconst dateStr = new Date(dateMs).toISOString().split('T')[0];\nconst durationMins = Math.round(transcript.duration || 0);\n\n// Generate hash\nconst hash = require('crypto').createHash('md5').update(transcript.id + transcript.title).digest('hex').substring(0, 8);\n\nconst title = transcript.title || 'Untitled Meeting';\nconst attendees = transcript.participants || [];\n\n// Extract person name\nlet personName = '';\nconst withMatch = title.match(/(?:with|w\\/|and|&|x)\\s+([A-Z][a-z]+(?:\\s+[A-Z][a-z]+)*)/i);\nif (withMatch) {\n  personName = withMatch[1].trim();\n} else {\n  personName = attendees.find(a => !a.toLowerCase().includes('hudson')) || '';\n  if (personName.includes('@')) {\n    personName = personName.split('@')[0].split('.').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');\n  }\n}\nif (!personName) personName = title.replace(/^(?:chat|call|meeting|sync|1:1|1-1)\\s*/i, '').trim();\n\nconst firefliesUrl = `https://app.fireflies.ai/view/${transcript.id}`;\n\nreturn [{ json: {\n  meetingId: transcript.id,\n  hash,\n  title,\n  personName,\n  meetingDate: new Date(dateMs).toISOString(),\n  dateStr,\n  durationMins,\n  attendees: attendees.join(', '),\n  attendeesList: attendees,\n  transcript: transcriptText,\n  firefliesUrl,\n  firefliesSummary: transcript.summary?.overview || '',\n  organizerEmail: transcript.organizer_email || ''\n} }];"
+        },
+        "name": "Process Transcript",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1100,
+          200
+        ],
+        "id": "37b5849c-d20a-4d97-b5bd-4b5fa094d115"
+      },
+      {
+        "parameters": {
+          "method": "PATCH",
+          "url": "=https://utvoxshpxzsgsliworwh.supabase.co/rest/v1/meetings?fireflies_id=eq.{{ $json.meetingId }}",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "supabaseApi",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Prefer",
+                "value": "return=representation"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ hash: $json.hash, title: $json.title, person_name: $json.personName, meeting_date: $json.meetingDate, date_str: $json.dateStr, duration_mins: $json.durationMins, attendees_raw: $json.attendees, fireflies_url: $json.firefliesUrl, fireflies_summary: $json.firefliesSummary, status: 'transcript_fetched' }) }}",
+          "options": {}
+        },
+        "name": "Supabase: Update Meeting",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1320,
+          200
+        ],
+        "credentials": {
+          "supabaseApi": {
+            "id": "HRBgSj7d6TFZA8kL",
+            "name": "Supabase account 2"
+          }
+        },
+        "id": "supabase-update-transcript-001"
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "loose",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "has-transcript",
+                "leftValue": "={{ $('Process Transcript').first().json.transcript.length }}",
+                "rightValue": 50,
+                "operator": {
+                  "type": "number",
+                  "operation": "gte"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "name": "Has Valid Transcript?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          1540,
+          200
+        ],
+        "id": "dcb68a11-9050-4886-a05d-3b741d8845ff"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Chrt-only inline meeting type detection\n// Replaces the old VPS auto-detect endpoint\nconst meeting = $('Process Transcript').first().json;\nconst title = (meeting.title || '').toLowerCase();\nconst attendees = meeting.attendeesList || [];\nconst transcript = (meeting.transcript || '').substring(0, 3000).toLowerCase();\nconst duration = meeting.durationMins || 0;\n\n// Chrt domain patterns\nconst chrtDomains = ['chrt.com', 'getchrt.com'];\nconst isInternal = attendees.every(a => {\n  if (!a.includes('@')) return true;\n  const domain = a.split('@')[1]?.toLowerCase();\n  return chrtDomains.some(d => domain?.includes(d));\n});\nconst isExternal = !isInternal;\n\n// Meeting type detection based on title keywords and content\nlet meetingType = 'general';\nlet suggestedApps = [{ id: 'general-notes', weight: 1.0 }];\nlet appConfidence = 'low';\n\n// Sales Discovery\nif (isExternal && /discovery|intro|initial|first call/.test(title)) {\n  meetingType = 'sales_discovery';\n  suggestedApps = [{id:'discovery-scorecard',weight:0.5},{id:'spiced-analyzer',weight:0.3},{id:'competitor-tracker',weight:0.2}];\n  appConfidence = 'high';\n}\n// Sales Demo\nelse if (isExternal && /demo|presentation|walkthrough|platform overview|product tour/.test(title)) {\n  meetingType = 'sales_demo';\n  suggestedApps = [{id:'demo-scorecard',weight:0.6},{id:'objection-handler',weight:0.25},{id:'competitor-tracker',weight:0.15}];\n  appConfidence = 'high';\n}\n// QBR / Check-in\nelse if (isExternal && /qbr|quarterly|check-in|review|catch up/.test(title)) {\n  meetingType = 'customer_checkin';\n  suggestedApps = [{id:'churn-risk-analyzer',weight:0.4},{id:'qbr-analyzer',weight:0.4},{id:'general-notes',weight:0.2}];\n  appConfidence = 'high';\n}\n// Onboarding\nelse if (isExternal && /onboarding|kickoff|implementation|setup/.test(title)) {\n  meetingType = 'customer_onboarding';\n  suggestedApps = [{id:'onboarding-review',weight:0.7},{id:'general-notes',weight:0.3}];\n  appConfidence = 'high';\n}\n// Customer Research\nelse if (isExternal && /research|interview|feedback|user interview/.test(title)) {\n  meetingType = 'customer_research';\n  suggestedApps = [{id:'customer-interview',weight:0.6},{id:'user-research',weight:0.4}];\n  appConfidence = 'high';\n}\n// Candidate Interview\nelse if (isExternal && /interview|screen|candidate|hiring/.test(title)) {\n  meetingType = 'candidate_interview';\n  suggestedApps = [{id:'interview-scorecard',weight:1.0}];\n  appConfidence = 'high';\n}\n// Executive Strategy (internal)\nelse if (!isExternal && /strategy|pricing|organizational|leadership|executive|ceo|cfo|board/.test(title)) {\n  meetingType = 'executive_strategy';\n  suggestedApps = [{id:'executive-strategy',weight:0.6},{id:'qbr-analyzer',weight:0.25},{id:'general-notes',weight:0.15}];\n  appConfidence = 'high';\n}\n// Team Sync (internal)\nelse if (!isExternal && /standup|sync|team meeting|weekly/.test(title)) {\n  meetingType = 'team_sync';\n  suggestedApps = [{id:'team-sync',weight:0.7},{id:'sprint-retro',weight:0.3}];\n  appConfidence = 'medium';\n}\n// 1:1 (internal)\nelse if (!isExternal && /1:1|1-1|one on one/.test(title)) {\n  meetingType = 'one_on_one';\n  suggestedApps = [{id:'one-on-one',weight:1.0}];\n  appConfidence = 'medium';\n}\n// Content-based fallback for external meetings\nelse if (isExternal) {\n  if (/spiced|qualification|pain point|impact|critical event/.test(transcript)) {\n    meetingType = 'sales_discovery';\n    suggestedApps = [{id:'discovery-scorecard',weight:0.4},{id:'spiced-analyzer',weight:0.4},{id:'general-notes',weight:0.2}];\n    appConfidence = 'medium';\n  } else if (/competitor|alternative|compared|switching/.test(transcript)) {\n    meetingType = 'sales_demo';\n    suggestedApps = [{id:'demo-scorecard',weight:0.4},{id:'competitor-tracker',weight:0.3},{id:'general-notes',weight:0.3}];\n    appConfidence = 'low';\n  } else {\n    meetingType = 'external_general';\n    suggestedApps = [{id:'general-notes',weight:0.5},{id:'spiced-analyzer',weight:0.3},{id:'competitor-tracker',weight:0.2}];\n    appConfidence = 'low';\n  }\n}\n\nreturn [{ json: {\n  ...meeting,\n  isExternal,\n  meetingType,\n  suggestedApps,\n  appConfidence\n} }];"
+        },
+        "name": "Detect Meeting Type",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1760,
+          100
+        ],
+        "id": "detect-meeting-type-001"
+      },
+      {
+        "parameters": {
+          "method": "PATCH",
+          "url": "=https://utvoxshpxzsgsliworwh.supabase.co/rest/v1/meetings?fireflies_id=eq.{{ $json.meetingId }}",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "supabaseApi",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Prefer",
+                "value": "return=representation"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ is_external: $json.isExternal, meeting_type: $json.meetingType, suggested_apps: $json.suggestedApps, app_confidence: $json.appConfidence, status: 'ready' }) }}",
+          "options": {}
+        },
+        "name": "Supabase: Update Detection",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1980,
+          100
+        ],
+        "credentials": {
+          "supabaseApi": {
+            "id": "HRBgSj7d6TFZA8kL",
+            "name": "Supabase account 2"
+          }
+        },
+        "id": "supabase-update-detection-001"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Extract participants from attendees list for Supabase meeting_participants\nconst meeting = $('Detect Meeting Type').first().json;\nconst attendees = meeting.attendeesList || [];\nconst chrtDomains = ['chrt.com', 'getchrt.com'];\n\n// Get meeting UUID from the Supabase insert response\nconst supabaseResponse = $('Supabase: Insert Meeting').first().json;\nconst meetingUuid = Array.isArray(supabaseResponse) ? supabaseResponse[0]?.id : supabaseResponse?.id;\n\nconst participants = attendees.map(attendee => {\n  let name = attendee;\n  let email = '';\n  let isInternal = false;\n\n  if (attendee.includes('@')) {\n    email = attendee.toLowerCase();\n    const domain = email.split('@')[1];\n    isInternal = chrtDomains.some(d => domain?.includes(d));\n    name = email.split('@')[0].split('.').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');\n  } else {\n    // Check if name matches known Chrt team\n    isInternal = /hudson|aaron|kyle/i.test(attendee);\n  }\n\n  return {\n    meeting_id: meetingUuid,\n    name: name,\n    email: email || null,\n    is_internal: isInternal,\n    role_in_meeting: null\n  };\n}).filter(p => p.name);\n\nreturn participants.map(p => ({ json: p }));"
+        },
+        "name": "Extract Participants",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2200,
+          100
+        ],
+        "id": "extract-participants-001"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://utvoxshpxzsgsliworwh.supabase.co/rest/v1/meeting_participants",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "supabaseApi",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Prefer",
+                "value": "return=representation"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ meeting_id: $json.meeting_id, name: $json.name, email: $json.email, is_internal: $json.is_internal, role_in_meeting: $json.role_in_meeting }) }}",
+          "options": {}
+        },
+        "name": "Supabase: Insert Participant",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          2420,
+          100
+        ],
+        "credentials": {
+          "supabaseApi": {
+            "id": "HRBgSj7d6TFZA8kL",
+            "name": "Supabase account 2"
+          }
+        },
+        "continueOnFail": true,
+        "id": "supabase-insert-participant-001"
+      },
+      {
+        "parameters": {
+          "select": "channel",
+          "channelId": {
+            "__rl": true,
+            "mode": "id",
+            "value": "C0AE7NPAWDQ"
+          },
+          "messageType": "block",
+          "blocksUi": "={{ (() => { const m = $('Detect Meeting Type').first().json; const allApps = ['spiced-analyzer', 'discovery-scorecard', 'demo-scorecard', 'competitor-tracker', 'customer-interview', 'qbr-analyzer', 'onboarding-review', 'churn-risk-analyzer', 'interview-scorecard', 'sprint-retro', 'user-research', 'objection-handler', 'executive-strategy', 'team-sync', 'one-on-one', 'general-notes']; const appOptions = allApps.map(id => ({ text: { type: 'plain_text', text: id }, value: id })); return JSON.stringify({ blocks: [ { type: 'header', text: { type: 'plain_text', text: '🧠 ' + m.title, emoji: true } }, { type: 'section', text: { type: 'mrkdwn', text: '👤 *' + (m.personName || 'Unknown') + '* | ⏱️ ' + m.durationMins + ' min | <' + m.firefliesUrl + '|Fireflies>' } }, { type: 'section', text: { type: 'mrkdwn', text: '*🎯 Recommended Analysis:*\\n' + m.suggestedApps.map(a => '• `' + a.id + '` → ' + Math.round(a.weight * 100) + '%').join('\\n') } }, { type: 'context', elements: [{ type: 'mrkdwn', text: m.meetingType + ' | ' + (m.isExternal ? 'External' : 'Internal') + ' | Confidence: ' + m.appConfidence + '\\n👥 ' + (m.attendees || 'None').substring(0, 100) }] }, { type: 'divider' }, { type: 'input', block_id: 'recording_type_block', optional: true, element: { type: 'static_select', action_id: 'recording_type_select', placeholder: { type: 'plain_text', text: 'Normal meeting...' }, options: [ { text: { type: 'plain_text', text: '👥 Normal Meeting' }, value: 'normal' }, { text: { type: 'plain_text', text: '🎙️ Singular Recording' }, value: 'singular' } ] }, label: { type: 'plain_text', text: '📹 Recording Type' } }, { type: 'input', block_id: 'additional_attendees_block', optional: true, element: { type: 'plain_text_input', action_id: 'additional_attendees_input', placeholder: { type: 'plain_text', text: 'John Smith, Jane Doe' } }, label: { type: 'plain_text', text: '👥 Additional Attendees' } }, { type: 'input', block_id: 'detail_level_block', optional: true, element: { type: 'static_select', action_id: 'detail_level_select', placeholder: { type: 'plain_text', text: 'Standard notes...' }, options: [ { text: { type: 'plain_text', text: '📝 Standard Notes' }, value: 'standard' }, { text: { type: 'plain_text', text: '📚 Context Meeting (detailed)' }, value: 'context' } ] }, label: { type: 'plain_text', text: '📊 Detail Level' } }, { type: 'input', block_id: 'apps_block', optional: true, element: { type: 'multi_static_select', action_id: 'apps_select', placeholder: { type: 'plain_text', text: 'Only if changing...' }, options: appOptions }, label: { type: 'plain_text', text: '🔧 Override Apps?' } }, { type: 'input', block_id: 'custom_context_block', optional: true, element: { type: 'plain_text_input', action_id: 'custom_context_input', multiline: true, placeholder: { type: 'plain_text', text: 'Any specific focus...' } }, label: { type: 'plain_text', text: '💬 Additional Context' } }, { type: 'actions', block_id: 'actions_block', elements: [ { type: 'button', text: { type: 'plain_text', text: '🚀 Analyze', emoji: true }, style: 'primary', action_id: 'analyze_meeting_v2', value: m.hash }, { type: 'button', text: { type: 'plain_text', text: 'Skip', emoji: true }, action_id: 'skip_meeting', value: m.hash } ] } ], text: 'Meeting: ' + m.title }); })() }}",
+          "otherOptions": {}
+        },
+        "name": "Slack: Intel Form",
+        "type": "n8n-nodes-base.slack",
+        "typeVersion": 2.2,
+        "position": [
+          2640,
+          -100
+        ],
+        "id": "aaee7e6c-553c-4dc2-8fbd-d6d97dba2d4b",
+        "credentials": {
+          "slackApi": {
+            "id": "wkLpZSqhXl2iesnC",
+            "name": "Chrt Slack App"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "// Capture the Slack thread_ts from the Intel Form post response\nconst slackResponse = $input.first().json;\nconst threadTs = slackResponse.ts || slackResponse.message?.ts || null;\nconst channelId = slackResponse.channel || 'C0AE7NPAWDQ';\nconst meetingId = $('Detect Meeting Type').first().json.meetingId;\n\nif (!threadTs) {\n  console.log('Warning: No thread_ts in Slack response');\n}\n\nreturn [{ json: { meetingId, threadTs, channelId } }];"
+        },
+        "name": "Extract Thread TS",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2860,
+          -100
+        ],
+        "id": "extract-thread-ts-001"
+      },
+      {
+        "parameters": {
+          "method": "PATCH",
+          "url": "=https://utvoxshpxzsgsliworwh.supabase.co/rest/v1/meetings?fireflies_id=eq.{{ $json.meetingId }}",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "supabaseApi",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Prefer",
+                "value": "return=representation"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ slack_channel_id: $json.channelId, slack_thread_ts: $json.threadTs }) }}",
+          "options": {}
+        },
+        "name": "Supabase: Save Thread TS",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          3080,
+          -100
+        ],
+        "credentials": {
+          "supabaseApi": {
+            "id": "HRBgSj7d6TFZA8kL",
+            "name": "Supabase account 2"
+          }
+        },
+        "id": "supabase-save-thread-ts-001"
+      },
+      {
+        "parameters": {},
+        "name": "Invalid Transcript",
+        "type": "n8n-nodes-base.noOp",
+        "typeVersion": 1,
+        "position": [
+          1760,
+          300
+        ],
+        "id": "ea802433-ef50-4b3c-9280-4eea935dc3a9"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Parse error for clean message\nconst rawError = JSON.stringify($json).substring(0, 1000);\nconst meetingId = $('Extract Meeting ID').first().json.meetingId;\n\nlet errorType = 'unknown';\nlet errorMessage = 'Unknown error occurred';\n\nif (rawError.includes('502') || rawError.includes('Bad gateway')) {\n  errorType = 'api_unavailable';\n  errorMessage = 'Fireflies API temporarily unavailable (502)';\n} else if (rawError.includes('503') || rawError.includes('Service Unavailable')) {\n  errorType = 'api_unavailable';\n  errorMessage = 'Fireflies API service unavailable (503)';\n} else if (rawError.includes('401') || rawError.includes('Unauthorized')) {\n  errorType = 'auth_failed';\n  errorMessage = 'Fireflies API authentication failed';\n} else if (rawError.includes('403') || rawError.includes('Forbidden')) {\n  errorType = 'auth_failed';\n  errorMessage = 'Fireflies API access forbidden';\n} else if (rawError.includes('429') || rawError.includes('rate limit')) {\n  errorType = 'rate_limited';\n  errorMessage = 'Fireflies API rate limit exceeded';\n} else if (rawError.includes('404') || rawError.includes('not found')) {\n  errorType = 'not_found';\n  errorMessage = 'Meeting transcript not found in Fireflies';\n} else if (rawError.includes('timeout') || rawError.includes('ETIMEDOUT')) {\n  errorType = 'timeout';\n  errorMessage = 'Fireflies API request timed out';\n}\n\nreturn [{ json: { errorType, errorMessage, meetingId, rawError: rawError.substring(0, 200) } }];"
+        },
+        "name": "Parse Error Type",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1100,
+          400
+        ],
+        "id": "parse-error-type-001"
+      },
+      {
+        "parameters": {
+          "method": "PATCH",
+          "url": "=https://utvoxshpxzsgsliworwh.supabase.co/rest/v1/meetings?fireflies_id=eq.{{ $json.meetingId }}",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "supabaseApi",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Prefer",
+                "value": "return=representation"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ status: 'failed', error_type: $json.errorType, error_message: $json.errorMessage }) }}",
+          "options": {}
+        },
+        "name": "Supabase: Mark Failed",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1320,
+          400
+        ],
+        "credentials": {
+          "supabaseApi": {
+            "id": "HRBgSj7d6TFZA8kL",
+            "name": "Supabase account 2"
+          }
+        },
+        "id": "supabase-mark-failed-001"
+      },
+      {
+        "parameters": {
+          "select": "channel",
+          "channelId": {
+            "__rl": true,
+            "mode": "id",
+            "value": "C0AE7NPAWDQ"
+          },
+          "text": "={{ '⚠️ *Meeting Processing Failed*\\n\\n📋 Meeting ID: `' + $('Parse Error Type').first().json.meetingId + '`\\n❌ Error: ' + $('Parse Error Type').first().json.errorMessage + '\\n\\n💾 Saved to Supabase for retry\\n🔄 Retry: `/webhook/meeting-intel-retry?id=' + $('Parse Error Type').first().json.meetingId + '`' }}",
+          "otherOptions": {}
+        },
+        "name": "Slack: API Error",
+        "type": "n8n-nodes-base.slack",
+        "typeVersion": 2.2,
+        "position": [
+          1540,
+          400
+        ],
+        "id": "7b68c755-369e-4974-a3bb-0c645fcee945",
+        "credentials": {
+          "slackApi": {
+            "id": "wkLpZSqhXl2iesnC",
+            "name": "Chrt Slack App"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "// Handle retry webhook - just pass through to Extract Meeting ID\nconst query = $input.first().json.query || {};\nconst meetingId = query.id;\n\nif (!meetingId) {\n  throw new Error('Meeting ID required. Use ?id=<fireflies_meeting_id>');\n}\n\nreturn [{ json: { meetingId, eventType: 'Manual retry', isRetry: true, query } }];"
+        },
+        "name": "Parse Retry Request",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          220,
+          500
+        ],
+        "id": "parse-retry-request-001"
+      }
+    ],
+    "connections": {
+      "Webhook": {
+        "main": [
+          [
+            {
+              "node": "Respond OK",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Retry Webhook": {
+        "main": [
+          [
+            {
+              "node": "Parse Retry Request",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Parse Retry Request": {
+        "main": [
+          [
+            {
+              "node": "Supabase: Insert Meeting",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Respond OK": {
+        "main": [
+          [
+            {
+              "node": "Extract Meeting ID",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Extract Meeting ID": {
+        "main": [
+          [
+            {
+              "node": "Supabase: Insert Meeting",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Supabase: Insert Meeting": {
+        "main": [
+          [
+            {
+              "node": "Fireflies: Fetch Transcript",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Fireflies: Fetch Transcript": {
+        "main": [
+          [
+            {
+              "node": "Process Transcript",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Parse Error Type",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Process Transcript": {
+        "main": [
+          [
+            {
+              "node": "Supabase: Update Meeting",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Supabase: Update Meeting": {
+        "main": [
+          [
+            {
+              "node": "Has Valid Transcript?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Has Valid Transcript?": {
+        "main": [
+          [
+            {
+              "node": "Detect Meeting Type",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Invalid Transcript",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Detect Meeting Type": {
+        "main": [
+          [
+            {
+              "node": "Supabase: Update Detection",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Supabase: Update Detection": {
+        "main": [
+          [
+            {
+              "node": "Extract Participants",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Slack: Intel Form",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Extract Participants": {
+        "main": [
+          [
+            {
+              "node": "Supabase: Insert Participant",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Slack: Intel Form": {
+        "main": [
+          [
+            {
+              "node": "Extract Thread TS",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Extract Thread TS": {
+        "main": [
+          [
+            {
+              "node": "Supabase: Save Thread TS",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Parse Error Type": {
+        "main": [
+          [
+            {
+              "node": "Supabase: Mark Failed",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Supabase: Mark Failed": {
+        "main": [
+          [
+            {
+              "node": "Slack: API Error",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "authors": "Hudson Lorfing",
+    "name": null,
+    "description": null,
+    "autosaved": false
+  },
+  "tags": [],
+  "_folderPath": "",
+  "_fileName": "6.-fireflies-meeting-processor.json"
+}
