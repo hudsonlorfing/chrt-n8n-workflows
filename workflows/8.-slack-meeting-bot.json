@@ -1,0 +1,1346 @@
+{
+  "updatedAt": "2026-02-12T23:52:17.037Z",
+  "createdAt": "2026-02-10T19:55:56.031Z",
+  "id": "9t7EPqjlUUirs2fw",
+  "name": "8. Slack Meeting Bot",
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "meeting-intel-followup",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "name": "Slack Events Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        300
+      ],
+      "webhookId": "meeting-intel-followup",
+      "id": "wf8-webhook-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Handle Slack Events API: URL verification + app_mention + thread replies\nconst body = $input.first().json.body || $input.first().json;\n\n// URL verification challenge\nif (body.type === 'url_verification') {\n  return [{ json: { challenge: body.challenge, isChallenge: true } }];\n}\n\n// Extract event data\nconst event = body.event || {};\nconst eventType = event.type;\n\n// Determine event classification\nconst isAppMention = eventType === 'app_mention';\nconst isThreadReply = eventType === 'message' && !!event.thread_ts;\nconst isFromBot = !!event.bot_id || !!event.bot_profile;\nconst hasSubtype = !!event.subtype;\n\n// Accept: app_mention OR thread reply from a human (no subtype, not from a bot)\nif (!isAppMention && !(isThreadReply && !isFromBot && !hasSubtype)) {\n  return [{ json: { skip: true, reason: 'Not a processable event: type=' + eventType + ', thread_ts=' + (event.thread_ts || 'none') + ', bot=' + isFromBot + ', subtype=' + (event.subtype || 'none') } }];\n}\n\n// Extract the message text\n// For app_mention: strip the bot mention; for thread replies: use text as-is\nconst rawText = event.text || '';\nconst text = isAppMention ? rawText.replace(/<@[A-Z0-9]+>/g, '').trim() : rawText.trim();\nconst eventTs = event.ts;\nconst threadTs = event.thread_ts || event.ts;\nconst channelId = event.channel;\nconst userId = event.user;\n\nif (!text) {\n  return [{ json: { skip: true, reason: 'Empty message after processing' } }];\n}\n\nreturn [{ json: {\n  question: text,\n  eventTs,\n  threadTs,\n  isThreadReply: !!event.thread_ts,\n  isAppMention,\n  channelId,\n  userId,\n  isChallenge: false,\n  skip: false\n} }];"
+      },
+      "name": "Parse Event",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        300
+      ],
+      "id": "wf8-parse-event-001"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "is-challenge",
+              "leftValue": "={{ $json.isChallenge }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "Is Challenge?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        300
+      ],
+      "id": "wf8-is-challenge-001"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ challenge: $json.challenge }) }}"
+      },
+      "name": "Respond Challenge",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        660,
+        200
+      ],
+      "id": "wf8-respond-challenge-001"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true }) }}"
+      },
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        660,
+        400
+      ],
+      "id": "wf8-respond-ok-001"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "not-skip",
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "Should Process?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        880,
+        400
+      ],
+      "id": "wf8-should-process-001"
+    },
+    {
+      "parameters": {
+        "url": "https://api.doppler.com/v3/configs/config/secret",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "project",
+              "value": "developers"
+            },
+            {
+              "name": "config",
+              "value": "hudson"
+            },
+            {
+              "name": "name",
+              "value": "SUPABASE_SERVICE_ROLE_KEY"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Doppler: Get Supabase Key",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        990,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "dz2vX61Mpayywfq1",
+          "name": "Doppler API"
+        }
+      },
+      "id": "wf8-doppler-001"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://utvoxshpxzsgsliworwh.supabase.co/rest/v1/meetings?slack_thread_ts=eq.{{ $('Parse Event').first().json.threadTs }}&select=id,title,meeting_date,attendees_raw,meeting_type,status&limit=1",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "options": {}
+      },
+      "name": "Supabase: Check Thread",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        300
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "HRBgSj7d6TFZA8kL",
+          "name": "Supabase account 2"
+        }
+      },
+      "continueOnFail": true,
+      "alwaysOutputData": true,
+      "id": "wf8-check-thread-001"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://utvoxshpxzsgsliworwh.supabase.co/rest/v1/agent_conversations?session_id=eq.{{ $('Parse Event').first().json.threadTs }}&order=created_at.asc&limit=20",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "options": {}
+      },
+      "name": "Supabase: Load History",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        300
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "HRBgSj7d6TFZA8kL",
+          "name": "Supabase account 2"
+        }
+      },
+      "continueOnFail": true,
+      "alwaysOutputData": true,
+      "id": "wf8-load-history-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build system prompt from upstream HTTP Request results (no fetch/env needed)\nconst event = $('Parse Event').first().json;\n\n// 1. Check for linked meeting from Supabase: Check Thread\nconst threadResult = $('Supabase: Check Thread').first().json;\nconst meetings = Array.isArray(threadResult) ? threadResult : (threadResult?.id ? [threadResult] : []);\nconst linkedMeeting = meetings.length > 0 ? meetings[0] : null;\n\n// 2. Load history from Supabase: Load History\nconst historyResult = $('Supabase: Load History').first().json;\nconst history = Array.isArray(historyResult) ? historyResult : [];\n\n// 3. Build conversation history block\nlet historyBlock = '';\nif (history.length > 0) {\n  historyBlock = '\\n\\n## Conversation History\\n';\n  history.forEach(msg => {\n    historyBlock += `[${msg.role}]: ${msg.content}\\n`;\n  });\n}\n\n// 4. Build system prompt\nlet meetingContext = '';\nif (linkedMeeting) {\n  meetingContext = `\\n\\nIMPORTANT: This thread is linked to an existing analyzed meeting:\\n- Title: ${linkedMeeting.title}\\n- Date: ${linkedMeeting.meeting_date}\\n- Type: ${linkedMeeting.meeting_type || 'general'}\\n- Attendees: ${linkedMeeting.attendees_raw || 'unknown'}\\n- Meeting ID: ${linkedMeeting.id}\\n\\nUse the get_meeting_analysis tool with this meeting ID to answer questions about it. Do NOT ask the user to search — the meeting is already identified.`;\n}\n\nconst systemPrompt = `You are Chrt's meeting intelligence bot in Slack. Chrt is a B2B SaaS company selling real-time visibility and coordination software for time-critical logistics (medical specimens, aerospace parts, organs).\n\nYou help users find and ask questions about their meetings. You have these tools:\n\n1. **search_meetings** — Search for meetings. All parameters optional. Input: JSON with optional name, type (meeting_type like sales_demo), keyword (title search), days_back, date_from, date_to. When no name is given, returns recent completed meetings with classification data.\n\n2. **get_meeting_analysis** — Get the full structured analysis for a specific meeting by UUID. Returns classification, scorecard criteria, summary, action items, decisions, key quotes, follow-ups, scores, and template context. Use after the user selects a meeting or when one is already in context.\n\n3. **get_person_summary** — Get a timeline of all meetings with a person, aggregated action items, decisions, score trends, and known facts. Use when the user asks broad questions like \"what's been happening with X?\" or \"what have we committed to across all meetings?\". Input: JSON with name, optional email, days_back.\n\n4. **get_crm_activity** — Get recent emails, calls, and notes from HubSpot for a person. Use when the user asks about communications outside of meetings. Requires email. Input: JSON with email, optional days_back.\n\n5. **get_meeting_prep** — Generate a comprehensive meeting prep brief. Use when the user says \"prep me for my call with X\". Input: JSON with name, optional email, days_back.\n\n## Tool Selection Guide:\n- \"meetings with X\" or \"find meetings with\" → search_meetings with name\n- \"my recent meetings\" or \"latest meeting\" or \"what meetings did I have\" → search_meetings with no name\n- \"what demos did we do\" or \"show me sales calls\" → search_meetings with type: \"sales_demo\"\n- \"what discovery calls\" → search_meetings with type: \"sales_discovery\"\n- \"what's been happening with X?\" or \"summary of X\" → get_person_summary\n- \"tell me about the first/second one\" or specific meeting → get_meeting_analysis using the meeting ID from search results\n- \"what were the action items?\" → get_meeting_analysis if a meeting is in context, otherwise ask which meeting\n- \"how could we improve our demos\" or \"demo feedback\" or \"what went well\" → get_meeting_analysis on the meeting in context, frame answer around scorecard criteria\n- \"what have we committed to?\" → get_person_summary\n- \"what emails have we sent?\" or \"CRM activity\" → get_crm_activity\n- \"prep me for my call with X\" or \"prepare for meeting\" → get_meeting_prep\n\n## Conversation Context:\n- If a meeting was already discussed in this thread (listed in search results or analyzed), use its meeting ID from conversation history. Do NOT ask the user to search again.\n- When the user says \"this call\", \"from that meeting\", or \"the demo\", they mean the meeting most recently referenced in the conversation.\n- If no specific meeting is in context and the user asks a question that requires one, search for recent meetings first rather than asking the user to specify.\n- When the user says \"the first one\" or \"the second one\", use the meeting ID from the numbered list you previously showed.\n\n## Meeting Classification:\nMeetings are classified by type (sales_demo, sales_discovery, customer_checkin, customer_onboarding, customer_research, executive_strategy, team_sync, one_on_one, external_general, general) and analyzed with weighted templates (suggested_apps). Search results and analysis output include this classification.\n\nWhen answering questions about demo improvement or sales performance, reference the specific scorecard criteria from the analysis:\n- **sales_demo** → demo-scorecard evaluates: Set Agenda, Business Need, Pain Point, Competitors, Pricing, Clarifying Questions\n- **sales_discovery** → discovery-scorecard evaluates: Situation, Pain, Impact, Critical Event, Decision Process\n- **objection-handler** evaluates: Acknowledge, Clarify, Respond, Confirm, Advance\n\nUse these dimensions to give specific, actionable feedback rather than generic advice.\n\n## Disambiguation:\nWhen a tool returns disambiguation_needed or lists multiple matching people, present ALL matches as a numbered list with name, company, and meeting count. Ask the user to pick one. Do NOT guess.\n\n## How to behave:\n- Keep responses concise and Slack-friendly. Use *bold* for emphasis, bullet points for lists.\n- Be specific — cite action items, quotes, scores from the data.\n- Never fabricate meeting details. If the data doesn't contain the answer, say so.\n- When asked about improving demos or sales performance, structure your answer around the scorecard criteria and cite specific evidence from the meeting analysis.\n- If the user changes topic, start fresh with the appropriate tool.${meetingContext}${historyBlock}`;\n\nreturn [{ json: {\n  question: event.question,\n  threadTs: event.threadTs,\n  eventTs: event.eventTs,\n  isThreadReply: event.isThreadReply,\n  channelId: event.channelId,\n  userId: event.userId,\n  linkedMeetingId: linkedMeeting ? linkedMeeting.id : null,\n  systemPrompt,\n  userMessage: event.question\n} }];"
+      },
+      "name": "Build Agent Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        300
+      ],
+      "id": "wf8-build-context-001"
+    },
+    {
+      "parameters": {
+        "name": "search_meetings",
+        "description": "Search for meetings. All parameters are optional. Input: JSON with optional 'name' (person name), 'type' (meeting_type like 'sales_demo', 'sales_discovery', 'customer_checkin'), 'keyword' (title search), 'days_back' (default 14), 'date_from'/'date_to' (YYYY-MM-DD). When no name is given, returns recent completed meetings. Results include meeting classification and analysis template weights.",
+        "jsCode": "// Tool: Search Meetings — flexible search with classification data\ntry {\n  const SUPABASE_URL = 'https://utvoxshpxzsgsliworwh.supabase.co';\n  let SUPABASE_KEY;\n  try { SUPABASE_KEY = $('Doppler: Get Supabase Key').first().json.value.raw; } catch(e) { SUPABASE_KEY = ''; }\n  if (!SUPABASE_KEY) {\n    return 'Error: Could not retrieve Supabase key from Doppler. Check the Doppler: Get Supabase Key node.';\n  }\n  const headers = { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' };\n\n  // Parse input\n  let input = {};\n  if (typeof query === 'string') {\n    try { input = JSON.parse(query); } catch(e) { input = { name: query }; }\n  } else {\n    input = query || {};\n  }\n\n  const name = (input.name || '').trim();\n  const type = (input.type || '').trim();\n  const keyword = (input.keyword || '').trim();\n\n  // Date range\n  let dateFilter = '';\n  if (input.date_from) { dateFilter += `&meeting_date=gte.${input.date_from}`; }\n  if (input.date_to) { dateFilter += `&meeting_date=lte.${input.date_to}`; }\n  if (!input.date_from && !input.date_to) {\n    const daysBack = parseInt(input.days_back || input.daysBack || '14', 10);\n    const cutoff = new Date();\n    cutoff.setDate(cutoff.getDate() - daysBack);\n    dateFilter = `&meeting_date=gte.${cutoff.toISOString().split('T')[0]}`;\n  }\n\n  // Build query filters\n  let filters = '';\n  if (name) {\n    const sp = encodeURIComponent(`*${name}*`);\n    filters += `&or=(attendees_raw.ilike.${sp},person_name.ilike.${sp},title.ilike.${sp})`;\n  } else {\n    // Browse mode: only show analyzed meetings\n    filters += '&status=eq.completed';\n  }\n  if (type) { filters += `&meeting_type=eq.${type}`; }\n  if (keyword) {\n    const kp = encodeURIComponent(`*${keyword}*`);\n    filters += `&title=ilike.${kp}`;\n  }\n\n  const selectFields = 'id,title,meeting_date,duration_mins,attendees_raw,status,person_name,meeting_type,is_external,suggested_apps';\n  const url = `${SUPABASE_URL}/rest/v1/meetings?${filters.substring(1)}${dateFilter}&order=meeting_date.desc&limit=10&select=${selectFields}`;\n\n  const meetings = await this.helpers.httpRequest({ method: 'GET', url, headers, returnFullResponse: false, json: true });\n\n  if (!Array.isArray(meetings) || meetings.length === 0) {\n    const searchDesc = name ? `matching \\\"${name}\\\"` : (type ? `of type \\\"${type}\\\"` : 'in the specified time range');\n    return `No meetings found ${searchDesc}.`;\n  }\n\n  // Fetch summaries from meeting_analyses\n  const meetingIds = meetings.map(m => m.id);\n  const idsParam = encodeURIComponent(`(${meetingIds.join(',')})`);\n  let summaryMap = {};\n  try {\n    const analyses = await this.helpers.httpRequest({\n      method: 'GET',\n      url: `${SUPABASE_URL}/rest/v1/meeting_analyses?meeting_id=in.${idsParam}&select=meeting_id,structured_data&order=created_at.desc`,\n      headers, json: true\n    });\n    if (Array.isArray(analyses)) {\n      for (const a of analyses) {\n        if (!summaryMap[a.meeting_id] && a.structured_data) {\n          const sd = typeof a.structured_data === 'string' ? JSON.parse(a.structured_data) : a.structured_data;\n          summaryMap[a.meeting_id] = (sd.summary || '').substring(0, 120);\n        }\n      }\n    }\n  } catch (e) { /* summaries are optional */ }\n\n  const lines = meetings.map((m, i) => {\n    const date = m.meeting_date ? new Date(m.meeting_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : 'unknown date';\n    const duration = m.duration_mins ? `${m.duration_mins}min` : '';\n    const status = m.status === 'completed' ? '' : ` (${m.status})`;\n    const summary = summaryMap[m.id] ? ` — _${summaryMap[m.id]}_` : '';\n    // Classification info\n    let classInfo = '';\n    if (m.meeting_type && m.meeting_type !== 'general') {\n      classInfo = ` [${m.meeting_type}`;\n      if (m.suggested_apps && Array.isArray(m.suggested_apps) && m.suggested_apps.length > 0) {\n        classInfo += ': ' + m.suggested_apps.map(function(a) { return a.id + ' ' + Math.round(a.weight * 100) + '%'; }).join(', ');\n      }\n      classInfo += ']';\n    }\n    return `${i + 1}. *${m.title}* — ${date}${duration ? ', ' + duration : ''}${status}${classInfo}${summary} [id: ${m.id}]`;\n  });\n\n  const searchDesc = name ? `matching \\\"${name}\\\"` : (type ? `of type \\\"${type}\\\"` : 'recent');\n  return `Found ${meetings.length} ${searchDesc} meeting(s):\\n\\n${lines.join('\\n')}`;\n} catch (e) {\n  return 'Error searching meetings: ' + e.message;\n}"
+      },
+      "name": "Tool: Search Meetings",
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.1,
+      "position": [
+        1700,
+        520
+      ],
+      "id": "wf8-tool-search-001"
+    },
+    {
+      "parameters": {
+        "name": "get_meeting_analysis",
+        "description": "Get the full analysis for a specific meeting by its UUID. Use after the user selects a meeting from search results, or when a meeting is already linked to the thread. Returns classification, scorecard criteria, structured sections, and full analysis. Input should be a JSON string with 'meeting_id' (the UUID of the meeting).",
+        "jsCode": "// Tool: Get Meeting Analysis — fetches analysis + classification + template context\ntry {\n  const SUPABASE_URL = 'https://utvoxshpxzsgsliworwh.supabase.co';\n  let SUPABASE_KEY;\n  try { SUPABASE_KEY = $('Doppler: Get Supabase Key').first().json.value.raw; } catch(e) { SUPABASE_KEY = ''; }\n  if (!SUPABASE_KEY) {\n    return 'Error: Could not retrieve Supabase key from Doppler. Check the Doppler: Get Supabase Key node.';\n  }\n  const headers = { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' };\n\n  // Parse input\n  let input = {};\n  if (typeof query === 'string') {\n    try { input = JSON.parse(query); } catch(e) { input = { meeting_id: query }; }\n  } else {\n    input = query || {};\n  }\n\n  const meetingId = (input.meeting_id || input.meetingId || '').trim();\n  if (!meetingId) {\n    return 'Error: No meeting_id provided. Please specify the meeting UUID.';\n  }\n\n  const metaArr = await this.helpers.httpRequest({\n    method: 'GET',\n    url: `${SUPABASE_URL}/rest/v1/meetings?id=eq.${meetingId}&select=id,title,meeting_date,duration_mins,attendees_raw,meeting_type,is_external,suggested_apps,status,person_name&limit=1`,\n    headers, json: true\n  });\n  const meeting = Array.isArray(metaArr) ? metaArr[0] : null;\n\n  if (!meeting) {\n    return `No meeting found with ID ${meetingId}.`;\n  }\n\n  const analysisArr = await this.helpers.httpRequest({\n    method: 'GET',\n    url: `${SUPABASE_URL}/rest/v1/meeting_analyses?meeting_id=eq.${meetingId}&select=analysis_output,structured_data,scores&order=created_at.desc&limit=1`,\n    headers, json: true\n  });\n  const analysis = Array.isArray(analysisArr) ? analysisArr[0] : null;\n\n  // Header\n  let result = `## Meeting: ${meeting.title}\\nDate: ${meeting.meeting_date}\\nType: ${meeting.meeting_type || 'general'}${meeting.is_external ? ' (External)' : ''}\\nDuration: ${meeting.duration_mins || '?'} min\\nAttendees: ${meeting.attendees_raw || 'unknown'}\\nStatus: ${meeting.status}\\n`;\n\n  // Meeting Classification section\n  const apps = meeting.suggested_apps;\n  if (apps && Array.isArray(apps) && apps.length > 0) {\n    result += `\\n## Meeting Classification\\nAnalyzed as **${meeting.meeting_type}**: ${apps.map(function(a) { return a.id + ' (' + Math.round(a.weight * 100) + '%)'; }).join(', ')}\\n`;\n    // Known scorecard criteria\n    const scorecardCriteria = {\n      'demo-scorecard': ['Set Agenda', 'Business Need', 'Pain Point', 'Competitors', 'Pricing', 'Clarifying Questions'],\n      'discovery-scorecard': ['Situation', 'Pain', 'Impact', 'Critical Event', 'Decision Process'],\n      'objection-handler': ['Acknowledge', 'Clarify', 'Respond', 'Confirm', 'Advance'],\n      'churn-risk-analyzer': ['Usage Decline', 'Sentiment Shift', 'Support Escalation', 'Champion Loss', 'Competitor Mention']\n    };\n    apps.forEach(function(a) {\n      if (scorecardCriteria[a.id]) {\n        result += `Scorecard criteria for ${a.id}: ${scorecardCriteria[a.id].join(', ')}\\n`;\n      }\n    });\n  }\n\n  if (!analysis) {\n    result += `\\nNo analysis available for this meeting yet. The meeting may not have been analyzed — suggest the user analyze it first via the Slack Intel Form.`;\n    return result;\n  }\n\n  // Parse structured data, with analysis_output fallback\n  let sd = analysis.structured_data || {};\n  if (typeof sd === 'string') { try { sd = JSON.parse(sd); } catch(e) { sd = {}; } }\n\n  // If structured_data is incomplete, try to parse analysis_output as JSON\n  const needsFallback = !sd.action_items || sd.action_items.length === 0;\n  if (needsFallback && analysis.analysis_output) {\n    try {\n      let raw = analysis.analysis_output.trim();\n      if (raw.startsWith('```')) { raw = raw.split('\\n').slice(1).join('\\n'); }\n      if (raw.endsWith('```')) { raw = raw.substring(0, raw.lastIndexOf('```')); }\n      const parsed = JSON.parse(raw.trim());\n      // Merge missing fields from parsed analysis_output into sd\n      const fields = ['summary', 'key_points', 'action_items', 'decisions', 'key_quotes', 'follow_ups', 'scores'];\n      fields.forEach(function(f) {\n        if ((!sd[f] || (Array.isArray(sd[f]) && sd[f].length === 0)) && parsed[f]) {\n          sd[f] = parsed[f];\n        }\n      });\n    } catch (e) { /* analysis_output is not parseable JSON, will use raw text */ }\n  }\n\n  const scores = analysis.scores || sd.scores || {};\n\n  // Summary\n  if (sd.summary) {\n    const summaryText = typeof sd.summary === 'string' ? sd.summary : (sd.summary.summary || JSON.stringify(sd.summary));\n    result += `\\n## Summary\\n${summaryText}\\n`;\n  }\n\n  // Key Points\n  if (sd.key_points && sd.key_points.length > 0) {\n    result += `\\n## Key Points\\n`;\n    sd.key_points.forEach(function(p) { result += `- ${typeof p === 'string' ? p : JSON.stringify(p)}\\n`; });\n  }\n\n  // Action Items\n  if (sd.action_items && sd.action_items.length > 0) {\n    result += `\\n## Action Items\\n`;\n    sd.action_items.forEach(function(item) {\n      if (typeof item === 'string') {\n        result += `- ${item}\\n`;\n      } else {\n        const owner = item.owner ? `*${item.owner}*: ` : '';\n        const due = item.due ? ` (due: ${item.due})` : '';\n        const priority = item.priority ? ` [${item.priority}]` : '';\n        result += `- ${owner}${item.task || item.description || JSON.stringify(item)}${due}${priority}\\n`;\n      }\n    });\n  }\n\n  // Decisions\n  if (sd.decisions && sd.decisions.length > 0) {\n    result += `\\n## Key Decisions\\n`;\n    sd.decisions.forEach(function(d) { result += `- ${typeof d === 'string' ? d : JSON.stringify(d)}\\n`; });\n  }\n\n  // Key Quotes\n  if (sd.key_quotes && sd.key_quotes.length > 0) {\n    result += `\\n## Key Quotes\\n`;\n    sd.key_quotes.forEach(function(q) {\n      if (typeof q === 'string') {\n        result += `- ${q}\\n`;\n      } else {\n        result += `- \\\"${q.text || q.quote || ''}\\\" — ${q.speaker || 'unknown'}\\n`;\n      }\n    });\n  }\n\n  // Follow-ups\n  if (sd.follow_ups && sd.follow_ups.length > 0) {\n    result += `\\n## Follow-ups\\n`;\n    sd.follow_ups.forEach(function(f) { result += `- ${typeof f === 'string' ? f : JSON.stringify(f)}\\n`; });\n  }\n\n  // Scores\n  if (scores && typeof scores === 'object' && Object.keys(scores).length > 0) {\n    result += `\\n## Scores\\n`;\n    for (const [key, val] of Object.entries(scores)) {\n      result += `- ${key}: ${typeof val === 'object' ? JSON.stringify(val) : val}\\n`;\n    }\n  }\n\n  // Full Analysis (raw, for open-ended questions — only if we didn't already parse it)\n  if (!needsFallback && analysis.analysis_output) {\n    result += `\\n## Full Analysis\\n${analysis.analysis_output}`;\n  }\n\n  return result;\n} catch (e) {\n  return 'Error fetching meeting analysis: ' + e.message;\n}"
+      },
+      "name": "Tool: Get Meeting Analysis",
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.1,
+      "position": [
+        1860,
+        520
+      ],
+      "id": "wf8-tool-analysis-001"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Build Agent Context').first().json.userMessage }}",
+        "hasOutputParser": false,
+        "options": {
+          "systemMessage": "={{ $('Build Agent Context').first().json.systemPrompt }}",
+          "maxTokens": 4096,
+          "temperature": 0.3
+        }
+      },
+      "name": "AI Agent: Meeting Bot",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        1400,
+        300
+      ],
+      "id": "wf8-ai-agent-001"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "claude-sonnet-4-20250514",
+          "mode": "list",
+          "cachedResultName": "Claude Sonnet 4"
+        },
+        "options": {
+          "maxTokensToSample": 4096,
+          "temperature": 0.3
+        }
+      },
+      "name": "Anthropic Claude",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [
+        1900,
+        520
+      ],
+      "credentials": {
+        "anthropicApi": {
+          "id": "B6k4mmzjw7OzEK5c",
+          "name": "Anthropic account"
+        }
+      },
+      "id": "wf8-anthropic-001"
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Build Agent Context').first().json.threadTs }}"
+      },
+      "name": "Window Buffer Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        2060,
+        520
+      ],
+      "id": "wf8-window-memory-001"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://utvoxshpxzsgsliworwh.supabase.co/rest/v1/agent_conversations",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify([ { session_id: $('Build Agent Context').first().json.threadTs, role: 'user', content: $('Build Agent Context').first().json.question }, { session_id: $('Build Agent Context').first().json.threadTs, role: 'assistant', content: ($json.output || $json.text || '').substring(0, 4000) } ]) }}",
+        "options": {}
+      },
+      "name": "Supabase: Save Exchange",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2100,
+        200
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "HRBgSj7d6TFZA8kL",
+          "name": "Supabase account 2"
+        }
+      },
+      "continueOnFail": true,
+      "id": "wf8-save-exchange-001"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://slack.com/api/chat.postMessage",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "slackApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ channel: $('Build Agent Context').first().json.channelId, thread_ts: $('Build Agent Context').first().json.threadTs, text: ($('AI Agent: Meeting Bot').first().json.output || $('AI Agent: Meeting Bot').first().json.text || 'Sorry, I could not generate a response.') + ($('AI Agent: Meeting Bot').first().json.tokenUsage ? '\\n\\n_Tokens: ' + ($('AI Agent: Meeting Bot').first().json.tokenUsage.promptTokens || 0) + ' in / ' + ($('AI Agent: Meeting Bot').first().json.tokenUsage.completionTokens || 0) + ' out (' + ($('AI Agent: Meeting Bot').first().json.tokenUsage.totalTokens || 0) + ' total)_' : '') }) }}",
+        "options": {}
+      },
+      "name": "Slack: Reply in Thread",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2200,
+        300
+      ],
+      "id": "wf8-slack-reply-001",
+      "credentials": {
+        "slackApi": {
+          "id": "wkLpZSqhXl2iesnC",
+          "name": "Chrt Slack App"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "name": "get_person_summary",
+        "description": "Get a summary of all meetings with a person, including timeline, action items, decisions, and score trends. Use when the user asks broad questions like 'what's been happening with X?' or 'what have we committed to across all meetings?'. Also handles disambiguation when multiple people match. Input: JSON with 'name' (required) and optionally 'email', 'days_back' (default 90).",
+        "jsCode": "// Tool: Get Person Summary — calls Apps Script for cross-meeting synthesis\ntry {\n  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbybWTFvdZnmPnQkndxAqA4jQQlMC2_gGMZOJULYk5ywyc0IPT2qNn7QIq5SAtC_jUJJRA/exec';\n\n  // Parse input\n  let input = {};\n  if (typeof query === 'string') {\n    try { input = JSON.parse(query); } catch(e) { input = { name: query }; }\n  } else {\n    input = query || {};\n  }\n\n  const name = (input.name || '').trim();\n  const email = (input.email || '').trim();\n  const daysBack = parseInt(input.days_back || input.daysBack || '90', 10);\n\n  if (!name && !email) {\n    return 'Error: No person name or email provided.';\n  }\n\n  const resp = await this.helpers.httpRequest({\n    method: 'POST',\n    url: APPS_SCRIPT_URL,\n    body: JSON.stringify({ action: 'get-person-summary', name, email, days_back: daysBack }),\n    headers: { 'Content-Type': 'application/json' },\n    json: true\n  });\n\n  // Handle disambiguation\n  if (resp.disambiguation_needed) {\n    const matches = resp.matches || [];\n    const lines = matches.map(function(m, i) {\n      const company = m.company ? ' (' + m.company + ')' : '';\n      const title = m.title ? ', ' + m.title : '';\n      const lastDate = m.last_meeting_date ? new Date(m.last_meeting_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'unknown';\n      return (i + 1) + '. *' + m.name + '*' + company + title + ' — ' + m.meeting_count + ' meeting(s), last: ' + lastDate;\n    });\n    return 'Multiple people found matching \\\"' + (name || email) + '\\\":\\n\\n' + lines.join('\\n') + '\\n\\nPlease ask the user which person they mean.';\n  }\n\n  // Handle no results\n  if (resp.message && (!resp.timeline || resp.timeline.length === 0)) {\n    return resp.message;\n  }\n\n  // Format the summary response\n  const person = resp.person || {};\n  let result = '## Person: ' + person.name;\n  if (person.company) result += ' (' + person.company + ')';\n  if (person.title) result += '\\nTitle: ' + person.title;\n  if (person.email) result += '\\nEmail: ' + person.email;\n  result += '\\nMeetings: ' + (resp.meeting_count || 0) + ' in scope\\n';\n\n  // Timeline\n  if (resp.timeline && resp.timeline.length > 0) {\n    result += '\\n## Meeting Timeline\\n';\n    resp.timeline.forEach(function(t) {\n      const date = t.date ? new Date(t.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : '?';\n      const summary = t.summary ? ' — _' + t.summary + '_' : '';\n      result += '- ' + date + ': *' + t.title + '*' + (t.duration ? ' (' + t.duration + 'min)' : '') + summary + ' [id: ' + t.meeting_id + ']\\n';\n    });\n  }\n\n  // Action items\n  if (resp.action_items && resp.action_items.length > 0) {\n    result += '\\n## Action Items (across all meetings)\\n';\n    resp.action_items.forEach(function(ai) {\n      const owner = ai.owner ? '*' + ai.owner + '*: ' : '';\n      const due = ai.due ? ' (due: ' + ai.due + ')' : '';\n      const source = ai.from_meeting ? ' [from: ' + ai.from_meeting + ']' : '';\n      result += '- ' + owner + ai.task + due + source + '\\n';\n    });\n  }\n\n  // Decisions\n  if (resp.decisions && resp.decisions.length > 0) {\n    result += '\\n## Decisions\\n';\n    resp.decisions.forEach(function(d) {\n      result += '- ' + d.decision + ' [from: ' + d.from_meeting + ']\\n';\n    });\n  }\n\n  // Score trend\n  if (resp.score_trend && resp.score_trend.length > 0) {\n    result += '\\n## Score Trend\\n';\n    resp.score_trend.forEach(function(s) {\n      const date = s.date ? new Date(s.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '?';\n      result += '- ' + date + ' (' + s.meeting + '): ' + JSON.stringify(s.scores) + '\\n';\n    });\n  }\n\n  // Memory facts\n  if (resp.memory_facts && resp.memory_facts.length > 0) {\n    result += '\\n## Known Facts\\n';\n    resp.memory_facts.forEach(function(f) {\n      result += '- [' + f.type + '] ' + f.fact + ' (confidence: ' + f.confidence + ')\\n';\n    });\n  }\n\n  return result;\n} catch (e) {\n  return 'Error getting person summary: ' + e.message;\n}"
+      },
+      "name": "Tool: Get Person Summary",
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.1,
+      "position": [
+        2020,
+        520
+      ],
+      "id": "wf8-tool-person-001"
+    },
+    {
+      "parameters": {
+        "name": "get_crm_activity",
+        "description": "Get recent email, call, and note activity from HubSpot for a person. Use when the user asks about communications outside of meetings, such as 'what emails have we sent?', 'any recent calls?', or CRM activity. Input: JSON with 'email' (required) and optionally 'days_back' (default 30).",
+        "jsCode": "// Tool: Get CRM Activity — calls Apps Script for HubSpot engagement data\ntry {\n  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbybWTFvdZnmPnQkndxAqA4jQQlMC2_gGMZOJULYk5ywyc0IPT2qNn7QIq5SAtC_jUJJRA/exec';\n\n  let input = {};\n  if (typeof query === 'string') {\n    try { input = JSON.parse(query); } catch(e) { input = { email: query }; }\n  } else {\n    input = query || {};\n  }\n\n  const email = (input.email || '').trim();\n  const daysBack = parseInt(input.days_back || input.daysBack || '30', 10);\n\n  if (!email) {\n    return 'Error: No email provided. Please provide the person\\'s email address.';\n  }\n\n  const resp = await this.helpers.httpRequest({\n    method: 'POST',\n    url: APPS_SCRIPT_URL,\n    body: JSON.stringify({ action: 'get-crm-activity', email, days_back: daysBack }),\n    headers: { 'Content-Type': 'application/json' },\n    json: true\n  });\n\n  if (resp.error) {\n    return 'Error: ' + resp.error;\n  }\n\n  let result = '## CRM Activity for ' + email + '\\n';\n  result += resp.summary + '\\n';\n\n  // Emails\n  if (resp.emails && resp.emails.length > 0) {\n    result += '\\n### Recent Emails\\n';\n    resp.emails.forEach(function(e) {\n      const dir = e.direction === 'received' ? '📥' : '📤';\n      result += '- ' + (e.date || '?') + ' ' + dir + ' *' + (e.subject || 'No subject') + '* — ' + (e.snippet || '').substring(0, 150) + '\\n';\n    });\n  }\n\n  // Calls\n  if (resp.calls && resp.calls.length > 0) {\n    result += '\\n### Recent Calls\\n';\n    resp.calls.forEach(function(c) {\n      const dur = c.duration_secs ? Math.round(c.duration_secs / 60) + 'min' : '';\n      result += '- ' + (c.date || '?') + ' *' + (c.title || 'Call') + '*' + (dur ? ' (' + dur + ')' : '') + (c.disposition ? ' [' + c.disposition + ']' : '') + (c.notes ? ' — ' + c.notes.substring(0, 150) : '') + '\\n';\n    });\n  }\n\n  // Notes\n  if (resp.notes && resp.notes.length > 0) {\n    result += '\\n### Recent Notes\\n';\n    resp.notes.forEach(function(n) {\n      result += '- ' + (n.date || '?') + ': ' + (n.body || '').substring(0, 150) + '\\n';\n    });\n  }\n\n  if (!resp.emails?.length && !resp.calls?.length && !resp.notes?.length) {\n    result += '\\nNo recent CRM activity found.';\n  }\n\n  return result;\n} catch (e) {\n  return 'Error getting CRM activity: ' + e.message;\n}"
+      },
+      "name": "Tool: Get CRM Activity",
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.1,
+      "position": [
+        2180,
+        520
+      ],
+      "id": "wf8-tool-crm-001"
+    },
+    {
+      "parameters": {
+        "name": "get_meeting_prep",
+        "description": "Generate a meeting prep brief for an upcoming conversation with a person. Combines meeting history, CRM activity, open action items, key quotes, score trends, and HubSpot deal context. Use when the user says 'prep me for my call with X' or 'prepare for meeting with X'. Input: JSON with 'name' (required), optionally 'email', 'days_back' (default 90).",
+        "jsCode": "// Tool: Get Meeting Prep — calls Apps Script for comprehensive prep brief\ntry {\n  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbybWTFvdZnmPnQkndxAqA4jQQlMC2_gGMZOJULYk5ywyc0IPT2qNn7QIq5SAtC_jUJJRA/exec';\n\n  let input = {};\n  if (typeof query === 'string') {\n    try { input = JSON.parse(query); } catch(e) { input = { name: query }; }\n  } else {\n    input = query || {};\n  }\n\n  const name = (input.name || '').trim();\n  const email = (input.email || '').trim();\n  const daysBack = parseInt(input.days_back || input.daysBack || '90', 10);\n\n  if (!name && !email) {\n    return 'Error: No person name or email provided.';\n  }\n\n  const resp = await this.helpers.httpRequest({\n    method: 'POST',\n    url: APPS_SCRIPT_URL,\n    body: JSON.stringify({ action: 'get-meeting-prep', name, email, days_back: daysBack }),\n    headers: { 'Content-Type': 'application/json' },\n    json: true\n  });\n\n  // Handle disambiguation\n  if (resp.disambiguation_needed) {\n    const matches = resp.matches || [];\n    const lines = matches.map(function(m, i) {\n      const company = m.company ? ' (' + m.company + ')' : '';\n      return (i + 1) + '. *' + m.name + '*' + company + (m.title ? ', ' + m.title : '') + ' — ' + m.meeting_count + ' meeting(s)';\n    });\n    return 'Multiple people found matching \\\"' + (name || email) + '\\\":\\n\\n' + lines.join('\\n') + '\\n\\nPlease ask the user which person they mean.';\n  }\n\n  if (resp.message && !resp.relationship_arc) {\n    return resp.message;\n  }\n\n  // Format the comprehensive prep brief\n  const person = resp.person || {};\n  let result = '# Meeting Prep: ' + person.name;\n  if (person.company) result += ' (' + person.company + ')';\n  result += '\\n';\n\n  // CRM Context\n  const crm = resp.crm_context || {};\n  if (crm.contact) {\n    result += '\\n## CRM Context\\n';\n    if (crm.contact.title) result += '- Title: ' + crm.contact.title + '\\n';\n    if (crm.contact.company) result += '- Company: ' + crm.contact.company + '\\n';\n    if (crm.contact.lifecycle_stage) result += '- Lifecycle: ' + crm.contact.lifecycle_stage + '\\n';\n    if (crm.contact.lead_status) result += '- Lead Status: ' + crm.contact.lead_status + '\\n';\n  }\n  if (crm.deals && crm.deals.length > 0) {\n    result += '\\n### Active Deals\\n';\n    crm.deals.forEach(function(d) {\n      result += '- *' + d.name + '*: ' + (d.stage || '?') + (d.amount ? ', $' + d.amount : '') + (d.close_date ? ', close: ' + d.close_date : '') + '\\n';\n    });\n  }\n\n  // Relationship Arc\n  if (resp.relationship_arc && resp.relationship_arc.length > 0) {\n    result += '\\n## Relationship Arc (' + resp.meeting_count + ' meetings)\\n';\n    resp.relationship_arc.forEach(function(t) {\n      const date = t.date ? new Date(t.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : '?';\n      result += '- ' + date + ': *' + t.title + '*' + (t.summary ? ' — ' + t.summary : '') + '\\n';\n    });\n  }\n\n  // Open Items\n  const open = resp.open_items || {};\n  if (open.action_items && open.action_items.length > 0) {\n    result += '\\n## Open Action Items\\n';\n    open.action_items.forEach(function(ai) {\n      const owner = ai.owner ? '*' + ai.owner + '*: ' : '';\n      const due = ai.due ? ' ⚠️ due: ' + ai.due : '';\n      result += '- ' + owner + ai.task + due + ' [from: ' + ai.from_meeting + ', ' + ai.from_date + ']\\n';\n    });\n  }\n  if (open.follow_ups && open.follow_ups.length > 0) {\n    result += '\\n## Follow-ups\\n';\n    open.follow_ups.forEach(function(f) {\n      result += '- ' + f.item + ' [from: ' + f.from_meeting + ']\\n';\n    });\n  }\n\n  // Key Quotes\n  if (resp.key_quotes && resp.key_quotes.length > 0) {\n    result += '\\n## Key Positions / Quotes\\n';\n    resp.key_quotes.forEach(function(q) {\n      result += '- \\\"' + q.text + '\\\"' + (q.speaker ? ' — ' + q.speaker : '') + ' [' + q.from_meeting + ']\\n';\n    });\n  }\n\n  // Score Trend\n  if (resp.score_trend && resp.score_trend.length > 0) {\n    result += '\\n## Score Trend\\n';\n    resp.score_trend.forEach(function(s) {\n      const date = s.date ? new Date(s.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '?';\n      result += '- ' + date + ' (' + s.meeting + '): ' + JSON.stringify(s.scores) + '\\n';\n    });\n  }\n\n  // CRM Activity\n  if (resp.crm_activity && resp.crm_activity.summary) {\n    result += '\\n## Recent CRM Activity\\n' + resp.crm_activity.summary + '\\n';\n    if (resp.crm_activity.emails && resp.crm_activity.emails.length > 0) {\n      resp.crm_activity.emails.forEach(function(e) {\n        result += '- ' + (e.direction === 'received' ? '📥' : '📤') + ' ' + e.subject + '\\n';\n      });\n    }\n  }\n\n  // Memory Facts\n  if (resp.memory_facts && resp.memory_facts.length > 0) {\n    result += '\\n## Known Facts\\n';\n    resp.memory_facts.forEach(function(f) {\n      result += '- [' + f.type + '] ' + f.fact + '\\n';\n    });\n  }\n\n  return result;\n} catch (e) {\n  return 'Error generating meeting prep: ' + e.message;\n}"
+      },
+      "name": "Tool: Get Meeting Prep",
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.1,
+      "position": [
+        2340,
+        520
+      ],
+      "id": "wf8-tool-prep-001"
+    },
+    {
+      "parameters": {},
+      "name": "Skip",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        500
+      ],
+      "id": "wf8-skip-001"
+    }
+  ],
+  "connections": {
+    "Slack Events Webhook": {
+      "main": [
+        [
+          {
+            "node": "Parse Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Event": {
+      "main": [
+        [
+          {
+            "node": "Is Challenge?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Challenge?": {
+      "main": [
+        [
+          {
+            "node": "Respond Challenge",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond OK": {
+      "main": [
+        [
+          {
+            "node": "Should Process?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Should Process?": {
+      "main": [
+        [
+          {
+            "node": "Doppler: Get Supabase Key",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Skip",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Doppler: Get Supabase Key": {
+      "main": [
+        [
+          {
+            "node": "Supabase: Check Thread",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase: Check Thread": {
+      "main": [
+        [
+          {
+            "node": "Supabase: Load History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase: Load History": {
+      "main": [
+        [
+          {
+            "node": "Build Agent Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Agent Context": {
+      "main": [
+        [
+          {
+            "node": "AI Agent: Meeting Bot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: Search Meetings": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent: Meeting Bot",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: Get Meeting Analysis": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent: Meeting Bot",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: Get Person Summary": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent: Meeting Bot",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: Get CRM Activity": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent: Meeting Bot",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: Get Meeting Prep": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent: Meeting Bot",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anthropic Claude": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent: Meeting Bot",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Window Buffer Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent: Meeting Bot",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent: Meeting Bot": {
+      "main": [
+        [
+          {
+            "node": "Supabase: Save Exchange",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase: Save Exchange": {
+      "main": [
+        [
+          {
+            "node": "Slack: Reply in Thread",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "YWP69Qgq0ZlCN7Gj",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": {},
+  "versionId": "0c48732e-24cc-4a5f-9f21-171493aeb468",
+  "activeVersionId": "0c48732e-24cc-4a5f-9f21-171493aeb468",
+  "triggerCount": 1,
+  "shared": [
+    {
+      "updatedAt": "2026-02-10T20:29:44.201Z",
+      "createdAt": "2026-02-10T20:29:44.201Z",
+      "role": "workflow:owner",
+      "workflowId": "9t7EPqjlUUirs2fw",
+      "projectId": "O7lTivDfRl72aS23"
+    }
+  ],
+  "activeVersion": {
+    "updatedAt": "2026-02-12T23:52:17.040Z",
+    "createdAt": "2026-02-12T23:52:17.040Z",
+    "versionId": "0c48732e-24cc-4a5f-9f21-171493aeb468",
+    "workflowId": "9t7EPqjlUUirs2fw",
+    "nodes": [
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "meeting-intel-followup",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "name": "Slack Events Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          0,
+          300
+        ],
+        "webhookId": "meeting-intel-followup",
+        "id": "wf8-webhook-001"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Handle Slack Events API: URL verification + app_mention + thread replies\nconst body = $input.first().json.body || $input.first().json;\n\n// URL verification challenge\nif (body.type === 'url_verification') {\n  return [{ json: { challenge: body.challenge, isChallenge: true } }];\n}\n\n// Extract event data\nconst event = body.event || {};\nconst eventType = event.type;\n\n// Determine event classification\nconst isAppMention = eventType === 'app_mention';\nconst isThreadReply = eventType === 'message' && !!event.thread_ts;\nconst isFromBot = !!event.bot_id || !!event.bot_profile;\nconst hasSubtype = !!event.subtype;\n\n// Accept: app_mention OR thread reply from a human (no subtype, not from a bot)\nif (!isAppMention && !(isThreadReply && !isFromBot && !hasSubtype)) {\n  return [{ json: { skip: true, reason: 'Not a processable event: type=' + eventType + ', thread_ts=' + (event.thread_ts || 'none') + ', bot=' + isFromBot + ', subtype=' + (event.subtype || 'none') } }];\n}\n\n// Extract the message text\n// For app_mention: strip the bot mention; for thread replies: use text as-is\nconst rawText = event.text || '';\nconst text = isAppMention ? rawText.replace(/<@[A-Z0-9]+>/g, '').trim() : rawText.trim();\nconst eventTs = event.ts;\nconst threadTs = event.thread_ts || event.ts;\nconst channelId = event.channel;\nconst userId = event.user;\n\nif (!text) {\n  return [{ json: { skip: true, reason: 'Empty message after processing' } }];\n}\n\nreturn [{ json: {\n  question: text,\n  eventTs,\n  threadTs,\n  isThreadReply: !!event.thread_ts,\n  isAppMention,\n  channelId,\n  userId,\n  isChallenge: false,\n  skip: false\n} }];"
+        },
+        "name": "Parse Event",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          220,
+          300
+        ],
+        "id": "wf8-parse-event-001"
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "loose",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "is-challenge",
+                "leftValue": "={{ $json.isChallenge }}",
+                "rightValue": true,
+                "operator": {
+                  "type": "boolean",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "name": "Is Challenge?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          440,
+          300
+        ],
+        "id": "wf8-is-challenge-001"
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ JSON.stringify({ challenge: $json.challenge }) }}"
+        },
+        "name": "Respond Challenge",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [
+          660,
+          200
+        ],
+        "id": "wf8-respond-challenge-001"
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ JSON.stringify({ ok: true }) }}"
+        },
+        "name": "Respond OK",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [
+          660,
+          400
+        ],
+        "id": "wf8-respond-ok-001"
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "loose",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "not-skip",
+                "leftValue": "={{ $json.skip }}",
+                "rightValue": false,
+                "operator": {
+                  "type": "boolean",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "name": "Should Process?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          880,
+          400
+        ],
+        "id": "wf8-should-process-001"
+      },
+      {
+        "parameters": {
+          "url": "https://api.doppler.com/v3/configs/config/secret",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpHeaderAuth",
+          "sendQuery": true,
+          "queryParameters": {
+            "parameters": [
+              {
+                "name": "project",
+                "value": "developers"
+              },
+              {
+                "name": "config",
+                "value": "hudson"
+              },
+              {
+                "name": "name",
+                "value": "SUPABASE_SERVICE_ROLE_KEY"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "name": "Doppler: Get Supabase Key",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          990,
+          300
+        ],
+        "credentials": {
+          "httpHeaderAuth": {
+            "id": "dz2vX61Mpayywfq1",
+            "name": "Doppler API"
+          }
+        },
+        "id": "wf8-doppler-001"
+      },
+      {
+        "parameters": {
+          "method": "GET",
+          "url": "=https://utvoxshpxzsgsliworwh.supabase.co/rest/v1/meetings?slack_thread_ts=eq.{{ $('Parse Event').first().json.threadTs }}&select=id,title,meeting_date,attendees_raw,meeting_type,status&limit=1",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "supabaseApi",
+          "options": {}
+        },
+        "name": "Supabase: Check Thread",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1100,
+          300
+        ],
+        "credentials": {
+          "supabaseApi": {
+            "id": "HRBgSj7d6TFZA8kL",
+            "name": "Supabase account 2"
+          }
+        },
+        "continueOnFail": true,
+        "alwaysOutputData": true,
+        "id": "wf8-check-thread-001"
+      },
+      {
+        "parameters": {
+          "method": "GET",
+          "url": "=https://utvoxshpxzsgsliworwh.supabase.co/rest/v1/agent_conversations?session_id=eq.{{ $('Parse Event').first().json.threadTs }}&order=created_at.asc&limit=20",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "supabaseApi",
+          "options": {}
+        },
+        "name": "Supabase: Load History",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1320,
+          300
+        ],
+        "credentials": {
+          "supabaseApi": {
+            "id": "HRBgSj7d6TFZA8kL",
+            "name": "Supabase account 2"
+          }
+        },
+        "continueOnFail": true,
+        "alwaysOutputData": true,
+        "id": "wf8-load-history-001"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Build system prompt from upstream HTTP Request results (no fetch/env needed)\nconst event = $('Parse Event').first().json;\n\n// 1. Check for linked meeting from Supabase: Check Thread\nconst threadResult = $('Supabase: Check Thread').first().json;\nconst meetings = Array.isArray(threadResult) ? threadResult : (threadResult?.id ? [threadResult] : []);\nconst linkedMeeting = meetings.length > 0 ? meetings[0] : null;\n\n// 2. Load history from Supabase: Load History\nconst historyResult = $('Supabase: Load History').first().json;\nconst history = Array.isArray(historyResult) ? historyResult : [];\n\n// 3. Build conversation history block\nlet historyBlock = '';\nif (history.length > 0) {\n  historyBlock = '\\n\\n## Conversation History\\n';\n  history.forEach(msg => {\n    historyBlock += `[${msg.role}]: ${msg.content}\\n`;\n  });\n}\n\n// 4. Build system prompt\nlet meetingContext = '';\nif (linkedMeeting) {\n  meetingContext = `\\n\\nIMPORTANT: This thread is linked to an existing analyzed meeting:\\n- Title: ${linkedMeeting.title}\\n- Date: ${linkedMeeting.meeting_date}\\n- Type: ${linkedMeeting.meeting_type || 'general'}\\n- Attendees: ${linkedMeeting.attendees_raw || 'unknown'}\\n- Meeting ID: ${linkedMeeting.id}\\n\\nUse the get_meeting_analysis tool with this meeting ID to answer questions about it. Do NOT ask the user to search — the meeting is already identified.`;\n}\n\nconst systemPrompt = `You are Chrt's meeting intelligence bot in Slack. Chrt is a B2B SaaS company selling real-time visibility and coordination software for time-critical logistics (medical specimens, aerospace parts, organs).\n\nYou help users find and ask questions about their meetings. You have these tools:\n\n1. **search_meetings** — Search for meetings. All parameters optional. Input: JSON with optional name, type (meeting_type like sales_demo), keyword (title search), days_back, date_from, date_to. When no name is given, returns recent completed meetings with classification data.\n\n2. **get_meeting_analysis** — Get the full structured analysis for a specific meeting by UUID. Returns classification, scorecard criteria, summary, action items, decisions, key quotes, follow-ups, scores, and template context. Use after the user selects a meeting or when one is already in context.\n\n3. **get_person_summary** — Get a timeline of all meetings with a person, aggregated action items, decisions, score trends, and known facts. Use when the user asks broad questions like \"what's been happening with X?\" or \"what have we committed to across all meetings?\". Input: JSON with name, optional email, days_back.\n\n4. **get_crm_activity** — Get recent emails, calls, and notes from HubSpot for a person. Use when the user asks about communications outside of meetings. Requires email. Input: JSON with email, optional days_back.\n\n5. **get_meeting_prep** — Generate a comprehensive meeting prep brief. Use when the user says \"prep me for my call with X\". Input: JSON with name, optional email, days_back.\n\n## Tool Selection Guide:\n- \"meetings with X\" or \"find meetings with\" → search_meetings with name\n- \"my recent meetings\" or \"latest meeting\" or \"what meetings did I have\" → search_meetings with no name\n- \"what demos did we do\" or \"show me sales calls\" → search_meetings with type: \"sales_demo\"\n- \"what discovery calls\" → search_meetings with type: \"sales_discovery\"\n- \"what's been happening with X?\" or \"summary of X\" → get_person_summary\n- \"tell me about the first/second one\" or specific meeting → get_meeting_analysis using the meeting ID from search results\n- \"what were the action items?\" → get_meeting_analysis if a meeting is in context, otherwise ask which meeting\n- \"how could we improve our demos\" or \"demo feedback\" or \"what went well\" → get_meeting_analysis on the meeting in context, frame answer around scorecard criteria\n- \"what have we committed to?\" → get_person_summary\n- \"what emails have we sent?\" or \"CRM activity\" → get_crm_activity\n- \"prep me for my call with X\" or \"prepare for meeting\" → get_meeting_prep\n\n## Conversation Context:\n- If a meeting was already discussed in this thread (listed in search results or analyzed), use its meeting ID from conversation history. Do NOT ask the user to search again.\n- When the user says \"this call\", \"from that meeting\", or \"the demo\", they mean the meeting most recently referenced in the conversation.\n- If no specific meeting is in context and the user asks a question that requires one, search for recent meetings first rather than asking the user to specify.\n- When the user says \"the first one\" or \"the second one\", use the meeting ID from the numbered list you previously showed.\n\n## Meeting Classification:\nMeetings are classified by type (sales_demo, sales_discovery, customer_checkin, customer_onboarding, customer_research, executive_strategy, team_sync, one_on_one, external_general, general) and analyzed with weighted templates (suggested_apps). Search results and analysis output include this classification.\n\nWhen answering questions about demo improvement or sales performance, reference the specific scorecard criteria from the analysis:\n- **sales_demo** → demo-scorecard evaluates: Set Agenda, Business Need, Pain Point, Competitors, Pricing, Clarifying Questions\n- **sales_discovery** → discovery-scorecard evaluates: Situation, Pain, Impact, Critical Event, Decision Process\n- **objection-handler** evaluates: Acknowledge, Clarify, Respond, Confirm, Advance\n\nUse these dimensions to give specific, actionable feedback rather than generic advice.\n\n## Disambiguation:\nWhen a tool returns disambiguation_needed or lists multiple matching people, present ALL matches as a numbered list with name, company, and meeting count. Ask the user to pick one. Do NOT guess.\n\n## How to behave:\n- Keep responses concise and Slack-friendly. Use *bold* for emphasis, bullet points for lists.\n- Be specific — cite action items, quotes, scores from the data.\n- Never fabricate meeting details. If the data doesn't contain the answer, say so.\n- When asked about improving demos or sales performance, structure your answer around the scorecard criteria and cite specific evidence from the meeting analysis.\n- If the user changes topic, start fresh with the appropriate tool.${meetingContext}${historyBlock}`;\n\nreturn [{ json: {\n  question: event.question,\n  threadTs: event.threadTs,\n  eventTs: event.eventTs,\n  isThreadReply: event.isThreadReply,\n  channelId: event.channelId,\n  userId: event.userId,\n  linkedMeetingId: linkedMeeting ? linkedMeeting.id : null,\n  systemPrompt,\n  userMessage: event.question\n} }];"
+        },
+        "name": "Build Agent Context",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1540,
+          300
+        ],
+        "id": "wf8-build-context-001"
+      },
+      {
+        "parameters": {
+          "name": "search_meetings",
+          "description": "Search for meetings. All parameters are optional. Input: JSON with optional 'name' (person name), 'type' (meeting_type like 'sales_demo', 'sales_discovery', 'customer_checkin'), 'keyword' (title search), 'days_back' (default 14), 'date_from'/'date_to' (YYYY-MM-DD). When no name is given, returns recent completed meetings. Results include meeting classification and analysis template weights.",
+          "jsCode": "// Tool: Search Meetings — flexible search with classification data\ntry {\n  const SUPABASE_URL = 'https://utvoxshpxzsgsliworwh.supabase.co';\n  let SUPABASE_KEY;\n  try { SUPABASE_KEY = $('Doppler: Get Supabase Key').first().json.value.raw; } catch(e) { SUPABASE_KEY = ''; }\n  if (!SUPABASE_KEY) {\n    return 'Error: Could not retrieve Supabase key from Doppler. Check the Doppler: Get Supabase Key node.';\n  }\n  const headers = { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' };\n\n  // Parse input\n  let input = {};\n  if (typeof query === 'string') {\n    try { input = JSON.parse(query); } catch(e) { input = { name: query }; }\n  } else {\n    input = query || {};\n  }\n\n  const name = (input.name || '').trim();\n  const type = (input.type || '').trim();\n  const keyword = (input.keyword || '').trim();\n\n  // Date range\n  let dateFilter = '';\n  if (input.date_from) { dateFilter += `&meeting_date=gte.${input.date_from}`; }\n  if (input.date_to) { dateFilter += `&meeting_date=lte.${input.date_to}`; }\n  if (!input.date_from && !input.date_to) {\n    const daysBack = parseInt(input.days_back || input.daysBack || '14', 10);\n    const cutoff = new Date();\n    cutoff.setDate(cutoff.getDate() - daysBack);\n    dateFilter = `&meeting_date=gte.${cutoff.toISOString().split('T')[0]}`;\n  }\n\n  // Build query filters\n  let filters = '';\n  if (name) {\n    const sp = encodeURIComponent(`*${name}*`);\n    filters += `&or=(attendees_raw.ilike.${sp},person_name.ilike.${sp},title.ilike.${sp})`;\n  } else {\n    // Browse mode: only show analyzed meetings\n    filters += '&status=eq.completed';\n  }\n  if (type) { filters += `&meeting_type=eq.${type}`; }\n  if (keyword) {\n    const kp = encodeURIComponent(`*${keyword}*`);\n    filters += `&title=ilike.${kp}`;\n  }\n\n  const selectFields = 'id,title,meeting_date,duration_mins,attendees_raw,status,person_name,meeting_type,is_external,suggested_apps';\n  const url = `${SUPABASE_URL}/rest/v1/meetings?${filters.substring(1)}${dateFilter}&order=meeting_date.desc&limit=10&select=${selectFields}`;\n\n  const meetings = await this.helpers.httpRequest({ method: 'GET', url, headers, returnFullResponse: false, json: true });\n\n  if (!Array.isArray(meetings) || meetings.length === 0) {\n    const searchDesc = name ? `matching \\\"${name}\\\"` : (type ? `of type \\\"${type}\\\"` : 'in the specified time range');\n    return `No meetings found ${searchDesc}.`;\n  }\n\n  // Fetch summaries from meeting_analyses\n  const meetingIds = meetings.map(m => m.id);\n  const idsParam = encodeURIComponent(`(${meetingIds.join(',')})`);\n  let summaryMap = {};\n  try {\n    const analyses = await this.helpers.httpRequest({\n      method: 'GET',\n      url: `${SUPABASE_URL}/rest/v1/meeting_analyses?meeting_id=in.${idsParam}&select=meeting_id,structured_data&order=created_at.desc`,\n      headers, json: true\n    });\n    if (Array.isArray(analyses)) {\n      for (const a of analyses) {\n        if (!summaryMap[a.meeting_id] && a.structured_data) {\n          const sd = typeof a.structured_data === 'string' ? JSON.parse(a.structured_data) : a.structured_data;\n          summaryMap[a.meeting_id] = (sd.summary || '').substring(0, 120);\n        }\n      }\n    }\n  } catch (e) { /* summaries are optional */ }\n\n  const lines = meetings.map((m, i) => {\n    const date = m.meeting_date ? new Date(m.meeting_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : 'unknown date';\n    const duration = m.duration_mins ? `${m.duration_mins}min` : '';\n    const status = m.status === 'completed' ? '' : ` (${m.status})`;\n    const summary = summaryMap[m.id] ? ` — _${summaryMap[m.id]}_` : '';\n    // Classification info\n    let classInfo = '';\n    if (m.meeting_type && m.meeting_type !== 'general') {\n      classInfo = ` [${m.meeting_type}`;\n      if (m.suggested_apps && Array.isArray(m.suggested_apps) && m.suggested_apps.length > 0) {\n        classInfo += ': ' + m.suggested_apps.map(function(a) { return a.id + ' ' + Math.round(a.weight * 100) + '%'; }).join(', ');\n      }\n      classInfo += ']';\n    }\n    return `${i + 1}. *${m.title}* — ${date}${duration ? ', ' + duration : ''}${status}${classInfo}${summary} [id: ${m.id}]`;\n  });\n\n  const searchDesc = name ? `matching \\\"${name}\\\"` : (type ? `of type \\\"${type}\\\"` : 'recent');\n  return `Found ${meetings.length} ${searchDesc} meeting(s):\\n\\n${lines.join('\\n')}`;\n} catch (e) {\n  return 'Error searching meetings: ' + e.message;\n}"
+        },
+        "name": "Tool: Search Meetings",
+        "type": "@n8n/n8n-nodes-langchain.toolCode",
+        "typeVersion": 1.1,
+        "position": [
+          1700,
+          520
+        ],
+        "id": "wf8-tool-search-001"
+      },
+      {
+        "parameters": {
+          "name": "get_meeting_analysis",
+          "description": "Get the full analysis for a specific meeting by its UUID. Use after the user selects a meeting from search results, or when a meeting is already linked to the thread. Returns classification, scorecard criteria, structured sections, and full analysis. Input should be a JSON string with 'meeting_id' (the UUID of the meeting).",
+          "jsCode": "// Tool: Get Meeting Analysis — fetches analysis + classification + template context\ntry {\n  const SUPABASE_URL = 'https://utvoxshpxzsgsliworwh.supabase.co';\n  let SUPABASE_KEY;\n  try { SUPABASE_KEY = $('Doppler: Get Supabase Key').first().json.value.raw; } catch(e) { SUPABASE_KEY = ''; }\n  if (!SUPABASE_KEY) {\n    return 'Error: Could not retrieve Supabase key from Doppler. Check the Doppler: Get Supabase Key node.';\n  }\n  const headers = { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' };\n\n  // Parse input\n  let input = {};\n  if (typeof query === 'string') {\n    try { input = JSON.parse(query); } catch(e) { input = { meeting_id: query }; }\n  } else {\n    input = query || {};\n  }\n\n  const meetingId = (input.meeting_id || input.meetingId || '').trim();\n  if (!meetingId) {\n    return 'Error: No meeting_id provided. Please specify the meeting UUID.';\n  }\n\n  const metaArr = await this.helpers.httpRequest({\n    method: 'GET',\n    url: `${SUPABASE_URL}/rest/v1/meetings?id=eq.${meetingId}&select=id,title,meeting_date,duration_mins,attendees_raw,meeting_type,is_external,suggested_apps,status,person_name&limit=1`,\n    headers, json: true\n  });\n  const meeting = Array.isArray(metaArr) ? metaArr[0] : null;\n\n  if (!meeting) {\n    return `No meeting found with ID ${meetingId}.`;\n  }\n\n  const analysisArr = await this.helpers.httpRequest({\n    method: 'GET',\n    url: `${SUPABASE_URL}/rest/v1/meeting_analyses?meeting_id=eq.${meetingId}&select=analysis_output,structured_data,scores&order=created_at.desc&limit=1`,\n    headers, json: true\n  });\n  const analysis = Array.isArray(analysisArr) ? analysisArr[0] : null;\n\n  // Header\n  let result = `## Meeting: ${meeting.title}\\nDate: ${meeting.meeting_date}\\nType: ${meeting.meeting_type || 'general'}${meeting.is_external ? ' (External)' : ''}\\nDuration: ${meeting.duration_mins || '?'} min\\nAttendees: ${meeting.attendees_raw || 'unknown'}\\nStatus: ${meeting.status}\\n`;\n\n  // Meeting Classification section\n  const apps = meeting.suggested_apps;\n  if (apps && Array.isArray(apps) && apps.length > 0) {\n    result += `\\n## Meeting Classification\\nAnalyzed as **${meeting.meeting_type}**: ${apps.map(function(a) { return a.id + ' (' + Math.round(a.weight * 100) + '%)'; }).join(', ')}\\n`;\n    // Known scorecard criteria\n    const scorecardCriteria = {\n      'demo-scorecard': ['Set Agenda', 'Business Need', 'Pain Point', 'Competitors', 'Pricing', 'Clarifying Questions'],\n      'discovery-scorecard': ['Situation', 'Pain', 'Impact', 'Critical Event', 'Decision Process'],\n      'objection-handler': ['Acknowledge', 'Clarify', 'Respond', 'Confirm', 'Advance'],\n      'churn-risk-analyzer': ['Usage Decline', 'Sentiment Shift', 'Support Escalation', 'Champion Loss', 'Competitor Mention']\n    };\n    apps.forEach(function(a) {\n      if (scorecardCriteria[a.id]) {\n        result += `Scorecard criteria for ${a.id}: ${scorecardCriteria[a.id].join(', ')}\\n`;\n      }\n    });\n  }\n\n  if (!analysis) {\n    result += `\\nNo analysis available for this meeting yet. The meeting may not have been analyzed — suggest the user analyze it first via the Slack Intel Form.`;\n    return result;\n  }\n\n  // Parse structured data, with analysis_output fallback\n  let sd = analysis.structured_data || {};\n  if (typeof sd === 'string') { try { sd = JSON.parse(sd); } catch(e) { sd = {}; } }\n\n  // If structured_data is incomplete, try to parse analysis_output as JSON\n  const needsFallback = !sd.action_items || sd.action_items.length === 0;\n  if (needsFallback && analysis.analysis_output) {\n    try {\n      let raw = analysis.analysis_output.trim();\n      if (raw.startsWith('```')) { raw = raw.split('\\n').slice(1).join('\\n'); }\n      if (raw.endsWith('```')) { raw = raw.substring(0, raw.lastIndexOf('```')); }\n      const parsed = JSON.parse(raw.trim());\n      // Merge missing fields from parsed analysis_output into sd\n      const fields = ['summary', 'key_points', 'action_items', 'decisions', 'key_quotes', 'follow_ups', 'scores'];\n      fields.forEach(function(f) {\n        if ((!sd[f] || (Array.isArray(sd[f]) && sd[f].length === 0)) && parsed[f]) {\n          sd[f] = parsed[f];\n        }\n      });\n    } catch (e) { /* analysis_output is not parseable JSON, will use raw text */ }\n  }\n\n  const scores = analysis.scores || sd.scores || {};\n\n  // Summary\n  if (sd.summary) {\n    const summaryText = typeof sd.summary === 'string' ? sd.summary : (sd.summary.summary || JSON.stringify(sd.summary));\n    result += `\\n## Summary\\n${summaryText}\\n`;\n  }\n\n  // Key Points\n  if (sd.key_points && sd.key_points.length > 0) {\n    result += `\\n## Key Points\\n`;\n    sd.key_points.forEach(function(p) { result += `- ${typeof p === 'string' ? p : JSON.stringify(p)}\\n`; });\n  }\n\n  // Action Items\n  if (sd.action_items && sd.action_items.length > 0) {\n    result += `\\n## Action Items\\n`;\n    sd.action_items.forEach(function(item) {\n      if (typeof item === 'string') {\n        result += `- ${item}\\n`;\n      } else {\n        const owner = item.owner ? `*${item.owner}*: ` : '';\n        const due = item.due ? ` (due: ${item.due})` : '';\n        const priority = item.priority ? ` [${item.priority}]` : '';\n        result += `- ${owner}${item.task || item.description || JSON.stringify(item)}${due}${priority}\\n`;\n      }\n    });\n  }\n\n  // Decisions\n  if (sd.decisions && sd.decisions.length > 0) {\n    result += `\\n## Key Decisions\\n`;\n    sd.decisions.forEach(function(d) { result += `- ${typeof d === 'string' ? d : JSON.stringify(d)}\\n`; });\n  }\n\n  // Key Quotes\n  if (sd.key_quotes && sd.key_quotes.length > 0) {\n    result += `\\n## Key Quotes\\n`;\n    sd.key_quotes.forEach(function(q) {\n      if (typeof q === 'string') {\n        result += `- ${q}\\n`;\n      } else {\n        result += `- \\\"${q.text || q.quote || ''}\\\" — ${q.speaker || 'unknown'}\\n`;\n      }\n    });\n  }\n\n  // Follow-ups\n  if (sd.follow_ups && sd.follow_ups.length > 0) {\n    result += `\\n## Follow-ups\\n`;\n    sd.follow_ups.forEach(function(f) { result += `- ${typeof f === 'string' ? f : JSON.stringify(f)}\\n`; });\n  }\n\n  // Scores\n  if (scores && typeof scores === 'object' && Object.keys(scores).length > 0) {\n    result += `\\n## Scores\\n`;\n    for (const [key, val] of Object.entries(scores)) {\n      result += `- ${key}: ${typeof val === 'object' ? JSON.stringify(val) : val}\\n`;\n    }\n  }\n\n  // Full Analysis (raw, for open-ended questions — only if we didn't already parse it)\n  if (!needsFallback && analysis.analysis_output) {\n    result += `\\n## Full Analysis\\n${analysis.analysis_output}`;\n  }\n\n  return result;\n} catch (e) {\n  return 'Error fetching meeting analysis: ' + e.message;\n}"
+        },
+        "name": "Tool: Get Meeting Analysis",
+        "type": "@n8n/n8n-nodes-langchain.toolCode",
+        "typeVersion": 1.1,
+        "position": [
+          1860,
+          520
+        ],
+        "id": "wf8-tool-analysis-001"
+      },
+      {
+        "parameters": {
+          "promptType": "define",
+          "text": "={{ $('Build Agent Context').first().json.userMessage }}",
+          "hasOutputParser": false,
+          "options": {
+            "systemMessage": "={{ $('Build Agent Context').first().json.systemPrompt }}",
+            "maxTokens": 4096,
+            "temperature": 0.3
+          }
+        },
+        "name": "AI Agent: Meeting Bot",
+        "type": "@n8n/n8n-nodes-langchain.agent",
+        "typeVersion": 1.7,
+        "position": [
+          1400,
+          300
+        ],
+        "id": "wf8-ai-agent-001"
+      },
+      {
+        "parameters": {
+          "model": {
+            "__rl": true,
+            "value": "claude-sonnet-4-20250514",
+            "mode": "list",
+            "cachedResultName": "Claude Sonnet 4"
+          },
+          "options": {
+            "maxTokensToSample": 4096,
+            "temperature": 0.3
+          }
+        },
+        "name": "Anthropic Claude",
+        "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+        "typeVersion": 1.3,
+        "position": [
+          1900,
+          520
+        ],
+        "credentials": {
+          "anthropicApi": {
+            "id": "B6k4mmzjw7OzEK5c",
+            "name": "Anthropic account"
+          }
+        },
+        "id": "wf8-anthropic-001"
+      },
+      {
+        "parameters": {
+          "sessionIdType": "customKey",
+          "sessionKey": "={{ $('Build Agent Context').first().json.threadTs }}"
+        },
+        "name": "Window Buffer Memory",
+        "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+        "typeVersion": 1.3,
+        "position": [
+          2060,
+          520
+        ],
+        "id": "wf8-window-memory-001"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://utvoxshpxzsgsliworwh.supabase.co/rest/v1/agent_conversations",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "supabaseApi",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Prefer",
+                "value": "return=minimal"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify([ { session_id: $('Build Agent Context').first().json.threadTs, role: 'user', content: $('Build Agent Context').first().json.question }, { session_id: $('Build Agent Context').first().json.threadTs, role: 'assistant', content: ($json.output || $json.text || '').substring(0, 4000) } ]) }}",
+          "options": {}
+        },
+        "name": "Supabase: Save Exchange",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          2100,
+          200
+        ],
+        "credentials": {
+          "supabaseApi": {
+            "id": "HRBgSj7d6TFZA8kL",
+            "name": "Supabase account 2"
+          }
+        },
+        "continueOnFail": true,
+        "id": "wf8-save-exchange-001"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://slack.com/api/chat.postMessage",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "slackApi",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ channel: $('Build Agent Context').first().json.channelId, thread_ts: $('Build Agent Context').first().json.threadTs, text: ($('AI Agent: Meeting Bot').first().json.output || $('AI Agent: Meeting Bot').first().json.text || 'Sorry, I could not generate a response.') + ($('AI Agent: Meeting Bot').first().json.tokenUsage ? '\\n\\n_Tokens: ' + ($('AI Agent: Meeting Bot').first().json.tokenUsage.promptTokens || 0) + ' in / ' + ($('AI Agent: Meeting Bot').first().json.tokenUsage.completionTokens || 0) + ' out (' + ($('AI Agent: Meeting Bot').first().json.tokenUsage.totalTokens || 0) + ' total)_' : '') }) }}",
+          "options": {}
+        },
+        "name": "Slack: Reply in Thread",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          2200,
+          300
+        ],
+        "id": "wf8-slack-reply-001",
+        "credentials": {
+          "slackApi": {
+            "id": "wkLpZSqhXl2iesnC",
+            "name": "Chrt Slack App"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "name": "get_person_summary",
+          "description": "Get a summary of all meetings with a person, including timeline, action items, decisions, and score trends. Use when the user asks broad questions like 'what's been happening with X?' or 'what have we committed to across all meetings?'. Also handles disambiguation when multiple people match. Input: JSON with 'name' (required) and optionally 'email', 'days_back' (default 90).",
+          "jsCode": "// Tool: Get Person Summary — calls Apps Script for cross-meeting synthesis\ntry {\n  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbybWTFvdZnmPnQkndxAqA4jQQlMC2_gGMZOJULYk5ywyc0IPT2qNn7QIq5SAtC_jUJJRA/exec';\n\n  // Parse input\n  let input = {};\n  if (typeof query === 'string') {\n    try { input = JSON.parse(query); } catch(e) { input = { name: query }; }\n  } else {\n    input = query || {};\n  }\n\n  const name = (input.name || '').trim();\n  const email = (input.email || '').trim();\n  const daysBack = parseInt(input.days_back || input.daysBack || '90', 10);\n\n  if (!name && !email) {\n    return 'Error: No person name or email provided.';\n  }\n\n  const resp = await this.helpers.httpRequest({\n    method: 'POST',\n    url: APPS_SCRIPT_URL,\n    body: JSON.stringify({ action: 'get-person-summary', name, email, days_back: daysBack }),\n    headers: { 'Content-Type': 'application/json' },\n    json: true\n  });\n\n  // Handle disambiguation\n  if (resp.disambiguation_needed) {\n    const matches = resp.matches || [];\n    const lines = matches.map(function(m, i) {\n      const company = m.company ? ' (' + m.company + ')' : '';\n      const title = m.title ? ', ' + m.title : '';\n      const lastDate = m.last_meeting_date ? new Date(m.last_meeting_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'unknown';\n      return (i + 1) + '. *' + m.name + '*' + company + title + ' — ' + m.meeting_count + ' meeting(s), last: ' + lastDate;\n    });\n    return 'Multiple people found matching \\\"' + (name || email) + '\\\":\\n\\n' + lines.join('\\n') + '\\n\\nPlease ask the user which person they mean.';\n  }\n\n  // Handle no results\n  if (resp.message && (!resp.timeline || resp.timeline.length === 0)) {\n    return resp.message;\n  }\n\n  // Format the summary response\n  const person = resp.person || {};\n  let result = '## Person: ' + person.name;\n  if (person.company) result += ' (' + person.company + ')';\n  if (person.title) result += '\\nTitle: ' + person.title;\n  if (person.email) result += '\\nEmail: ' + person.email;\n  result += '\\nMeetings: ' + (resp.meeting_count || 0) + ' in scope\\n';\n\n  // Timeline\n  if (resp.timeline && resp.timeline.length > 0) {\n    result += '\\n## Meeting Timeline\\n';\n    resp.timeline.forEach(function(t) {\n      const date = t.date ? new Date(t.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : '?';\n      const summary = t.summary ? ' — _' + t.summary + '_' : '';\n      result += '- ' + date + ': *' + t.title + '*' + (t.duration ? ' (' + t.duration + 'min)' : '') + summary + ' [id: ' + t.meeting_id + ']\\n';\n    });\n  }\n\n  // Action items\n  if (resp.action_items && resp.action_items.length > 0) {\n    result += '\\n## Action Items (across all meetings)\\n';\n    resp.action_items.forEach(function(ai) {\n      const owner = ai.owner ? '*' + ai.owner + '*: ' : '';\n      const due = ai.due ? ' (due: ' + ai.due + ')' : '';\n      const source = ai.from_meeting ? ' [from: ' + ai.from_meeting + ']' : '';\n      result += '- ' + owner + ai.task + due + source + '\\n';\n    });\n  }\n\n  // Decisions\n  if (resp.decisions && resp.decisions.length > 0) {\n    result += '\\n## Decisions\\n';\n    resp.decisions.forEach(function(d) {\n      result += '- ' + d.decision + ' [from: ' + d.from_meeting + ']\\n';\n    });\n  }\n\n  // Score trend\n  if (resp.score_trend && resp.score_trend.length > 0) {\n    result += '\\n## Score Trend\\n';\n    resp.score_trend.forEach(function(s) {\n      const date = s.date ? new Date(s.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '?';\n      result += '- ' + date + ' (' + s.meeting + '): ' + JSON.stringify(s.scores) + '\\n';\n    });\n  }\n\n  // Memory facts\n  if (resp.memory_facts && resp.memory_facts.length > 0) {\n    result += '\\n## Known Facts\\n';\n    resp.memory_facts.forEach(function(f) {\n      result += '- [' + f.type + '] ' + f.fact + ' (confidence: ' + f.confidence + ')\\n';\n    });\n  }\n\n  return result;\n} catch (e) {\n  return 'Error getting person summary: ' + e.message;\n}"
+        },
+        "name": "Tool: Get Person Summary",
+        "type": "@n8n/n8n-nodes-langchain.toolCode",
+        "typeVersion": 1.1,
+        "position": [
+          2020,
+          520
+        ],
+        "id": "wf8-tool-person-001"
+      },
+      {
+        "parameters": {
+          "name": "get_crm_activity",
+          "description": "Get recent email, call, and note activity from HubSpot for a person. Use when the user asks about communications outside of meetings, such as 'what emails have we sent?', 'any recent calls?', or CRM activity. Input: JSON with 'email' (required) and optionally 'days_back' (default 30).",
+          "jsCode": "// Tool: Get CRM Activity — calls Apps Script for HubSpot engagement data\ntry {\n  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbybWTFvdZnmPnQkndxAqA4jQQlMC2_gGMZOJULYk5ywyc0IPT2qNn7QIq5SAtC_jUJJRA/exec';\n\n  let input = {};\n  if (typeof query === 'string') {\n    try { input = JSON.parse(query); } catch(e) { input = { email: query }; }\n  } else {\n    input = query || {};\n  }\n\n  const email = (input.email || '').trim();\n  const daysBack = parseInt(input.days_back || input.daysBack || '30', 10);\n\n  if (!email) {\n    return 'Error: No email provided. Please provide the person\\'s email address.';\n  }\n\n  const resp = await this.helpers.httpRequest({\n    method: 'POST',\n    url: APPS_SCRIPT_URL,\n    body: JSON.stringify({ action: 'get-crm-activity', email, days_back: daysBack }),\n    headers: { 'Content-Type': 'application/json' },\n    json: true\n  });\n\n  if (resp.error) {\n    return 'Error: ' + resp.error;\n  }\n\n  let result = '## CRM Activity for ' + email + '\\n';\n  result += resp.summary + '\\n';\n\n  // Emails\n  if (resp.emails && resp.emails.length > 0) {\n    result += '\\n### Recent Emails\\n';\n    resp.emails.forEach(function(e) {\n      const dir = e.direction === 'received' ? '📥' : '📤';\n      result += '- ' + (e.date || '?') + ' ' + dir + ' *' + (e.subject || 'No subject') + '* — ' + (e.snippet || '').substring(0, 150) + '\\n';\n    });\n  }\n\n  // Calls\n  if (resp.calls && resp.calls.length > 0) {\n    result += '\\n### Recent Calls\\n';\n    resp.calls.forEach(function(c) {\n      const dur = c.duration_secs ? Math.round(c.duration_secs / 60) + 'min' : '';\n      result += '- ' + (c.date || '?') + ' *' + (c.title || 'Call') + '*' + (dur ? ' (' + dur + ')' : '') + (c.disposition ? ' [' + c.disposition + ']' : '') + (c.notes ? ' — ' + c.notes.substring(0, 150) : '') + '\\n';\n    });\n  }\n\n  // Notes\n  if (resp.notes && resp.notes.length > 0) {\n    result += '\\n### Recent Notes\\n';\n    resp.notes.forEach(function(n) {\n      result += '- ' + (n.date || '?') + ': ' + (n.body || '').substring(0, 150) + '\\n';\n    });\n  }\n\n  if (!resp.emails?.length && !resp.calls?.length && !resp.notes?.length) {\n    result += '\\nNo recent CRM activity found.';\n  }\n\n  return result;\n} catch (e) {\n  return 'Error getting CRM activity: ' + e.message;\n}"
+        },
+        "name": "Tool: Get CRM Activity",
+        "type": "@n8n/n8n-nodes-langchain.toolCode",
+        "typeVersion": 1.1,
+        "position": [
+          2180,
+          520
+        ],
+        "id": "wf8-tool-crm-001"
+      },
+      {
+        "parameters": {
+          "name": "get_meeting_prep",
+          "description": "Generate a meeting prep brief for an upcoming conversation with a person. Combines meeting history, CRM activity, open action items, key quotes, score trends, and HubSpot deal context. Use when the user says 'prep me for my call with X' or 'prepare for meeting with X'. Input: JSON with 'name' (required), optionally 'email', 'days_back' (default 90).",
+          "jsCode": "// Tool: Get Meeting Prep — calls Apps Script for comprehensive prep brief\ntry {\n  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbybWTFvdZnmPnQkndxAqA4jQQlMC2_gGMZOJULYk5ywyc0IPT2qNn7QIq5SAtC_jUJJRA/exec';\n\n  let input = {};\n  if (typeof query === 'string') {\n    try { input = JSON.parse(query); } catch(e) { input = { name: query }; }\n  } else {\n    input = query || {};\n  }\n\n  const name = (input.name || '').trim();\n  const email = (input.email || '').trim();\n  const daysBack = parseInt(input.days_back || input.daysBack || '90', 10);\n\n  if (!name && !email) {\n    return 'Error: No person name or email provided.';\n  }\n\n  const resp = await this.helpers.httpRequest({\n    method: 'POST',\n    url: APPS_SCRIPT_URL,\n    body: JSON.stringify({ action: 'get-meeting-prep', name, email, days_back: daysBack }),\n    headers: { 'Content-Type': 'application/json' },\n    json: true\n  });\n\n  // Handle disambiguation\n  if (resp.disambiguation_needed) {\n    const matches = resp.matches || [];\n    const lines = matches.map(function(m, i) {\n      const company = m.company ? ' (' + m.company + ')' : '';\n      return (i + 1) + '. *' + m.name + '*' + company + (m.title ? ', ' + m.title : '') + ' — ' + m.meeting_count + ' meeting(s)';\n    });\n    return 'Multiple people found matching \\\"' + (name || email) + '\\\":\\n\\n' + lines.join('\\n') + '\\n\\nPlease ask the user which person they mean.';\n  }\n\n  if (resp.message && !resp.relationship_arc) {\n    return resp.message;\n  }\n\n  // Format the comprehensive prep brief\n  const person = resp.person || {};\n  let result = '# Meeting Prep: ' + person.name;\n  if (person.company) result += ' (' + person.company + ')';\n  result += '\\n';\n\n  // CRM Context\n  const crm = resp.crm_context || {};\n  if (crm.contact) {\n    result += '\\n## CRM Context\\n';\n    if (crm.contact.title) result += '- Title: ' + crm.contact.title + '\\n';\n    if (crm.contact.company) result += '- Company: ' + crm.contact.company + '\\n';\n    if (crm.contact.lifecycle_stage) result += '- Lifecycle: ' + crm.contact.lifecycle_stage + '\\n';\n    if (crm.contact.lead_status) result += '- Lead Status: ' + crm.contact.lead_status + '\\n';\n  }\n  if (crm.deals && crm.deals.length > 0) {\n    result += '\\n### Active Deals\\n';\n    crm.deals.forEach(function(d) {\n      result += '- *' + d.name + '*: ' + (d.stage || '?') + (d.amount ? ', $' + d.amount : '') + (d.close_date ? ', close: ' + d.close_date : '') + '\\n';\n    });\n  }\n\n  // Relationship Arc\n  if (resp.relationship_arc && resp.relationship_arc.length > 0) {\n    result += '\\n## Relationship Arc (' + resp.meeting_count + ' meetings)\\n';\n    resp.relationship_arc.forEach(function(t) {\n      const date = t.date ? new Date(t.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : '?';\n      result += '- ' + date + ': *' + t.title + '*' + (t.summary ? ' — ' + t.summary : '') + '\\n';\n    });\n  }\n\n  // Open Items\n  const open = resp.open_items || {};\n  if (open.action_items && open.action_items.length > 0) {\n    result += '\\n## Open Action Items\\n';\n    open.action_items.forEach(function(ai) {\n      const owner = ai.owner ? '*' + ai.owner + '*: ' : '';\n      const due = ai.due ? ' ⚠️ due: ' + ai.due : '';\n      result += '- ' + owner + ai.task + due + ' [from: ' + ai.from_meeting + ', ' + ai.from_date + ']\\n';\n    });\n  }\n  if (open.follow_ups && open.follow_ups.length > 0) {\n    result += '\\n## Follow-ups\\n';\n    open.follow_ups.forEach(function(f) {\n      result += '- ' + f.item + ' [from: ' + f.from_meeting + ']\\n';\n    });\n  }\n\n  // Key Quotes\n  if (resp.key_quotes && resp.key_quotes.length > 0) {\n    result += '\\n## Key Positions / Quotes\\n';\n    resp.key_quotes.forEach(function(q) {\n      result += '- \\\"' + q.text + '\\\"' + (q.speaker ? ' — ' + q.speaker : '') + ' [' + q.from_meeting + ']\\n';\n    });\n  }\n\n  // Score Trend\n  if (resp.score_trend && resp.score_trend.length > 0) {\n    result += '\\n## Score Trend\\n';\n    resp.score_trend.forEach(function(s) {\n      const date = s.date ? new Date(s.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '?';\n      result += '- ' + date + ' (' + s.meeting + '): ' + JSON.stringify(s.scores) + '\\n';\n    });\n  }\n\n  // CRM Activity\n  if (resp.crm_activity && resp.crm_activity.summary) {\n    result += '\\n## Recent CRM Activity\\n' + resp.crm_activity.summary + '\\n';\n    if (resp.crm_activity.emails && resp.crm_activity.emails.length > 0) {\n      resp.crm_activity.emails.forEach(function(e) {\n        result += '- ' + (e.direction === 'received' ? '📥' : '📤') + ' ' + e.subject + '\\n';\n      });\n    }\n  }\n\n  // Memory Facts\n  if (resp.memory_facts && resp.memory_facts.length > 0) {\n    result += '\\n## Known Facts\\n';\n    resp.memory_facts.forEach(function(f) {\n      result += '- [' + f.type + '] ' + f.fact + '\\n';\n    });\n  }\n\n  return result;\n} catch (e) {\n  return 'Error generating meeting prep: ' + e.message;\n}"
+        },
+        "name": "Tool: Get Meeting Prep",
+        "type": "@n8n/n8n-nodes-langchain.toolCode",
+        "typeVersion": 1.1,
+        "position": [
+          2340,
+          520
+        ],
+        "id": "wf8-tool-prep-001"
+      },
+      {
+        "parameters": {},
+        "name": "Skip",
+        "type": "n8n-nodes-base.noOp",
+        "typeVersion": 1,
+        "position": [
+          1100,
+          500
+        ],
+        "id": "wf8-skip-001"
+      }
+    ],
+    "connections": {
+      "Slack Events Webhook": {
+        "main": [
+          [
+            {
+              "node": "Parse Event",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Parse Event": {
+        "main": [
+          [
+            {
+              "node": "Is Challenge?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Is Challenge?": {
+        "main": [
+          [
+            {
+              "node": "Respond Challenge",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Respond OK",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Respond OK": {
+        "main": [
+          [
+            {
+              "node": "Should Process?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Should Process?": {
+        "main": [
+          [
+            {
+              "node": "Doppler: Get Supabase Key",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Skip",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Doppler: Get Supabase Key": {
+        "main": [
+          [
+            {
+              "node": "Supabase: Check Thread",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Supabase: Check Thread": {
+        "main": [
+          [
+            {
+              "node": "Supabase: Load History",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Supabase: Load History": {
+        "main": [
+          [
+            {
+              "node": "Build Agent Context",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Build Agent Context": {
+        "main": [
+          [
+            {
+              "node": "AI Agent: Meeting Bot",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Tool: Search Meetings": {
+        "ai_tool": [
+          [
+            {
+              "node": "AI Agent: Meeting Bot",
+              "type": "ai_tool",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Tool: Get Meeting Analysis": {
+        "ai_tool": [
+          [
+            {
+              "node": "AI Agent: Meeting Bot",
+              "type": "ai_tool",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Tool: Get Person Summary": {
+        "ai_tool": [
+          [
+            {
+              "node": "AI Agent: Meeting Bot",
+              "type": "ai_tool",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Tool: Get CRM Activity": {
+        "ai_tool": [
+          [
+            {
+              "node": "AI Agent: Meeting Bot",
+              "type": "ai_tool",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Tool: Get Meeting Prep": {
+        "ai_tool": [
+          [
+            {
+              "node": "AI Agent: Meeting Bot",
+              "type": "ai_tool",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Anthropic Claude": {
+        "ai_languageModel": [
+          [
+            {
+              "node": "AI Agent: Meeting Bot",
+              "type": "ai_languageModel",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Window Buffer Memory": {
+        "ai_memory": [
+          [
+            {
+              "node": "AI Agent: Meeting Bot",
+              "type": "ai_memory",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "AI Agent: Meeting Bot": {
+        "main": [
+          [
+            {
+              "node": "Supabase: Save Exchange",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Supabase: Save Exchange": {
+        "main": [
+          [
+            {
+              "node": "Slack: Reply in Thread",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "authors": "Hudson Lorfing",
+    "name": null,
+    "description": null,
+    "autosaved": false
+  },
+  "tags": [],
+  "_folderPath": "",
+  "_fileName": "8.-slack-meeting-bot.json"
+}
