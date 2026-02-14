@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-02-12T16:44:45.954Z",
+  "updatedAt": "2026-02-14T00:19:20.868Z",
   "createdAt": "2026-01-05T08:02:39.361Z",
   "id": "0PjeQ9VgbUgE5lnD",
   "name": "7. Slack Interaction Handler",
@@ -109,7 +109,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Extract meeting and merge with Slack overrides — Chrt-only\nconst response = $input.first().json;\nconst meeting = Array.isArray(response) ? response[0] : response;\n\nif (!meeting || !meeting.hash) {\n  throw new Error('Meeting not found in Supabase');\n}\n\nconst slack = $('Parse Slack Payload').first().json;\nconst apps = slack.appsOverride || meeting.suggested_apps || [{ id: 'general-notes', weight: 1.0 }];\nconst recordingType = slack.recordingType || 'normal';\nconst detailLevel = slack.detailLevel || 'standard';\n\nlet finalAttendees = meeting.attendees_raw || '';\nif (slack.additionalAttendees) {\n  if (recordingType === 'singular') {\n    finalAttendees = slack.additionalAttendees;\n  } else {\n    finalAttendees = finalAttendees ? finalAttendees + ', ' + slack.additionalAttendees : slack.additionalAttendees;\n  }\n}\n\nreturn [{ json: {\n  meetingId: meeting.fireflies_id,\n  meetingUuid: meeting.id,\n  hash: meeting.hash,\n  title: meeting.title,\n  personName: meeting.person_name,\n  meetingDate: meeting.meeting_date,\n  dateStr: meeting.date_str,\n  durationMins: meeting.duration_mins,\n  attendees: finalAttendees,\n  firefliesUrl: meeting.fireflies_url,\n  firefliesSummary: meeting.fireflies_summary,\n  isExternal: meeting.is_external,\n  meetingType: meeting.meeting_type,\n  slackThreadTs: meeting.slack_thread_ts,\n  slackChannelId: meeting.slack_channel_id || slack.channelId || 'C0AE7NPAWDQ',\n  messageTs: slack.messageTs,\n  channelId: slack.channelId || meeting.slack_channel_id || 'C0AE7NPAWDQ',\n  finalApps: apps,\n  recordingType,\n  detailLevel,\n  additionalAttendees: slack.additionalAttendees || '',\n  customContext: slack.customContext,\n  user: slack.user,\n  responseUrl: slack.responseUrl\n} }];"
+        "jsCode": "// Extract meeting and merge with Slack overrides — source-agnostic\nconst response = $input.first().json;\nconst meeting = Array.isArray(response) ? response[0] : response;\n\nif (!meeting || !meeting.hash) {\n  throw new Error('Meeting not found in Supabase');\n}\n\nconst slack = $('Parse Slack Payload').first().json;\nconst apps = slack.appsOverride || meeting.suggested_apps || [{ id: 'general-notes', weight: 1.0 }];\nconst recordingType = slack.recordingType || 'normal';\nconst detailLevel = slack.detailLevel || 'standard';\n\nlet finalAttendees = meeting.attendees_raw || '';\nif (slack.additionalAttendees) {\n  if (recordingType === 'singular') {\n    finalAttendees = slack.additionalAttendees;\n  } else {\n    finalAttendees = finalAttendees ? finalAttendees + ', ' + slack.additionalAttendees : slack.additionalAttendees;\n  }\n}\n\nreturn [{ json: {\n  meetingId: meeting.source_id,\n  sourceType: meeting.source_type || 'fireflies',\n  meetingUuid: meeting.id,\n  hash: meeting.hash,\n  title: meeting.title,\n  personName: meeting.person_name,\n  meetingDate: meeting.meeting_date,\n  dateStr: meeting.date_str,\n  durationMins: meeting.duration_mins,\n  attendees: finalAttendees,\n  sourceUrl: meeting.source_url,\n  sourceSummary: meeting.source_summary,\n  transcriptRaw: meeting.transcript_raw,\n  isExternal: meeting.is_external,\n  meetingType: meeting.meeting_type,\n  slackThreadTs: meeting.slack_thread_ts,\n  slackChannelId: meeting.slack_channel_id || slack.channelId || 'C0AE7NPAWDQ',\n  messageTs: slack.messageTs,\n  channelId: slack.channelId || meeting.slack_channel_id || 'C0AE7NPAWDQ',\n  finalApps: apps,\n  recordingType,\n  detailLevel,\n  additionalAttendees: slack.additionalAttendees || '',\n  customContext: slack.customContext,\n  user: slack.user,\n  responseUrl: slack.responseUrl\n} }];"
       },
       "name": "Merge Overrides",
       "type": "n8n-nodes-base.code",
@@ -175,6 +175,52 @@
     },
     {
       "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "is-granola",
+              "leftValue": "={{ $('Merge Overrides').first().json.sourceType }}",
+              "rightValue": "granola",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "Is Granola?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1760,
+        200
+      ],
+      "id": "is-granola-check-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process Granola transcript from stored transcript_raw\nconst merged = $('Merge Overrides').first().json;\nconst transcriptRaw = merged.transcriptRaw;\n\nif (!transcriptRaw || !Array.isArray(transcriptRaw) || transcriptRaw.length === 0) {\n  throw new Error('No stored transcript_raw found for Granola meeting: ' + merged.meetingId);\n}\n\n// Speaker inference (same logic as WF6)\nconst chrtDomains = ['chrt.com', 'getchrt.com'];\nconst attendeeList = (merged.attendees || '').split(',').map(a => a.trim()).filter(Boolean);\nconst participantEmails = attendeeList.filter(a => a.includes('@'));\nconst externals = participantEmails.filter(e => !chrtDomains.some(d => e.toLowerCase().includes(d)));\nconst internals = participantEmails.filter(e => chrtDomains.some(d => e.toLowerCase().includes(d)));\nconst isOneOnOne = externals.length === 1;\n\n// Determine speaker labels\nconst ownerEmail = internals[0] || '';\nconst ownerName = merged.personName ? '' : '';\n// For Chrt rep: use known names or email prefix\nlet chrtLabel = 'Chrt Rep';\nif (ownerEmail) {\n  const prefix = ownerEmail.split('@')[0];\n  chrtLabel = prefix.charAt(0).toUpperCase() + prefix.slice(1);\n}\n\nlet externalLabel = 'External';\nif (isOneOnOne && externals[0]) {\n  const prefix = externals[0].split('@')[0].split('.');\n  externalLabel = prefix.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');\n}\n\nconst transcriptLines = transcriptRaw.map(seg => {\n  const ts = seg.start_time\n    ? new Date(seg.start_time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })\n    : '';\n  const timePrefix = ts ? `[${ts}] ` : '';\n\n  if (seg.speaker && seg.speaker.source === 'microphone') {\n    return `${timePrefix}[Chrt - ${chrtLabel}]: ${seg.text}`;\n  } else if (isOneOnOne) {\n    return `${timePrefix}[External - ${externalLabel}]: ${seg.text}`;\n  } else {\n    return `${timePrefix}[External]: ${seg.text}`;\n  }\n});\n\nconst transcriptText = transcriptLines.join('\\n');\n\nreturn [{ json: {\n  ...merged,\n  transcript: transcriptText,\n  transcriptLength: transcriptText.length,\n  participantEmails\n} }];"
+      },
+      "name": "Process Granola Transcript",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        100
+      ],
+      "id": "process-granola-transcript-001"
+    },
+    {
+      "parameters": {
         "method": "POST",
         "url": "https://api.fireflies.ai/graphql",
         "authentication": "genericCredentialType",
@@ -191,12 +237,12 @@
           }
         }
       },
-      "name": "Fireflies: Re-Fetch Transcript",
+      "name": "Fireflies: Re-Fetch Transcript (Legacy)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1760,
-        200
+        1980,
+        300
       ],
       "credentials": {
         "httpHeaderAuth": {
@@ -209,14 +255,14 @@
     },
     {
       "parameters": {
-        "jsCode": "// Extract transcript text from re-fetched Fireflies data\nconst response = $input.first().json;\nconst transcript = response.data?.transcript;\n\nif (!transcript) {\n  throw new Error('Transcript re-fetch failed: ' + JSON.stringify(response.errors || response).substring(0, 200));\n}\n\nconst transcriptText = (transcript.sentences || []).map(s => `${s.speaker_name}: ${s.text}`).join('\\n');\nconst merged = $('Merge Overrides').first().json;\n\n// Extract emails from attendees for Apps Script context resolution\nconst attendeeList = (merged.attendees || '').split(',').map(a => a.trim()).filter(Boolean);\nconst participantEmails = attendeeList.filter(a => a.includes('@'));\n\nreturn [{ json: {\n  ...merged,\n  transcript: transcriptText,\n  transcriptLength: transcriptText.length,\n  participantEmails\n} }];"
+        "jsCode": "// Extract transcript text from re-fetched Fireflies data (legacy path)\nconst response = $input.first().json;\nconst transcript = response.data?.transcript;\n\nif (!transcript) {\n  throw new Error('Transcript re-fetch failed: ' + JSON.stringify(response.errors || response).substring(0, 200));\n}\n\nconst transcriptText = (transcript.sentences || []).map(s => `${s.speaker_name}: ${s.text}`).join('\\n');\nconst merged = $('Merge Overrides').first().json;\n\n// Extract emails from attendees for Apps Script context resolution\nconst attendeeList = (merged.attendees || '').split(',').map(a => a.trim()).filter(Boolean);\nconst participantEmails = attendeeList.filter(a => a.includes('@'));\n\nreturn [{ json: {\n  ...merged,\n  transcript: transcriptText,\n  transcriptLength: transcriptText.length,\n  participantEmails\n} }];"
       },
-      "name": "Process Re-Fetched Transcript",
+      "name": "Process Fireflies Transcript (Legacy)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1980,
-        200
+        2200,
+        300
       ],
       "id": "process-refetch-001"
     },
@@ -243,7 +289,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Build AI Agent prompt with Chrt context, templates, and resolved context\nconst meeting = $('Process Re-Fetched Transcript').first().json;\nconst contextResponse = $input.first().json;\nconst resolvedContext = contextResponse.participants || [];\n\n// Build context injection\nlet contextBlock = '';\nif (resolvedContext.length > 0) {\n  contextBlock = '\\n\\n## Prior Context\\n';\n  resolvedContext.forEach(p => {\n    if (p.hubspot) {\n      contextBlock += `\\n### HubSpot: ${p.hubspot.firstname || ''} ${p.hubspot.lastname || ''}\\n`;\n      contextBlock += `- Company: ${p.hubspot.company || 'Unknown'}\\n`;\n      contextBlock += `- Title: ${p.hubspot.jobtitle || 'Unknown'}\\n`;\n      contextBlock += `- Stage: ${p.hubspot.lifecyclestage || 'Unknown'}\\n`;\n      if (p.hubspot.deals?.length > 0) {\n        contextBlock += `- Deals: ${p.hubspot.deals.map(d => d.name + ' (' + d.stage + ')').join(', ')}\\n`;\n      }\n      if (p.hubspot.last_spiced_score) {\n        contextBlock += `- Last SPICED Score: ${p.hubspot.last_spiced_score}\\n`;\n      }\n    }\n    if (p.prior_meetings?.length > 0) {\n      contextBlock += '\\n#### Prior Meetings:\\n';\n      p.prior_meetings.forEach(m => {\n        contextBlock += `- ${m.date}: ${m.title} (${m.type})\\n`;\n        if (m.summary) contextBlock += `  Summary: ${m.summary}\\n`;\n        if (m.scores) contextBlock += `  Scores: ${JSON.stringify(m.scores)}\\n`;\n      });\n    }\n    if (p.memory?.length > 0) {\n      contextBlock += '\\n#### Known Facts:\\n';\n      p.memory.forEach(f => {\n        contextBlock += `- [${f.type}] ${f.entity}: ${f.fact} (${f.confidence})\\n`;\n      });\n    }\n  });\n}\n\n// Build template instructions from apps\nconst apps = meeting.finalApps || [{id: 'general-notes', weight: 1.0}];\nconst templateInstructions = apps.map(a =>\n  `Analyze using template: ${a.id} (weight: ${Math.round(a.weight * 100)}%)`\n).join('\\n');\n\nconst systemPrompt = `You are Chrt's meeting intelligence analyst. Chrt is a B2B SaaS company selling real-time visibility and coordination software for time-critical logistics (medical, aerospace, industrial).\n\nTeam: Hudson Lorfing (CEO), Aaron Carver (Sales), Kyle Reagan (Sales).\nMethodology: SPICED framework.\nCustomer segments: Shippers (labs, hospitals, manufacturers), Couriers (last-mile delivery), Forwarders (3PLs, freight brokers).\n\nYour task: Analyze the meeting transcript and produce structured intelligence.\n\n${templateInstructions}\n\nOutput your analysis as structured JSON with these fields:\n- summary: 2-3 sentence executive summary\n- key_points: array of key discussion points\n- action_items: array of {owner, task, due} objects\n- decisions: array of decisions made\n- follow_ups: array of follow-up items\n- key_quotes: array of {speaker, text} objects\n- scores: object with any applicable scorecard results\n- analysis: detailed markdown analysis following the template format\n\n${meeting.customContext ? '\\nAdditional context from user: ' + meeting.customContext : ''}\n${contextBlock}`;\n\nconst userMessage = `Meeting: ${meeting.title}\\nDate: ${meeting.dateStr}\\nDuration: ${meeting.durationMins} min\\nAttendees: ${meeting.attendees}\\nType: ${meeting.meetingType} (${meeting.isExternal ? 'External' : 'Internal'})\\n${meeting.recordingType === 'singular' ? 'Note: This is a singular recording (speaker was alone)' : ''}\\n${meeting.detailLevel === 'context' ? 'Note: User requested detailed/context-level notes' : ''}\\n\\n## Transcript\\n\\n${meeting.transcript}`;\n\nreturn [{ json: {\n  ...meeting,\n  systemPrompt,\n  userMessage,\n  resolvedContext\n} }];"
+        "jsCode": "// Build AI Agent prompt with Chrt context, templates, and resolved context\n// Source-agnostic: works for both Granola and Fireflies transcript paths\nconst meeting = (() => {\n  try { return $('Process Granola Transcript').first().json; } catch(e) {}\n  try { return $('Process Fireflies Transcript (Legacy)').first().json; } catch(e) {}\n  throw new Error('No transcript data found from either Granola or Fireflies path');\n})();\nconst contextResponse = $input.first().json;\nconst resolvedContext = contextResponse.participants || [];\n\n// Build context injection\nlet contextBlock = '';\nif (resolvedContext.length > 0) {\n  contextBlock = '\\n\\n## Prior Context\\n';\n  resolvedContext.forEach(p => {\n    if (p.hubspot) {\n      contextBlock += `\\n### HubSpot: ${p.hubspot.firstname || ''} ${p.hubspot.lastname || ''}\\n`;\n      contextBlock += `- Company: ${p.hubspot.company || 'Unknown'}\\n`;\n      contextBlock += `- Title: ${p.hubspot.jobtitle || 'Unknown'}\\n`;\n      contextBlock += `- Stage: ${p.hubspot.lifecyclestage || 'Unknown'}\\n`;\n      if (p.hubspot.deals?.length > 0) {\n        contextBlock += `- Deals: ${p.hubspot.deals.map(d => d.name + ' (' + d.stage + ')').join(', ')}\\n`;\n      }\n      if (p.hubspot.last_spiced_score) {\n        contextBlock += `- Last SPICED Score: ${p.hubspot.last_spiced_score}\\n`;\n      }\n    }\n    if (p.prior_meetings?.length > 0) {\n      contextBlock += '\\n#### Prior Meetings:\\n';\n      p.prior_meetings.forEach(m => {\n        contextBlock += `- ${m.date}: ${m.title} (${m.type})\\n`;\n        if (m.summary) contextBlock += `  Summary: ${m.summary}\\n`;\n        if (m.scores) contextBlock += `  Scores: ${JSON.stringify(m.scores)}\\n`;\n      });\n    }\n    if (p.memory?.length > 0) {\n      contextBlock += '\\n#### Known Facts:\\n';\n      p.memory.forEach(f => {\n        contextBlock += `- [${f.type}] ${f.entity}: ${f.fact} (${f.confidence})\\n`;\n      });\n    }\n  });\n}\n\n// Build template instructions from apps\nconst apps = meeting.finalApps || [{id: 'general-notes', weight: 1.0}];\nconst templateInstructions = apps.map(a =>\n  `Analyze using template: ${a.id} (weight: ${Math.round(a.weight * 100)}%)`\n).join('\\n');\n\nconst systemPrompt = `You are Chrt's meeting intelligence analyst. Chrt is a B2B SaaS company selling real-time visibility and coordination software for time-critical logistics (medical, aerospace, industrial).\n\nTeam: Hudson Lorfing (CEO), Aaron Carver (Sales), Kyle Reagan (Sales).\nMethodology: SPICED framework.\nCustomer segments: Shippers (labs, hospitals, manufacturers), Couriers (last-mile delivery), Forwarders (3PLs, freight brokers).\n\nYour task: Analyze the meeting transcript and produce structured intelligence.\n\n${templateInstructions}\n\nOutput your analysis as structured JSON with these fields:\n- summary: 2-3 sentence executive summary\n- key_points: array of key discussion points\n- action_items: array of {owner, task, due} objects\n- decisions: array of decisions made\n- follow_ups: array of follow-up items\n- key_quotes: array of {speaker, text} objects\n- scores: object with any applicable scorecard results\n- analysis: detailed markdown analysis following the template format\n\n${meeting.customContext ? '\\nAdditional context from user: ' + meeting.customContext : ''}\n${contextBlock}`;\n\nconst userMessage = `Meeting: ${meeting.title}\\nDate: ${meeting.dateStr}\\nDuration: ${meeting.durationMins} min\\nAttendees: ${meeting.attendees}\\nType: ${meeting.meetingType} (${meeting.isExternal ? 'External' : 'Internal'})\\n${meeting.recordingType === 'singular' ? 'Note: This is a singular recording (speaker was alone)' : ''}\\n${meeting.detailLevel === 'context' ? 'Note: User requested detailed/context-level notes' : ''}\\n\\n## Transcript\\n\\n${meeting.transcript}`;\n\nreturn [{ json: {\n  ...meeting,\n  systemPrompt,\n  userMessage,\n  resolvedContext\n} }];"
       },
       "name": "Build AI Prompt",
       "type": "n8n-nodes-base.code",
@@ -783,18 +829,47 @@
       "main": [
         [
           {
-            "node": "Fireflies: Re-Fetch Transcript",
+            "node": "Is Granola?",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Fireflies: Re-Fetch Transcript": {
+    "Is Granola?": {
       "main": [
         [
           {
-            "node": "Process Re-Fetched Transcript",
+            "node": "Process Granola Transcript",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fireflies: Re-Fetch Transcript (Legacy)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Granola Transcript": {
+      "main": [
+        [
+          {
+            "node": "Apps Script: Resolve Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fireflies: Re-Fetch Transcript (Legacy)": {
+      "main": [
+        [
+          {
+            "node": "Process Fireflies Transcript (Legacy)",
             "type": "main",
             "index": 0
           }
@@ -808,7 +883,7 @@
         ]
       ]
     },
-    "Process Re-Fetched Transcript": {
+    "Process Fireflies Transcript (Legacy)": {
       "main": [
         [
           {
@@ -1023,8 +1098,8 @@
   "staticData": null,
   "meta": null,
   "pinData": {},
-  "versionId": "170c81f1-8075-497e-a420-af22b9f54546",
-  "activeVersionId": "170c81f1-8075-497e-a420-af22b9f54546",
+  "versionId": "8e6566b8-68cd-4277-bd23-316cec33080b",
+  "activeVersionId": "8e6566b8-68cd-4277-bd23-316cec33080b",
   "triggerCount": 1,
   "shared": [
     {
@@ -1036,9 +1111,9 @@
     }
   ],
   "activeVersion": {
-    "updatedAt": "2026-02-12T16:44:45.955Z",
-    "createdAt": "2026-02-12T16:44:45.955Z",
-    "versionId": "170c81f1-8075-497e-a420-af22b9f54546",
+    "updatedAt": "2026-02-14T00:19:20.869Z",
+    "createdAt": "2026-02-14T00:19:20.869Z",
+    "versionId": "8e6566b8-68cd-4277-bd23-316cec33080b",
     "workflowId": "0PjeQ9VgbUgE5lnD",
     "nodes": [
       {
@@ -1144,7 +1219,7 @@
       },
       {
         "parameters": {
-          "jsCode": "// Extract meeting and merge with Slack overrides — Chrt-only\nconst response = $input.first().json;\nconst meeting = Array.isArray(response) ? response[0] : response;\n\nif (!meeting || !meeting.hash) {\n  throw new Error('Meeting not found in Supabase');\n}\n\nconst slack = $('Parse Slack Payload').first().json;\nconst apps = slack.appsOverride || meeting.suggested_apps || [{ id: 'general-notes', weight: 1.0 }];\nconst recordingType = slack.recordingType || 'normal';\nconst detailLevel = slack.detailLevel || 'standard';\n\nlet finalAttendees = meeting.attendees_raw || '';\nif (slack.additionalAttendees) {\n  if (recordingType === 'singular') {\n    finalAttendees = slack.additionalAttendees;\n  } else {\n    finalAttendees = finalAttendees ? finalAttendees + ', ' + slack.additionalAttendees : slack.additionalAttendees;\n  }\n}\n\nreturn [{ json: {\n  meetingId: meeting.fireflies_id,\n  meetingUuid: meeting.id,\n  hash: meeting.hash,\n  title: meeting.title,\n  personName: meeting.person_name,\n  meetingDate: meeting.meeting_date,\n  dateStr: meeting.date_str,\n  durationMins: meeting.duration_mins,\n  attendees: finalAttendees,\n  firefliesUrl: meeting.fireflies_url,\n  firefliesSummary: meeting.fireflies_summary,\n  isExternal: meeting.is_external,\n  meetingType: meeting.meeting_type,\n  slackThreadTs: meeting.slack_thread_ts,\n  slackChannelId: meeting.slack_channel_id || slack.channelId || 'C0AE7NPAWDQ',\n  messageTs: slack.messageTs,\n  channelId: slack.channelId || meeting.slack_channel_id || 'C0AE7NPAWDQ',\n  finalApps: apps,\n  recordingType,\n  detailLevel,\n  additionalAttendees: slack.additionalAttendees || '',\n  customContext: slack.customContext,\n  user: slack.user,\n  responseUrl: slack.responseUrl\n} }];"
+          "jsCode": "// Extract meeting and merge with Slack overrides — source-agnostic\nconst response = $input.first().json;\nconst meeting = Array.isArray(response) ? response[0] : response;\n\nif (!meeting || !meeting.hash) {\n  throw new Error('Meeting not found in Supabase');\n}\n\nconst slack = $('Parse Slack Payload').first().json;\nconst apps = slack.appsOverride || meeting.suggested_apps || [{ id: 'general-notes', weight: 1.0 }];\nconst recordingType = slack.recordingType || 'normal';\nconst detailLevel = slack.detailLevel || 'standard';\n\nlet finalAttendees = meeting.attendees_raw || '';\nif (slack.additionalAttendees) {\n  if (recordingType === 'singular') {\n    finalAttendees = slack.additionalAttendees;\n  } else {\n    finalAttendees = finalAttendees ? finalAttendees + ', ' + slack.additionalAttendees : slack.additionalAttendees;\n  }\n}\n\nreturn [{ json: {\n  meetingId: meeting.source_id,\n  sourceType: meeting.source_type || 'fireflies',\n  meetingUuid: meeting.id,\n  hash: meeting.hash,\n  title: meeting.title,\n  personName: meeting.person_name,\n  meetingDate: meeting.meeting_date,\n  dateStr: meeting.date_str,\n  durationMins: meeting.duration_mins,\n  attendees: finalAttendees,\n  sourceUrl: meeting.source_url,\n  sourceSummary: meeting.source_summary,\n  transcriptRaw: meeting.transcript_raw,\n  isExternal: meeting.is_external,\n  meetingType: meeting.meeting_type,\n  slackThreadTs: meeting.slack_thread_ts,\n  slackChannelId: meeting.slack_channel_id || slack.channelId || 'C0AE7NPAWDQ',\n  messageTs: slack.messageTs,\n  channelId: slack.channelId || meeting.slack_channel_id || 'C0AE7NPAWDQ',\n  finalApps: apps,\n  recordingType,\n  detailLevel,\n  additionalAttendees: slack.additionalAttendees || '',\n  customContext: slack.customContext,\n  user: slack.user,\n  responseUrl: slack.responseUrl\n} }];"
         },
         "name": "Merge Overrides",
         "type": "n8n-nodes-base.code",
@@ -1210,6 +1285,52 @@
       },
       {
         "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "loose",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "is-granola",
+                "leftValue": "={{ $('Merge Overrides').first().json.sourceType }}",
+                "rightValue": "granola",
+                "operator": {
+                  "type": "string",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "name": "Is Granola?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          1760,
+          200
+        ],
+        "id": "is-granola-check-001"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Process Granola transcript from stored transcript_raw\nconst merged = $('Merge Overrides').first().json;\nconst transcriptRaw = merged.transcriptRaw;\n\nif (!transcriptRaw || !Array.isArray(transcriptRaw) || transcriptRaw.length === 0) {\n  throw new Error('No stored transcript_raw found for Granola meeting: ' + merged.meetingId);\n}\n\n// Speaker inference (same logic as WF6)\nconst chrtDomains = ['chrt.com', 'getchrt.com'];\nconst attendeeList = (merged.attendees || '').split(',').map(a => a.trim()).filter(Boolean);\nconst participantEmails = attendeeList.filter(a => a.includes('@'));\nconst externals = participantEmails.filter(e => !chrtDomains.some(d => e.toLowerCase().includes(d)));\nconst internals = participantEmails.filter(e => chrtDomains.some(d => e.toLowerCase().includes(d)));\nconst isOneOnOne = externals.length === 1;\n\n// Determine speaker labels\nconst ownerEmail = internals[0] || '';\nconst ownerName = merged.personName ? '' : '';\n// For Chrt rep: use known names or email prefix\nlet chrtLabel = 'Chrt Rep';\nif (ownerEmail) {\n  const prefix = ownerEmail.split('@')[0];\n  chrtLabel = prefix.charAt(0).toUpperCase() + prefix.slice(1);\n}\n\nlet externalLabel = 'External';\nif (isOneOnOne && externals[0]) {\n  const prefix = externals[0].split('@')[0].split('.');\n  externalLabel = prefix.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');\n}\n\nconst transcriptLines = transcriptRaw.map(seg => {\n  const ts = seg.start_time\n    ? new Date(seg.start_time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })\n    : '';\n  const timePrefix = ts ? `[${ts}] ` : '';\n\n  if (seg.speaker && seg.speaker.source === 'microphone') {\n    return `${timePrefix}[Chrt - ${chrtLabel}]: ${seg.text}`;\n  } else if (isOneOnOne) {\n    return `${timePrefix}[External - ${externalLabel}]: ${seg.text}`;\n  } else {\n    return `${timePrefix}[External]: ${seg.text}`;\n  }\n});\n\nconst transcriptText = transcriptLines.join('\\n');\n\nreturn [{ json: {\n  ...merged,\n  transcript: transcriptText,\n  transcriptLength: transcriptText.length,\n  participantEmails\n} }];"
+        },
+        "name": "Process Granola Transcript",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1980,
+          100
+        ],
+        "id": "process-granola-transcript-001"
+      },
+      {
+        "parameters": {
           "method": "POST",
           "url": "https://api.fireflies.ai/graphql",
           "authentication": "genericCredentialType",
@@ -1226,12 +1347,12 @@
             }
           }
         },
-        "name": "Fireflies: Re-Fetch Transcript",
+        "name": "Fireflies: Re-Fetch Transcript (Legacy)",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          1760,
-          200
+          1980,
+          300
         ],
         "credentials": {
           "httpHeaderAuth": {
@@ -1244,14 +1365,14 @@
       },
       {
         "parameters": {
-          "jsCode": "// Extract transcript text from re-fetched Fireflies data\nconst response = $input.first().json;\nconst transcript = response.data?.transcript;\n\nif (!transcript) {\n  throw new Error('Transcript re-fetch failed: ' + JSON.stringify(response.errors || response).substring(0, 200));\n}\n\nconst transcriptText = (transcript.sentences || []).map(s => `${s.speaker_name}: ${s.text}`).join('\\n');\nconst merged = $('Merge Overrides').first().json;\n\n// Extract emails from attendees for Apps Script context resolution\nconst attendeeList = (merged.attendees || '').split(',').map(a => a.trim()).filter(Boolean);\nconst participantEmails = attendeeList.filter(a => a.includes('@'));\n\nreturn [{ json: {\n  ...merged,\n  transcript: transcriptText,\n  transcriptLength: transcriptText.length,\n  participantEmails\n} }];"
+          "jsCode": "// Extract transcript text from re-fetched Fireflies data (legacy path)\nconst response = $input.first().json;\nconst transcript = response.data?.transcript;\n\nif (!transcript) {\n  throw new Error('Transcript re-fetch failed: ' + JSON.stringify(response.errors || response).substring(0, 200));\n}\n\nconst transcriptText = (transcript.sentences || []).map(s => `${s.speaker_name}: ${s.text}`).join('\\n');\nconst merged = $('Merge Overrides').first().json;\n\n// Extract emails from attendees for Apps Script context resolution\nconst attendeeList = (merged.attendees || '').split(',').map(a => a.trim()).filter(Boolean);\nconst participantEmails = attendeeList.filter(a => a.includes('@'));\n\nreturn [{ json: {\n  ...merged,\n  transcript: transcriptText,\n  transcriptLength: transcriptText.length,\n  participantEmails\n} }];"
         },
-        "name": "Process Re-Fetched Transcript",
+        "name": "Process Fireflies Transcript (Legacy)",
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          1980,
-          200
+          2200,
+          300
         ],
         "id": "process-refetch-001"
       },
@@ -1278,7 +1399,7 @@
       },
       {
         "parameters": {
-          "jsCode": "// Build AI Agent prompt with Chrt context, templates, and resolved context\nconst meeting = $('Process Re-Fetched Transcript').first().json;\nconst contextResponse = $input.first().json;\nconst resolvedContext = contextResponse.participants || [];\n\n// Build context injection\nlet contextBlock = '';\nif (resolvedContext.length > 0) {\n  contextBlock = '\\n\\n## Prior Context\\n';\n  resolvedContext.forEach(p => {\n    if (p.hubspot) {\n      contextBlock += `\\n### HubSpot: ${p.hubspot.firstname || ''} ${p.hubspot.lastname || ''}\\n`;\n      contextBlock += `- Company: ${p.hubspot.company || 'Unknown'}\\n`;\n      contextBlock += `- Title: ${p.hubspot.jobtitle || 'Unknown'}\\n`;\n      contextBlock += `- Stage: ${p.hubspot.lifecyclestage || 'Unknown'}\\n`;\n      if (p.hubspot.deals?.length > 0) {\n        contextBlock += `- Deals: ${p.hubspot.deals.map(d => d.name + ' (' + d.stage + ')').join(', ')}\\n`;\n      }\n      if (p.hubspot.last_spiced_score) {\n        contextBlock += `- Last SPICED Score: ${p.hubspot.last_spiced_score}\\n`;\n      }\n    }\n    if (p.prior_meetings?.length > 0) {\n      contextBlock += '\\n#### Prior Meetings:\\n';\n      p.prior_meetings.forEach(m => {\n        contextBlock += `- ${m.date}: ${m.title} (${m.type})\\n`;\n        if (m.summary) contextBlock += `  Summary: ${m.summary}\\n`;\n        if (m.scores) contextBlock += `  Scores: ${JSON.stringify(m.scores)}\\n`;\n      });\n    }\n    if (p.memory?.length > 0) {\n      contextBlock += '\\n#### Known Facts:\\n';\n      p.memory.forEach(f => {\n        contextBlock += `- [${f.type}] ${f.entity}: ${f.fact} (${f.confidence})\\n`;\n      });\n    }\n  });\n}\n\n// Build template instructions from apps\nconst apps = meeting.finalApps || [{id: 'general-notes', weight: 1.0}];\nconst templateInstructions = apps.map(a =>\n  `Analyze using template: ${a.id} (weight: ${Math.round(a.weight * 100)}%)`\n).join('\\n');\n\nconst systemPrompt = `You are Chrt's meeting intelligence analyst. Chrt is a B2B SaaS company selling real-time visibility and coordination software for time-critical logistics (medical, aerospace, industrial).\n\nTeam: Hudson Lorfing (CEO), Aaron Carver (Sales), Kyle Reagan (Sales).\nMethodology: SPICED framework.\nCustomer segments: Shippers (labs, hospitals, manufacturers), Couriers (last-mile delivery), Forwarders (3PLs, freight brokers).\n\nYour task: Analyze the meeting transcript and produce structured intelligence.\n\n${templateInstructions}\n\nOutput your analysis as structured JSON with these fields:\n- summary: 2-3 sentence executive summary\n- key_points: array of key discussion points\n- action_items: array of {owner, task, due} objects\n- decisions: array of decisions made\n- follow_ups: array of follow-up items\n- key_quotes: array of {speaker, text} objects\n- scores: object with any applicable scorecard results\n- analysis: detailed markdown analysis following the template format\n\n${meeting.customContext ? '\\nAdditional context from user: ' + meeting.customContext : ''}\n${contextBlock}`;\n\nconst userMessage = `Meeting: ${meeting.title}\\nDate: ${meeting.dateStr}\\nDuration: ${meeting.durationMins} min\\nAttendees: ${meeting.attendees}\\nType: ${meeting.meetingType} (${meeting.isExternal ? 'External' : 'Internal'})\\n${meeting.recordingType === 'singular' ? 'Note: This is a singular recording (speaker was alone)' : ''}\\n${meeting.detailLevel === 'context' ? 'Note: User requested detailed/context-level notes' : ''}\\n\\n## Transcript\\n\\n${meeting.transcript}`;\n\nreturn [{ json: {\n  ...meeting,\n  systemPrompt,\n  userMessage,\n  resolvedContext\n} }];"
+          "jsCode": "// Build AI Agent prompt with Chrt context, templates, and resolved context\n// Source-agnostic: works for both Granola and Fireflies transcript paths\nconst meeting = (() => {\n  try { return $('Process Granola Transcript').first().json; } catch(e) {}\n  try { return $('Process Fireflies Transcript (Legacy)').first().json; } catch(e) {}\n  throw new Error('No transcript data found from either Granola or Fireflies path');\n})();\nconst contextResponse = $input.first().json;\nconst resolvedContext = contextResponse.participants || [];\n\n// Build context injection\nlet contextBlock = '';\nif (resolvedContext.length > 0) {\n  contextBlock = '\\n\\n## Prior Context\\n';\n  resolvedContext.forEach(p => {\n    if (p.hubspot) {\n      contextBlock += `\\n### HubSpot: ${p.hubspot.firstname || ''} ${p.hubspot.lastname || ''}\\n`;\n      contextBlock += `- Company: ${p.hubspot.company || 'Unknown'}\\n`;\n      contextBlock += `- Title: ${p.hubspot.jobtitle || 'Unknown'}\\n`;\n      contextBlock += `- Stage: ${p.hubspot.lifecyclestage || 'Unknown'}\\n`;\n      if (p.hubspot.deals?.length > 0) {\n        contextBlock += `- Deals: ${p.hubspot.deals.map(d => d.name + ' (' + d.stage + ')').join(', ')}\\n`;\n      }\n      if (p.hubspot.last_spiced_score) {\n        contextBlock += `- Last SPICED Score: ${p.hubspot.last_spiced_score}\\n`;\n      }\n    }\n    if (p.prior_meetings?.length > 0) {\n      contextBlock += '\\n#### Prior Meetings:\\n';\n      p.prior_meetings.forEach(m => {\n        contextBlock += `- ${m.date}: ${m.title} (${m.type})\\n`;\n        if (m.summary) contextBlock += `  Summary: ${m.summary}\\n`;\n        if (m.scores) contextBlock += `  Scores: ${JSON.stringify(m.scores)}\\n`;\n      });\n    }\n    if (p.memory?.length > 0) {\n      contextBlock += '\\n#### Known Facts:\\n';\n      p.memory.forEach(f => {\n        contextBlock += `- [${f.type}] ${f.entity}: ${f.fact} (${f.confidence})\\n`;\n      });\n    }\n  });\n}\n\n// Build template instructions from apps\nconst apps = meeting.finalApps || [{id: 'general-notes', weight: 1.0}];\nconst templateInstructions = apps.map(a =>\n  `Analyze using template: ${a.id} (weight: ${Math.round(a.weight * 100)}%)`\n).join('\\n');\n\nconst systemPrompt = `You are Chrt's meeting intelligence analyst. Chrt is a B2B SaaS company selling real-time visibility and coordination software for time-critical logistics (medical, aerospace, industrial).\n\nTeam: Hudson Lorfing (CEO), Aaron Carver (Sales), Kyle Reagan (Sales).\nMethodology: SPICED framework.\nCustomer segments: Shippers (labs, hospitals, manufacturers), Couriers (last-mile delivery), Forwarders (3PLs, freight brokers).\n\nYour task: Analyze the meeting transcript and produce structured intelligence.\n\n${templateInstructions}\n\nOutput your analysis as structured JSON with these fields:\n- summary: 2-3 sentence executive summary\n- key_points: array of key discussion points\n- action_items: array of {owner, task, due} objects\n- decisions: array of decisions made\n- follow_ups: array of follow-up items\n- key_quotes: array of {speaker, text} objects\n- scores: object with any applicable scorecard results\n- analysis: detailed markdown analysis following the template format\n\n${meeting.customContext ? '\\nAdditional context from user: ' + meeting.customContext : ''}\n${contextBlock}`;\n\nconst userMessage = `Meeting: ${meeting.title}\\nDate: ${meeting.dateStr}\\nDuration: ${meeting.durationMins} min\\nAttendees: ${meeting.attendees}\\nType: ${meeting.meetingType} (${meeting.isExternal ? 'External' : 'Internal'})\\n${meeting.recordingType === 'singular' ? 'Note: This is a singular recording (speaker was alone)' : ''}\\n${meeting.detailLevel === 'context' ? 'Note: User requested detailed/context-level notes' : ''}\\n\\n## Transcript\\n\\n${meeting.transcript}`;\n\nreturn [{ json: {\n  ...meeting,\n  systemPrompt,\n  userMessage,\n  resolvedContext\n} }];"
         },
         "name": "Build AI Prompt",
         "type": "n8n-nodes-base.code",
@@ -1818,18 +1939,47 @@
         "main": [
           [
             {
-              "node": "Fireflies: Re-Fetch Transcript",
+              "node": "Is Granola?",
               "type": "main",
               "index": 0
             }
           ]
         ]
       },
-      "Fireflies: Re-Fetch Transcript": {
+      "Is Granola?": {
         "main": [
           [
             {
-              "node": "Process Re-Fetched Transcript",
+              "node": "Process Granola Transcript",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Fireflies: Re-Fetch Transcript (Legacy)",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Process Granola Transcript": {
+        "main": [
+          [
+            {
+              "node": "Apps Script: Resolve Context",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Fireflies: Re-Fetch Transcript (Legacy)": {
+        "main": [
+          [
+            {
+              "node": "Process Fireflies Transcript (Legacy)",
               "type": "main",
               "index": 0
             }
@@ -1843,7 +1993,7 @@
           ]
         ]
       },
-      "Process Re-Fetched Transcript": {
+      "Process Fireflies Transcript (Legacy)": {
         "main": [
           [
             {
