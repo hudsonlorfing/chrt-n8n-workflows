@@ -1,0 +1,1766 @@
+{
+  "updatedAt": "2026-02-14T00:19:06.063Z",
+  "createdAt": "2026-01-05T08:02:32.274Z",
+  "id": "D8nDH8ECyadToNHp",
+  "name": "6. Granola Meeting Processor",
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1
+            }
+          ]
+        }
+      },
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        200
+      ],
+      "id": "granola-schedule-001"
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "meeting-intel-retry",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "name": "Retry Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        600
+      ],
+      "webhookId": "meeting-intel-retry",
+      "id": "granola-retry-webhook-001"
+    },
+    {
+      "parameters": {
+        "url": "https://api.doppler.com/v3/configs/config/secret",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "project",
+              "value": "developers"
+            },
+            {
+              "name": "config",
+              "value": "hudson"
+            },
+            {
+              "name": "name",
+              "value": "GRANOLA_API_KEY"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Doppler: Get Granola Key",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        200
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "dz2vX61Mpayywfq1",
+          "name": "Doppler API"
+        }
+      },
+      "id": "granola-doppler-001"
+    },
+    {
+      "parameters": {
+        "url": "=https://public-api.granola.ai/v1/notes?created_after={{ new Date(Date.now() - 75 * 60 * 1000).toISOString() }}&page_size=30",
+        "authentication": "noAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Doppler: Get Granola Key').first().json.value.raw }}"
+            }
+          ]
+        },
+        "options": {
+          "retry": {
+            "enabled": true,
+            "maxRetries": 2,
+            "waitBetweenRetries": 3000
+          }
+        }
+      },
+      "name": "Granola: List Notes",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        200
+      ],
+      "id": "granola-list-notes-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract note IDs from Granola list response and build Supabase dedup query\nconst response = $input.first().json;\nconst notes = response.notes || [];\n\nif (notes.length === 0) {\n  return [{ json: { noteIds: [], noteCount: 0, hasNotes: false } }];\n}\n\nconst noteIds = notes.map(n => n.id);\n\n// Store full note summaries for later use\nreturn [{ json: {\n  noteIds,\n  noteCount: notes.length,\n  hasNotes: true,\n  noteSummaries: notes,\n  hasMore: response.hasMore || false\n} }];"
+      },
+      "name": "Extract Note IDs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        200
+      ],
+      "id": "granola-extract-ids-001"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "has-notes",
+              "leftValue": "={{ $json.hasNotes }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "Has New Notes?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        880,
+        200
+      ],
+      "id": "granola-has-notes-001"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://utvoxshpxzsgsliworwh.supabase.co/rest/v1/meetings?source_id=in.({{ $('Extract Note IDs').first().json.noteIds.join(',') }})&select=source_id",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "options": {}
+      },
+      "name": "Supabase: Check Existing",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        100
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "HRBgSj7d6TFZA8kL",
+          "name": "Supabase account 2"
+        }
+      },
+      "id": "granola-check-existing-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Filter out notes that already exist in Supabase, output one item per new note\nconst existingResponse = $input.first().json;\nconst existing = Array.isArray(existingResponse) ? existingResponse : (existingResponse?.source_id ? [existingResponse] : []);\nconst existingIds = new Set(existing.map(m => m.source_id));\n\nconst noteSummaries = $('Extract Note IDs').first().json.noteSummaries || [];\nconst granolaKey = $('Doppler: Get Granola Key').first().json.value.raw;\n\nconst newNotes = noteSummaries.filter(n => !existingIds.has(n.id));\n\nif (newNotes.length === 0) {\n  return []; // Nothing new to process — workflow stops here\n}\n\nconsole.log(`Found ${newNotes.length} new Granola notes to process (${existingIds.size} already exist)`);\n\nreturn newNotes.map(note => ({\n  json: {\n    noteId: note.id,\n    noteTitle: note.title,\n    noteOwner: note.owner,\n    noteCreatedAt: note.created_at,\n    granolaKey\n  }\n}));"
+      },
+      "name": "Filter New Notes",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        100
+      ],
+      "id": "granola-filter-new-001"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://public-api.granola.ai/v1/notes/{{ $json.noteId }}?include=transcript",
+        "authentication": "noAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.granolaKey }}"
+            }
+          ]
+        },
+        "options": {
+          "retry": {
+            "enabled": true,
+            "maxRetries": 2,
+            "waitBetweenRetries": 3000
+          }
+        }
+      },
+      "name": "Granola: Get Note",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1540,
+        100
+      ],
+      "onError": "continueErrorOutput",
+      "id": "granola-get-note-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process Granola note: speaker inference, field mapping\nconst note = $input.first().json;\n\nif (!note || !note.id) {\n  throw new Error('Invalid Granola note response: ' + JSON.stringify(note).substring(0, 200));\n}\n\n// --- Speaker Inference ---\nconst chrtDomains = ['chrt.com', 'getchrt.com'];\nconst owner = note.owner || {};\nconst attendees = note.attendees || [];\nconst externals = attendees.filter(a => !chrtDomains.some(d => (a.email || '').toLowerCase().includes(d)));\nconst internals = attendees.filter(a => chrtDomains.some(d => (a.email || '').toLowerCase().includes(d)));\nconst isOneOnOne = externals.length === 1;\n\n// Build labeled transcript with timestamps\nconst transcript = note.transcript || [];\nconst transcriptLines = transcript.map(seg => {\n  const ts = seg.start_time\n    ? new Date(seg.start_time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })\n    : '';\n  const timePrefix = ts ? `[${ts}] ` : '';\n\n  if (seg.speaker.source === 'microphone') {\n    return `${timePrefix}[Chrt - ${owner.name || owner.email || 'Rep'}]: ${seg.text}`;\n  } else if (isOneOnOne) {\n    const extName = externals[0].name || externals[0].email || 'External';\n    return `${timePrefix}[External - ${extName}]: ${seg.text}`;\n  } else {\n    return `${timePrefix}[External]: ${seg.text}`;\n  }\n});\nconst transcriptText = transcriptLines.join('\\n');\n\n// --- Field Mapping ---\nconst calEvent = note.calendar_event || {};\nconst meetingDate = calEvent.scheduled_start_time || note.created_at;\nconst dateStr = meetingDate\n  ? new Date(meetingDate).toISOString().split('T')[0]\n  : new Date().toISOString().split('T')[0];\n\n// Duration from calendar event\nlet durationMins = 0;\nif (calEvent.scheduled_start_time && calEvent.scheduled_end_time) {\n  durationMins = Math.round(\n    (new Date(calEvent.scheduled_end_time) - new Date(calEvent.scheduled_start_time)) / 60000\n  );\n}\n\nconst title = note.title || calEvent.event_title || 'Untitled Meeting';\nconst attendeesRaw = attendees.map(a => a.email || a.name || '').filter(Boolean).join(', ');\n\n// Extract person name\nlet personName = '';\nconst withMatch = title.match(/(?:with|w\\/|and|&|x)\\s+([A-Z][a-z]+(?:\\s+[A-Z][a-z]+)*)/i);\nif (withMatch) {\n  personName = withMatch[1].trim();\n} else if (externals.length > 0) {\n  personName = externals[0].name || '';\n  if (!personName && externals[0].email) {\n    personName = externals[0].email.split('@')[0].split('.')\n      .map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');\n  }\n}\nif (!personName) {\n  personName = title.replace(/^(?:chat|call|meeting|sync|1:1|1-1)\\s*/i, '').trim();\n}\n\n// Generate hash\nconst hash = require('crypto').createHash('md5')\n  .update(note.id + title).digest('hex').substring(0, 8);\n\nconst sourceUrl = `https://app.granola.ai/notes/${note.id}`;\n\nreturn [{ json: {\n  sourceId: note.id,\n  sourceType: 'granola',\n  hash,\n  title,\n  personName,\n  meetingDate: meetingDate ? new Date(meetingDate).toISOString() : new Date().toISOString(),\n  dateStr,\n  durationMins,\n  attendeesRaw,\n  attendeesList: attendees,\n  transcript: transcriptText,\n  transcriptRaw: transcript,\n  sourceUrl,\n  sourceSummary: note.summary_text || '',\n  summaryMarkdown: note.summary_markdown || '',\n  organizerEmail: calEvent.organiser || owner.email || '',\n  ownerName: owner.name || '',\n  ownerEmail: owner.email || ''\n} }];"
+      },
+      "name": "Process Transcript",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        0
+      ],
+      "id": "granola-process-transcript-001"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://utvoxshpxzsgsliworwh.supabase.co/rest/v1/meetings",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=representation,resolution=merge-duplicates"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ source_id: $json.sourceId, source_type: $json.sourceType, hash: $json.hash, title: $json.title, person_name: $json.personName, meeting_date: $json.meetingDate, date_str: $json.dateStr, duration_mins: $json.durationMins, source_url: $json.sourceUrl, source_summary: $json.sourceSummary, attendees_raw: $json.attendeesRaw, transcript_raw: $json.transcriptRaw, status: 'transcript_fetched' }) }}",
+        "options": {}
+      },
+      "name": "Supabase: Insert Meeting",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1980,
+        0
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "HRBgSj7d6TFZA8kL",
+          "name": "Supabase account 2"
+        }
+      },
+      "id": "granola-insert-meeting-001"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "has-transcript",
+              "leftValue": "={{ $('Process Transcript').first().json.transcript.length }}",
+              "rightValue": 50,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "Has Valid Transcript?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2200,
+        0
+      ],
+      "id": "granola-valid-transcript-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Chrt-only inline meeting type detection\nconst meeting = $('Process Transcript').first().json;\nconst title = (meeting.title || '').toLowerCase();\nconst attendees = meeting.attendeesList || [];\nconst transcript = (meeting.transcript || '').substring(0, 3000).toLowerCase();\nconst duration = meeting.durationMins || 0;\n\n// Chrt domain patterns\nconst chrtDomains = ['chrt.com', 'getchrt.com'];\nconst isInternal = attendees.every(a => {\n  const email = (a.email || '').toLowerCase();\n  if (!email) return /hudson|aaron|kyle/i.test(a.name || '');\n  const domain = email.split('@')[1];\n  return chrtDomains.some(d => domain?.includes(d));\n});\nconst isExternal = !isInternal;\n\nlet meetingType = 'general';\nlet suggestedApps = [{ id: 'general-notes', weight: 1.0 }];\nlet appConfidence = 'low';\n\n// Sales Discovery\nif (isExternal && /discovery|intro|initial|first call/.test(title)) {\n  meetingType = 'sales_discovery';\n  suggestedApps = [{id:'discovery-scorecard',weight:0.5},{id:'spiced-analyzer',weight:0.3},{id:'competitor-tracker',weight:0.2}];\n  appConfidence = 'high';\n}\n// Sales Demo\nelse if (isExternal && /demo|presentation|walkthrough|platform overview|product tour/.test(title)) {\n  meetingType = 'sales_demo';\n  suggestedApps = [{id:'demo-scorecard',weight:0.6},{id:'objection-handler',weight:0.25},{id:'competitor-tracker',weight:0.15}];\n  appConfidence = 'high';\n}\n// QBR / Check-in\nelse if (isExternal && /qbr|quarterly|check-in|review|catch up/.test(title)) {\n  meetingType = 'customer_checkin';\n  suggestedApps = [{id:'churn-risk-analyzer',weight:0.4},{id:'qbr-analyzer',weight:0.4},{id:'general-notes',weight:0.2}];\n  appConfidence = 'high';\n}\n// Onboarding\nelse if (isExternal && /onboarding|kickoff|implementation|setup/.test(title)) {\n  meetingType = 'customer_onboarding';\n  suggestedApps = [{id:'onboarding-review',weight:0.7},{id:'general-notes',weight:0.3}];\n  appConfidence = 'high';\n}\n// Customer Research\nelse if (isExternal && /research|interview|feedback|user interview/.test(title)) {\n  meetingType = 'customer_research';\n  suggestedApps = [{id:'customer-interview',weight:0.6},{id:'user-research',weight:0.4}];\n  appConfidence = 'high';\n}\n// Candidate Interview\nelse if (isExternal && /interview|screen|candidate|hiring/.test(title)) {\n  meetingType = 'candidate_interview';\n  suggestedApps = [{id:'interview-scorecard',weight:1.0}];\n  appConfidence = 'high';\n}\n// Executive Strategy (internal)\nelse if (!isExternal && /strategy|pricing|organizational|leadership|executive|ceo|cfo|board/.test(title)) {\n  meetingType = 'executive_strategy';\n  suggestedApps = [{id:'executive-strategy',weight:0.6},{id:'qbr-analyzer',weight:0.25},{id:'general-notes',weight:0.15}];\n  appConfidence = 'high';\n}\n// Team Sync (internal)\nelse if (!isExternal && /standup|sync|team meeting|weekly/.test(title)) {\n  meetingType = 'team_sync';\n  suggestedApps = [{id:'team-sync',weight:0.7},{id:'sprint-retro',weight:0.3}];\n  appConfidence = 'medium';\n}\n// 1:1 (internal)\nelse if (!isExternal && /1:1|1-1|one on one/.test(title)) {\n  meetingType = 'one_on_one';\n  suggestedApps = [{id:'one-on-one',weight:1.0}];\n  appConfidence = 'medium';\n}\n// Content-based fallback for external meetings\nelse if (isExternal) {\n  if (/spiced|qualification|pain point|impact|critical event/.test(transcript)) {\n    meetingType = 'sales_discovery';\n    suggestedApps = [{id:'discovery-scorecard',weight:0.4},{id:'spiced-analyzer',weight:0.4},{id:'general-notes',weight:0.2}];\n    appConfidence = 'medium';\n  } else if (/competitor|alternative|compared|switching/.test(transcript)) {\n    meetingType = 'sales_demo';\n    suggestedApps = [{id:'demo-scorecard',weight:0.4},{id:'competitor-tracker',weight:0.3},{id:'general-notes',weight:0.3}];\n    appConfidence = 'low';\n  } else {\n    meetingType = 'external_general';\n    suggestedApps = [{id:'general-notes',weight:0.5},{id:'spiced-analyzer',weight:0.3},{id:'competitor-tracker',weight:0.2}];\n    appConfidence = 'low';\n  }\n}\n\nreturn [{ json: {\n  ...meeting,\n  isExternal,\n  meetingType,\n  suggestedApps,\n  appConfidence\n} }];"
+      },
+      "name": "Detect Meeting Type",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        -100
+      ],
+      "id": "granola-detect-type-001"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://utvoxshpxzsgsliworwh.supabase.co/rest/v1/meetings?source_id=eq.{{ $json.sourceId }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ is_external: $json.isExternal, meeting_type: $json.meetingType, suggested_apps: $json.suggestedApps, app_confidence: $json.appConfidence, status: 'ready' }) }}",
+        "options": {}
+      },
+      "name": "Supabase: Update Detection",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2640,
+        -100
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "HRBgSj7d6TFZA8kL",
+          "name": "Supabase account 2"
+        }
+      },
+      "id": "granola-update-detection-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract participants from Granola's structured attendees\nconst meeting = $('Detect Meeting Type').first().json;\nconst attendees = meeting.attendeesList || [];\nconst chrtDomains = ['chrt.com', 'getchrt.com'];\n\n// Get meeting UUID from the Supabase insert response\nconst supabaseResponse = $('Supabase: Insert Meeting').first().json;\nconst meetingUuid = Array.isArray(supabaseResponse) ? supabaseResponse[0]?.id : supabaseResponse?.id;\n\nconst participants = attendees.map(a => {\n  const email = (a.email || '').toLowerCase();\n  const name = a.name || (email ? email.split('@')[0].split('.').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ') : '');\n  const domain = email ? email.split('@')[1] : '';\n  const isInternal = chrtDomains.some(d => domain?.includes(d)) || /hudson|aaron|kyle/i.test(name);\n\n  return {\n    meeting_id: meetingUuid,\n    name: name,\n    email: email || null,\n    is_internal: isInternal,\n    role_in_meeting: email === meeting.organizerEmail ? 'organizer' : null\n  };\n}).filter(p => p.name);\n\nreturn participants.map(p => ({ json: p }));"
+      },
+      "name": "Extract Participants",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2860,
+        0
+      ],
+      "id": "granola-extract-participants-001"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://utvoxshpxzsgsliworwh.supabase.co/rest/v1/meeting_participants",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ meeting_id: $json.meeting_id, name: $json.name, email: $json.email, is_internal: $json.is_internal, role_in_meeting: $json.role_in_meeting }) }}",
+        "options": {}
+      },
+      "name": "Supabase: Insert Participant",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3080,
+        0
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "HRBgSj7d6TFZA8kL",
+          "name": "Supabase account 2"
+        }
+      },
+      "continueOnFail": true,
+      "id": "granola-insert-participant-001"
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "C0AE7NPAWDQ"
+        },
+        "messageType": "block",
+        "blocksUi": "={{ (() => { const m = $('Detect Meeting Type').first().json; const allApps = ['spiced-analyzer', 'discovery-scorecard', 'demo-scorecard', 'competitor-tracker', 'customer-interview', 'qbr-analyzer', 'onboarding-review', 'churn-risk-analyzer', 'interview-scorecard', 'sprint-retro', 'user-research', 'objection-handler', 'executive-strategy', 'team-sync', 'one-on-one', 'general-notes']; const appOptions = allApps.map(id => ({ text: { type: 'plain_text', text: id }, value: id })); return JSON.stringify({ blocks: [ { type: 'header', text: { type: 'plain_text', text: '🧠 ' + m.title, emoji: true } }, { type: 'section', text: { type: 'mrkdwn', text: '👤 *' + (m.personName || 'Unknown') + '* | ⏱️ ' + m.durationMins + ' min | <' + m.sourceUrl + '|Granola>' } }, { type: 'section', text: { type: 'mrkdwn', text: '*🎯 Recommended Analysis:*\\n' + m.suggestedApps.map(a => '• `' + a.id + '` → ' + Math.round(a.weight * 100) + '%').join('\\n') } }, { type: 'context', elements: [{ type: 'mrkdwn', text: m.meetingType + ' | ' + (m.isExternal ? 'External' : 'Internal') + ' | Confidence: ' + m.appConfidence + '\\n👥 ' + (m.attendeesRaw || 'None').substring(0, 100) }] }, { type: 'divider' }, { type: 'input', block_id: 'recording_type_block', optional: true, element: { type: 'static_select', action_id: 'recording_type_select', placeholder: { type: 'plain_text', text: 'Normal meeting...' }, options: [ { text: { type: 'plain_text', text: '👥 Normal Meeting' }, value: 'normal' }, { text: { type: 'plain_text', text: '🎙️ Singular Recording' }, value: 'singular' } ] }, label: { type: 'plain_text', text: '📹 Recording Type' } }, { type: 'input', block_id: 'additional_attendees_block', optional: true, element: { type: 'plain_text_input', action_id: 'additional_attendees_input', placeholder: { type: 'plain_text', text: 'John Smith, Jane Doe' } }, label: { type: 'plain_text', text: '👥 Additional Attendees' } }, { type: 'input', block_id: 'detail_level_block', optional: true, element: { type: 'static_select', action_id: 'detail_level_select', placeholder: { type: 'plain_text', text: 'Standard notes...' }, options: [ { text: { type: 'plain_text', text: '📝 Standard Notes' }, value: 'standard' }, { text: { type: 'plain_text', text: '📚 Context Meeting (detailed)' }, value: 'context' } ] }, label: { type: 'plain_text', text: '📊 Detail Level' } }, { type: 'input', block_id: 'apps_block', optional: true, element: { type: 'multi_static_select', action_id: 'apps_select', placeholder: { type: 'plain_text', text: 'Only if changing...' }, options: appOptions }, label: { type: 'plain_text', text: '🔧 Override Apps?' } }, { type: 'input', block_id: 'custom_context_block', optional: true, element: { type: 'plain_text_input', action_id: 'custom_context_input', multiline: true, placeholder: { type: 'plain_text', text: 'Any specific focus...' } }, label: { type: 'plain_text', text: '💬 Additional Context' } }, { type: 'actions', block_id: 'actions_block', elements: [ { type: 'button', text: { type: 'plain_text', text: '🚀 Analyze', emoji: true }, style: 'primary', action_id: 'analyze_meeting_v2', value: m.hash }, { type: 'button', text: { type: 'plain_text', text: 'Skip', emoji: true }, action_id: 'skip_meeting', value: m.hash } ] } ], text: 'Meeting: ' + m.title }); })() }}",
+        "otherOptions": {}
+      },
+      "name": "Slack: Intel Form",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        2860,
+        -300
+      ],
+      "id": "granola-slack-intel-form-001",
+      "credentials": {
+        "slackApi": {
+          "id": "wkLpZSqhXl2iesnC",
+          "name": "Chrt Slack App"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Capture the Slack thread_ts from the Intel Form post response\nconst slackResponse = $input.first().json;\nconst threadTs = slackResponse.ts || slackResponse.message?.ts || null;\nconst channelId = slackResponse.channel || 'C0AE7NPAWDQ';\nconst sourceId = $('Detect Meeting Type').first().json.sourceId;\n\nif (!threadTs) {\n  console.log('Warning: No thread_ts in Slack response');\n}\n\nreturn [{ json: { sourceId, threadTs, channelId } }];"
+      },
+      "name": "Extract Thread TS",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3080,
+        -300
+      ],
+      "id": "granola-extract-thread-ts-001"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://utvoxshpxzsgsliworwh.supabase.co/rest/v1/meetings?source_id=eq.{{ $json.sourceId }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ slack_channel_id: $json.channelId, slack_thread_ts: $json.threadTs }) }}",
+        "options": {}
+      },
+      "name": "Supabase: Save Thread TS",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3300,
+        -300
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "HRBgSj7d6TFZA8kL",
+          "name": "Supabase account 2"
+        }
+      },
+      "id": "granola-save-thread-ts-001"
+    },
+    {
+      "parameters": {},
+      "name": "Invalid Transcript",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2420,
+        100
+      ],
+      "id": "granola-invalid-transcript-001"
+    },
+    {
+      "parameters": {},
+      "name": "No New Notes",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        300
+      ],
+      "id": "granola-no-new-notes-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse error from Granola API call\nconst rawError = JSON.stringify($json).substring(0, 1000);\n\n// Try to get the noteId from the input item\nlet sourceId = 'unknown';\ntry { sourceId = $json.noteId || sourceId; } catch(e) {}\n\nlet errorType = 'unknown';\nlet errorMessage = 'Unknown error occurred';\n\nif (rawError.includes('502') || rawError.includes('Bad gateway')) {\n  errorType = 'api_unavailable';\n  errorMessage = 'Granola API temporarily unavailable (502)';\n} else if (rawError.includes('503') || rawError.includes('Service Unavailable')) {\n  errorType = 'api_unavailable';\n  errorMessage = 'Granola API service unavailable (503)';\n} else if (rawError.includes('401') || rawError.includes('Unauthorized')) {\n  errorType = 'auth_failed';\n  errorMessage = 'Granola API authentication failed';\n} else if (rawError.includes('403') || rawError.includes('Forbidden')) {\n  errorType = 'auth_failed';\n  errorMessage = 'Granola API access forbidden';\n} else if (rawError.includes('429') || rawError.includes('rate limit')) {\n  errorType = 'rate_limited';\n  errorMessage = 'Granola API rate limit exceeded';\n} else if (rawError.includes('404') || rawError.includes('not found')) {\n  errorType = 'not_found';\n  errorMessage = 'Note not found in Granola';\n} else if (rawError.includes('timeout') || rawError.includes('ETIMEDOUT')) {\n  errorType = 'timeout';\n  errorMessage = 'Granola API request timed out';\n}\n\nreturn [{ json: { errorType, errorMessage, sourceId, rawError: rawError.substring(0, 200) } }];"
+      },
+      "name": "Parse Error Type",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        200
+      ],
+      "id": "granola-parse-error-001"
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "C0AE7NPAWDQ"
+        },
+        "text": "={{ '⚠️ *Granola Meeting Processing Failed*\\n\\n📋 Note ID: `' + $json.sourceId + '`\\n❌ Error: ' + $json.errorMessage + '\\n\\n🔄 Retry: `/webhook/meeting-intel-retry?id=' + $json.sourceId + '`' }}",
+        "otherOptions": {}
+      },
+      "name": "Slack: API Error",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        1980,
+        200
+      ],
+      "id": "granola-slack-error-001",
+      "credentials": {
+        "slackApi": {
+          "id": "wkLpZSqhXl2iesnC",
+          "name": "Chrt Slack App"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Handle retry webhook — parse Granola note ID from query params\nconst query = $input.first().json.query || {};\nconst noteId = query.id;\n\nif (!noteId) {\n  throw new Error('Granola note ID required. Use ?id=not_xxxxx');\n}\n\nreturn [{ json: { noteId, eventType: 'Manual retry', isRetry: true } }];"
+      },
+      "name": "Parse Retry Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        600
+      ],
+      "id": "granola-parse-retry-001"
+    },
+    {
+      "parameters": {
+        "url": "https://api.doppler.com/v3/configs/config/secret",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "project",
+              "value": "developers"
+            },
+            {
+              "name": "config",
+              "value": "hudson"
+            },
+            {
+              "name": "name",
+              "value": "GRANOLA_API_KEY"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Doppler: Get Key (Retry)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        600
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "dz2vX61Mpayywfq1",
+          "name": "Doppler API"
+        }
+      },
+      "id": "granola-doppler-retry-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare retry note item with Granola key\nconst noteId = $('Parse Retry Request').first().json.noteId;\nconst granolaKey = $input.first().json.value.raw;\n\nreturn [{ json: { noteId, granolaKey, isRetry: true } }];"
+      },
+      "name": "Prepare Retry Note",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        600
+      ],
+      "id": "granola-prepare-retry-001"
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Doppler: Get Granola Key",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Doppler: Get Granola Key": {
+      "main": [
+        [
+          {
+            "node": "Granola: List Notes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Granola: List Notes": {
+      "main": [
+        [
+          {
+            "node": "Extract Note IDs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Note IDs": {
+      "main": [
+        [
+          {
+            "node": "Has New Notes?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has New Notes?": {
+      "main": [
+        [
+          {
+            "node": "Supabase: Check Existing",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No New Notes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase: Check Existing": {
+      "main": [
+        [
+          {
+            "node": "Filter New Notes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter New Notes": {
+      "main": [
+        [
+          {
+            "node": "Granola: Get Note",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retry Webhook": {
+      "main": [
+        [
+          {
+            "node": "Parse Retry Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Retry Request": {
+      "main": [
+        [
+          {
+            "node": "Doppler: Get Key (Retry)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Doppler: Get Key (Retry)": {
+      "main": [
+        [
+          {
+            "node": "Prepare Retry Note",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Retry Note": {
+      "main": [
+        [
+          {
+            "node": "Granola: Get Note",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Granola: Get Note": {
+      "main": [
+        [
+          {
+            "node": "Process Transcript",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Parse Error Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Transcript": {
+      "main": [
+        [
+          {
+            "node": "Supabase: Insert Meeting",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase: Insert Meeting": {
+      "main": [
+        [
+          {
+            "node": "Has Valid Transcript?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Valid Transcript?": {
+      "main": [
+        [
+          {
+            "node": "Detect Meeting Type",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Invalid Transcript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Detect Meeting Type": {
+      "main": [
+        [
+          {
+            "node": "Supabase: Update Detection",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase: Update Detection": {
+      "main": [
+        [
+          {
+            "node": "Extract Participants",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Slack: Intel Form",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Participants": {
+      "main": [
+        [
+          {
+            "node": "Supabase: Insert Participant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack: Intel Form": {
+      "main": [
+        [
+          {
+            "node": "Extract Thread TS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Thread TS": {
+      "main": [
+        [
+          {
+            "node": "Supabase: Save Thread TS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Error Type": {
+      "main": [
+        [
+          {
+            "node": "Slack: API Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "YWP69Qgq0ZlCN7Gj",
+    "availableInMCP": false
+  },
+  "staticData": {
+    "node:Schedule Trigger": {
+      "recurrenceRules": []
+    }
+  },
+  "meta": null,
+  "pinData": null,
+  "versionId": "875b1f71-949d-4926-a15a-adcc0ee56ee4",
+  "activeVersionId": "875b1f71-949d-4926-a15a-adcc0ee56ee4",
+  "triggerCount": 2,
+  "shared": [
+    {
+      "updatedAt": "2026-01-05T09:19:17.698Z",
+      "createdAt": "2026-01-05T09:19:17.698Z",
+      "role": "workflow:owner",
+      "workflowId": "D8nDH8ECyadToNHp",
+      "projectId": "O7lTivDfRl72aS23"
+    }
+  ],
+  "activeVersion": {
+    "updatedAt": "2026-02-14T00:19:06.064Z",
+    "createdAt": "2026-02-14T00:19:06.064Z",
+    "versionId": "875b1f71-949d-4926-a15a-adcc0ee56ee4",
+    "workflowId": "D8nDH8ECyadToNHp",
+    "nodes": [
+      {
+        "parameters": {
+          "rule": {
+            "interval": [
+              {
+                "field": "hours",
+                "hoursInterval": 1
+              }
+            ]
+          }
+        },
+        "name": "Schedule Trigger",
+        "type": "n8n-nodes-base.scheduleTrigger",
+        "typeVersion": 1.2,
+        "position": [
+          0,
+          200
+        ],
+        "id": "granola-schedule-001"
+      },
+      {
+        "parameters": {
+          "httpMethod": "GET",
+          "path": "meeting-intel-retry",
+          "responseMode": "lastNode",
+          "options": {}
+        },
+        "name": "Retry Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          0,
+          600
+        ],
+        "webhookId": "meeting-intel-retry",
+        "id": "granola-retry-webhook-001"
+      },
+      {
+        "parameters": {
+          "url": "https://api.doppler.com/v3/configs/config/secret",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpHeaderAuth",
+          "sendQuery": true,
+          "queryParameters": {
+            "parameters": [
+              {
+                "name": "project",
+                "value": "developers"
+              },
+              {
+                "name": "config",
+                "value": "hudson"
+              },
+              {
+                "name": "name",
+                "value": "GRANOLA_API_KEY"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "name": "Doppler: Get Granola Key",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          220,
+          200
+        ],
+        "credentials": {
+          "httpHeaderAuth": {
+            "id": "dz2vX61Mpayywfq1",
+            "name": "Doppler API"
+          }
+        },
+        "id": "granola-doppler-001"
+      },
+      {
+        "parameters": {
+          "url": "=https://public-api.granola.ai/v1/notes?created_after={{ new Date(Date.now() - 75 * 60 * 1000).toISOString() }}&page_size=30",
+          "authentication": "noAuth",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "=Bearer {{ $('Doppler: Get Granola Key').first().json.value.raw }}"
+              }
+            ]
+          },
+          "options": {
+            "retry": {
+              "enabled": true,
+              "maxRetries": 2,
+              "waitBetweenRetries": 3000
+            }
+          }
+        },
+        "name": "Granola: List Notes",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          440,
+          200
+        ],
+        "id": "granola-list-notes-001"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Extract note IDs from Granola list response and build Supabase dedup query\nconst response = $input.first().json;\nconst notes = response.notes || [];\n\nif (notes.length === 0) {\n  return [{ json: { noteIds: [], noteCount: 0, hasNotes: false } }];\n}\n\nconst noteIds = notes.map(n => n.id);\n\n// Store full note summaries for later use\nreturn [{ json: {\n  noteIds,\n  noteCount: notes.length,\n  hasNotes: true,\n  noteSummaries: notes,\n  hasMore: response.hasMore || false\n} }];"
+        },
+        "name": "Extract Note IDs",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          660,
+          200
+        ],
+        "id": "granola-extract-ids-001"
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "loose",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "has-notes",
+                "leftValue": "={{ $json.hasNotes }}",
+                "rightValue": true,
+                "operator": {
+                  "type": "boolean",
+                  "operation": "true"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "name": "Has New Notes?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          880,
+          200
+        ],
+        "id": "granola-has-notes-001"
+      },
+      {
+        "parameters": {
+          "method": "GET",
+          "url": "=https://utvoxshpxzsgsliworwh.supabase.co/rest/v1/meetings?source_id=in.({{ $('Extract Note IDs').first().json.noteIds.join(',') }})&select=source_id",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "supabaseApi",
+          "options": {}
+        },
+        "name": "Supabase: Check Existing",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1100,
+          100
+        ],
+        "credentials": {
+          "supabaseApi": {
+            "id": "HRBgSj7d6TFZA8kL",
+            "name": "Supabase account 2"
+          }
+        },
+        "id": "granola-check-existing-001"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Filter out notes that already exist in Supabase, output one item per new note\nconst existingResponse = $input.first().json;\nconst existing = Array.isArray(existingResponse) ? existingResponse : (existingResponse?.source_id ? [existingResponse] : []);\nconst existingIds = new Set(existing.map(m => m.source_id));\n\nconst noteSummaries = $('Extract Note IDs').first().json.noteSummaries || [];\nconst granolaKey = $('Doppler: Get Granola Key').first().json.value.raw;\n\nconst newNotes = noteSummaries.filter(n => !existingIds.has(n.id));\n\nif (newNotes.length === 0) {\n  return []; // Nothing new to process — workflow stops here\n}\n\nconsole.log(`Found ${newNotes.length} new Granola notes to process (${existingIds.size} already exist)`);\n\nreturn newNotes.map(note => ({\n  json: {\n    noteId: note.id,\n    noteTitle: note.title,\n    noteOwner: note.owner,\n    noteCreatedAt: note.created_at,\n    granolaKey\n  }\n}));"
+        },
+        "name": "Filter New Notes",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1320,
+          100
+        ],
+        "id": "granola-filter-new-001"
+      },
+      {
+        "parameters": {
+          "method": "GET",
+          "url": "=https://public-api.granola.ai/v1/notes/{{ $json.noteId }}?include=transcript",
+          "authentication": "noAuth",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "=Bearer {{ $json.granolaKey }}"
+              }
+            ]
+          },
+          "options": {
+            "retry": {
+              "enabled": true,
+              "maxRetries": 2,
+              "waitBetweenRetries": 3000
+            }
+          }
+        },
+        "name": "Granola: Get Note",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1540,
+          100
+        ],
+        "onError": "continueErrorOutput",
+        "id": "granola-get-note-001"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Process Granola note: speaker inference, field mapping\nconst note = $input.first().json;\n\nif (!note || !note.id) {\n  throw new Error('Invalid Granola note response: ' + JSON.stringify(note).substring(0, 200));\n}\n\n// --- Speaker Inference ---\nconst chrtDomains = ['chrt.com', 'getchrt.com'];\nconst owner = note.owner || {};\nconst attendees = note.attendees || [];\nconst externals = attendees.filter(a => !chrtDomains.some(d => (a.email || '').toLowerCase().includes(d)));\nconst internals = attendees.filter(a => chrtDomains.some(d => (a.email || '').toLowerCase().includes(d)));\nconst isOneOnOne = externals.length === 1;\n\n// Build labeled transcript with timestamps\nconst transcript = note.transcript || [];\nconst transcriptLines = transcript.map(seg => {\n  const ts = seg.start_time\n    ? new Date(seg.start_time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })\n    : '';\n  const timePrefix = ts ? `[${ts}] ` : '';\n\n  if (seg.speaker.source === 'microphone') {\n    return `${timePrefix}[Chrt - ${owner.name || owner.email || 'Rep'}]: ${seg.text}`;\n  } else if (isOneOnOne) {\n    const extName = externals[0].name || externals[0].email || 'External';\n    return `${timePrefix}[External - ${extName}]: ${seg.text}`;\n  } else {\n    return `${timePrefix}[External]: ${seg.text}`;\n  }\n});\nconst transcriptText = transcriptLines.join('\\n');\n\n// --- Field Mapping ---\nconst calEvent = note.calendar_event || {};\nconst meetingDate = calEvent.scheduled_start_time || note.created_at;\nconst dateStr = meetingDate\n  ? new Date(meetingDate).toISOString().split('T')[0]\n  : new Date().toISOString().split('T')[0];\n\n// Duration from calendar event\nlet durationMins = 0;\nif (calEvent.scheduled_start_time && calEvent.scheduled_end_time) {\n  durationMins = Math.round(\n    (new Date(calEvent.scheduled_end_time) - new Date(calEvent.scheduled_start_time)) / 60000\n  );\n}\n\nconst title = note.title || calEvent.event_title || 'Untitled Meeting';\nconst attendeesRaw = attendees.map(a => a.email || a.name || '').filter(Boolean).join(', ');\n\n// Extract person name\nlet personName = '';\nconst withMatch = title.match(/(?:with|w\\/|and|&|x)\\s+([A-Z][a-z]+(?:\\s+[A-Z][a-z]+)*)/i);\nif (withMatch) {\n  personName = withMatch[1].trim();\n} else if (externals.length > 0) {\n  personName = externals[0].name || '';\n  if (!personName && externals[0].email) {\n    personName = externals[0].email.split('@')[0].split('.')\n      .map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');\n  }\n}\nif (!personName) {\n  personName = title.replace(/^(?:chat|call|meeting|sync|1:1|1-1)\\s*/i, '').trim();\n}\n\n// Generate hash\nconst hash = require('crypto').createHash('md5')\n  .update(note.id + title).digest('hex').substring(0, 8);\n\nconst sourceUrl = `https://app.granola.ai/notes/${note.id}`;\n\nreturn [{ json: {\n  sourceId: note.id,\n  sourceType: 'granola',\n  hash,\n  title,\n  personName,\n  meetingDate: meetingDate ? new Date(meetingDate).toISOString() : new Date().toISOString(),\n  dateStr,\n  durationMins,\n  attendeesRaw,\n  attendeesList: attendees,\n  transcript: transcriptText,\n  transcriptRaw: transcript,\n  sourceUrl,\n  sourceSummary: note.summary_text || '',\n  summaryMarkdown: note.summary_markdown || '',\n  organizerEmail: calEvent.organiser || owner.email || '',\n  ownerName: owner.name || '',\n  ownerEmail: owner.email || ''\n} }];"
+        },
+        "name": "Process Transcript",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1760,
+          0
+        ],
+        "id": "granola-process-transcript-001"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://utvoxshpxzsgsliworwh.supabase.co/rest/v1/meetings",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "supabaseApi",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Prefer",
+                "value": "return=representation,resolution=merge-duplicates"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ source_id: $json.sourceId, source_type: $json.sourceType, hash: $json.hash, title: $json.title, person_name: $json.personName, meeting_date: $json.meetingDate, date_str: $json.dateStr, duration_mins: $json.durationMins, source_url: $json.sourceUrl, source_summary: $json.sourceSummary, attendees_raw: $json.attendeesRaw, transcript_raw: $json.transcriptRaw, status: 'transcript_fetched' }) }}",
+          "options": {}
+        },
+        "name": "Supabase: Insert Meeting",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1980,
+          0
+        ],
+        "credentials": {
+          "supabaseApi": {
+            "id": "HRBgSj7d6TFZA8kL",
+            "name": "Supabase account 2"
+          }
+        },
+        "id": "granola-insert-meeting-001"
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "loose",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "has-transcript",
+                "leftValue": "={{ $('Process Transcript').first().json.transcript.length }}",
+                "rightValue": 50,
+                "operator": {
+                  "type": "number",
+                  "operation": "gte"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "name": "Has Valid Transcript?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          2200,
+          0
+        ],
+        "id": "granola-valid-transcript-001"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Chrt-only inline meeting type detection\nconst meeting = $('Process Transcript').first().json;\nconst title = (meeting.title || '').toLowerCase();\nconst attendees = meeting.attendeesList || [];\nconst transcript = (meeting.transcript || '').substring(0, 3000).toLowerCase();\nconst duration = meeting.durationMins || 0;\n\n// Chrt domain patterns\nconst chrtDomains = ['chrt.com', 'getchrt.com'];\nconst isInternal = attendees.every(a => {\n  const email = (a.email || '').toLowerCase();\n  if (!email) return /hudson|aaron|kyle/i.test(a.name || '');\n  const domain = email.split('@')[1];\n  return chrtDomains.some(d => domain?.includes(d));\n});\nconst isExternal = !isInternal;\n\nlet meetingType = 'general';\nlet suggestedApps = [{ id: 'general-notes', weight: 1.0 }];\nlet appConfidence = 'low';\n\n// Sales Discovery\nif (isExternal && /discovery|intro|initial|first call/.test(title)) {\n  meetingType = 'sales_discovery';\n  suggestedApps = [{id:'discovery-scorecard',weight:0.5},{id:'spiced-analyzer',weight:0.3},{id:'competitor-tracker',weight:0.2}];\n  appConfidence = 'high';\n}\n// Sales Demo\nelse if (isExternal && /demo|presentation|walkthrough|platform overview|product tour/.test(title)) {\n  meetingType = 'sales_demo';\n  suggestedApps = [{id:'demo-scorecard',weight:0.6},{id:'objection-handler',weight:0.25},{id:'competitor-tracker',weight:0.15}];\n  appConfidence = 'high';\n}\n// QBR / Check-in\nelse if (isExternal && /qbr|quarterly|check-in|review|catch up/.test(title)) {\n  meetingType = 'customer_checkin';\n  suggestedApps = [{id:'churn-risk-analyzer',weight:0.4},{id:'qbr-analyzer',weight:0.4},{id:'general-notes',weight:0.2}];\n  appConfidence = 'high';\n}\n// Onboarding\nelse if (isExternal && /onboarding|kickoff|implementation|setup/.test(title)) {\n  meetingType = 'customer_onboarding';\n  suggestedApps = [{id:'onboarding-review',weight:0.7},{id:'general-notes',weight:0.3}];\n  appConfidence = 'high';\n}\n// Customer Research\nelse if (isExternal && /research|interview|feedback|user interview/.test(title)) {\n  meetingType = 'customer_research';\n  suggestedApps = [{id:'customer-interview',weight:0.6},{id:'user-research',weight:0.4}];\n  appConfidence = 'high';\n}\n// Candidate Interview\nelse if (isExternal && /interview|screen|candidate|hiring/.test(title)) {\n  meetingType = 'candidate_interview';\n  suggestedApps = [{id:'interview-scorecard',weight:1.0}];\n  appConfidence = 'high';\n}\n// Executive Strategy (internal)\nelse if (!isExternal && /strategy|pricing|organizational|leadership|executive|ceo|cfo|board/.test(title)) {\n  meetingType = 'executive_strategy';\n  suggestedApps = [{id:'executive-strategy',weight:0.6},{id:'qbr-analyzer',weight:0.25},{id:'general-notes',weight:0.15}];\n  appConfidence = 'high';\n}\n// Team Sync (internal)\nelse if (!isExternal && /standup|sync|team meeting|weekly/.test(title)) {\n  meetingType = 'team_sync';\n  suggestedApps = [{id:'team-sync',weight:0.7},{id:'sprint-retro',weight:0.3}];\n  appConfidence = 'medium';\n}\n// 1:1 (internal)\nelse if (!isExternal && /1:1|1-1|one on one/.test(title)) {\n  meetingType = 'one_on_one';\n  suggestedApps = [{id:'one-on-one',weight:1.0}];\n  appConfidence = 'medium';\n}\n// Content-based fallback for external meetings\nelse if (isExternal) {\n  if (/spiced|qualification|pain point|impact|critical event/.test(transcript)) {\n    meetingType = 'sales_discovery';\n    suggestedApps = [{id:'discovery-scorecard',weight:0.4},{id:'spiced-analyzer',weight:0.4},{id:'general-notes',weight:0.2}];\n    appConfidence = 'medium';\n  } else if (/competitor|alternative|compared|switching/.test(transcript)) {\n    meetingType = 'sales_demo';\n    suggestedApps = [{id:'demo-scorecard',weight:0.4},{id:'competitor-tracker',weight:0.3},{id:'general-notes',weight:0.3}];\n    appConfidence = 'low';\n  } else {\n    meetingType = 'external_general';\n    suggestedApps = [{id:'general-notes',weight:0.5},{id:'spiced-analyzer',weight:0.3},{id:'competitor-tracker',weight:0.2}];\n    appConfidence = 'low';\n  }\n}\n\nreturn [{ json: {\n  ...meeting,\n  isExternal,\n  meetingType,\n  suggestedApps,\n  appConfidence\n} }];"
+        },
+        "name": "Detect Meeting Type",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2420,
+          -100
+        ],
+        "id": "granola-detect-type-001"
+      },
+      {
+        "parameters": {
+          "method": "PATCH",
+          "url": "=https://utvoxshpxzsgsliworwh.supabase.co/rest/v1/meetings?source_id=eq.{{ $json.sourceId }}",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "supabaseApi",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Prefer",
+                "value": "return=representation"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ is_external: $json.isExternal, meeting_type: $json.meetingType, suggested_apps: $json.suggestedApps, app_confidence: $json.appConfidence, status: 'ready' }) }}",
+          "options": {}
+        },
+        "name": "Supabase: Update Detection",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          2640,
+          -100
+        ],
+        "credentials": {
+          "supabaseApi": {
+            "id": "HRBgSj7d6TFZA8kL",
+            "name": "Supabase account 2"
+          }
+        },
+        "id": "granola-update-detection-001"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Extract participants from Granola's structured attendees\nconst meeting = $('Detect Meeting Type').first().json;\nconst attendees = meeting.attendeesList || [];\nconst chrtDomains = ['chrt.com', 'getchrt.com'];\n\n// Get meeting UUID from the Supabase insert response\nconst supabaseResponse = $('Supabase: Insert Meeting').first().json;\nconst meetingUuid = Array.isArray(supabaseResponse) ? supabaseResponse[0]?.id : supabaseResponse?.id;\n\nconst participants = attendees.map(a => {\n  const email = (a.email || '').toLowerCase();\n  const name = a.name || (email ? email.split('@')[0].split('.').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ') : '');\n  const domain = email ? email.split('@')[1] : '';\n  const isInternal = chrtDomains.some(d => domain?.includes(d)) || /hudson|aaron|kyle/i.test(name);\n\n  return {\n    meeting_id: meetingUuid,\n    name: name,\n    email: email || null,\n    is_internal: isInternal,\n    role_in_meeting: email === meeting.organizerEmail ? 'organizer' : null\n  };\n}).filter(p => p.name);\n\nreturn participants.map(p => ({ json: p }));"
+        },
+        "name": "Extract Participants",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2860,
+          0
+        ],
+        "id": "granola-extract-participants-001"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://utvoxshpxzsgsliworwh.supabase.co/rest/v1/meeting_participants",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "supabaseApi",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Prefer",
+                "value": "return=representation"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ meeting_id: $json.meeting_id, name: $json.name, email: $json.email, is_internal: $json.is_internal, role_in_meeting: $json.role_in_meeting }) }}",
+          "options": {}
+        },
+        "name": "Supabase: Insert Participant",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          3080,
+          0
+        ],
+        "credentials": {
+          "supabaseApi": {
+            "id": "HRBgSj7d6TFZA8kL",
+            "name": "Supabase account 2"
+          }
+        },
+        "continueOnFail": true,
+        "id": "granola-insert-participant-001"
+      },
+      {
+        "parameters": {
+          "select": "channel",
+          "channelId": {
+            "__rl": true,
+            "mode": "id",
+            "value": "C0AE7NPAWDQ"
+          },
+          "messageType": "block",
+          "blocksUi": "={{ (() => { const m = $('Detect Meeting Type').first().json; const allApps = ['spiced-analyzer', 'discovery-scorecard', 'demo-scorecard', 'competitor-tracker', 'customer-interview', 'qbr-analyzer', 'onboarding-review', 'churn-risk-analyzer', 'interview-scorecard', 'sprint-retro', 'user-research', 'objection-handler', 'executive-strategy', 'team-sync', 'one-on-one', 'general-notes']; const appOptions = allApps.map(id => ({ text: { type: 'plain_text', text: id }, value: id })); return JSON.stringify({ blocks: [ { type: 'header', text: { type: 'plain_text', text: '🧠 ' + m.title, emoji: true } }, { type: 'section', text: { type: 'mrkdwn', text: '👤 *' + (m.personName || 'Unknown') + '* | ⏱️ ' + m.durationMins + ' min | <' + m.sourceUrl + '|Granola>' } }, { type: 'section', text: { type: 'mrkdwn', text: '*🎯 Recommended Analysis:*\\n' + m.suggestedApps.map(a => '• `' + a.id + '` → ' + Math.round(a.weight * 100) + '%').join('\\n') } }, { type: 'context', elements: [{ type: 'mrkdwn', text: m.meetingType + ' | ' + (m.isExternal ? 'External' : 'Internal') + ' | Confidence: ' + m.appConfidence + '\\n👥 ' + (m.attendeesRaw || 'None').substring(0, 100) }] }, { type: 'divider' }, { type: 'input', block_id: 'recording_type_block', optional: true, element: { type: 'static_select', action_id: 'recording_type_select', placeholder: { type: 'plain_text', text: 'Normal meeting...' }, options: [ { text: { type: 'plain_text', text: '👥 Normal Meeting' }, value: 'normal' }, { text: { type: 'plain_text', text: '🎙️ Singular Recording' }, value: 'singular' } ] }, label: { type: 'plain_text', text: '📹 Recording Type' } }, { type: 'input', block_id: 'additional_attendees_block', optional: true, element: { type: 'plain_text_input', action_id: 'additional_attendees_input', placeholder: { type: 'plain_text', text: 'John Smith, Jane Doe' } }, label: { type: 'plain_text', text: '👥 Additional Attendees' } }, { type: 'input', block_id: 'detail_level_block', optional: true, element: { type: 'static_select', action_id: 'detail_level_select', placeholder: { type: 'plain_text', text: 'Standard notes...' }, options: [ { text: { type: 'plain_text', text: '📝 Standard Notes' }, value: 'standard' }, { text: { type: 'plain_text', text: '📚 Context Meeting (detailed)' }, value: 'context' } ] }, label: { type: 'plain_text', text: '📊 Detail Level' } }, { type: 'input', block_id: 'apps_block', optional: true, element: { type: 'multi_static_select', action_id: 'apps_select', placeholder: { type: 'plain_text', text: 'Only if changing...' }, options: appOptions }, label: { type: 'plain_text', text: '🔧 Override Apps?' } }, { type: 'input', block_id: 'custom_context_block', optional: true, element: { type: 'plain_text_input', action_id: 'custom_context_input', multiline: true, placeholder: { type: 'plain_text', text: 'Any specific focus...' } }, label: { type: 'plain_text', text: '💬 Additional Context' } }, { type: 'actions', block_id: 'actions_block', elements: [ { type: 'button', text: { type: 'plain_text', text: '🚀 Analyze', emoji: true }, style: 'primary', action_id: 'analyze_meeting_v2', value: m.hash }, { type: 'button', text: { type: 'plain_text', text: 'Skip', emoji: true }, action_id: 'skip_meeting', value: m.hash } ] } ], text: 'Meeting: ' + m.title }); })() }}",
+          "otherOptions": {}
+        },
+        "name": "Slack: Intel Form",
+        "type": "n8n-nodes-base.slack",
+        "typeVersion": 2.2,
+        "position": [
+          2860,
+          -300
+        ],
+        "id": "granola-slack-intel-form-001",
+        "credentials": {
+          "slackApi": {
+            "id": "wkLpZSqhXl2iesnC",
+            "name": "Chrt Slack App"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "// Capture the Slack thread_ts from the Intel Form post response\nconst slackResponse = $input.first().json;\nconst threadTs = slackResponse.ts || slackResponse.message?.ts || null;\nconst channelId = slackResponse.channel || 'C0AE7NPAWDQ';\nconst sourceId = $('Detect Meeting Type').first().json.sourceId;\n\nif (!threadTs) {\n  console.log('Warning: No thread_ts in Slack response');\n}\n\nreturn [{ json: { sourceId, threadTs, channelId } }];"
+        },
+        "name": "Extract Thread TS",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          3080,
+          -300
+        ],
+        "id": "granola-extract-thread-ts-001"
+      },
+      {
+        "parameters": {
+          "method": "PATCH",
+          "url": "=https://utvoxshpxzsgsliworwh.supabase.co/rest/v1/meetings?source_id=eq.{{ $json.sourceId }}",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "supabaseApi",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Prefer",
+                "value": "return=representation"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ slack_channel_id: $json.channelId, slack_thread_ts: $json.threadTs }) }}",
+          "options": {}
+        },
+        "name": "Supabase: Save Thread TS",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          3300,
+          -300
+        ],
+        "credentials": {
+          "supabaseApi": {
+            "id": "HRBgSj7d6TFZA8kL",
+            "name": "Supabase account 2"
+          }
+        },
+        "id": "granola-save-thread-ts-001"
+      },
+      {
+        "parameters": {},
+        "name": "Invalid Transcript",
+        "type": "n8n-nodes-base.noOp",
+        "typeVersion": 1,
+        "position": [
+          2420,
+          100
+        ],
+        "id": "granola-invalid-transcript-001"
+      },
+      {
+        "parameters": {},
+        "name": "No New Notes",
+        "type": "n8n-nodes-base.noOp",
+        "typeVersion": 1,
+        "position": [
+          1100,
+          300
+        ],
+        "id": "granola-no-new-notes-001"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Parse error from Granola API call\nconst rawError = JSON.stringify($json).substring(0, 1000);\n\n// Try to get the noteId from the input item\nlet sourceId = 'unknown';\ntry { sourceId = $json.noteId || sourceId; } catch(e) {}\n\nlet errorType = 'unknown';\nlet errorMessage = 'Unknown error occurred';\n\nif (rawError.includes('502') || rawError.includes('Bad gateway')) {\n  errorType = 'api_unavailable';\n  errorMessage = 'Granola API temporarily unavailable (502)';\n} else if (rawError.includes('503') || rawError.includes('Service Unavailable')) {\n  errorType = 'api_unavailable';\n  errorMessage = 'Granola API service unavailable (503)';\n} else if (rawError.includes('401') || rawError.includes('Unauthorized')) {\n  errorType = 'auth_failed';\n  errorMessage = 'Granola API authentication failed';\n} else if (rawError.includes('403') || rawError.includes('Forbidden')) {\n  errorType = 'auth_failed';\n  errorMessage = 'Granola API access forbidden';\n} else if (rawError.includes('429') || rawError.includes('rate limit')) {\n  errorType = 'rate_limited';\n  errorMessage = 'Granola API rate limit exceeded';\n} else if (rawError.includes('404') || rawError.includes('not found')) {\n  errorType = 'not_found';\n  errorMessage = 'Note not found in Granola';\n} else if (rawError.includes('timeout') || rawError.includes('ETIMEDOUT')) {\n  errorType = 'timeout';\n  errorMessage = 'Granola API request timed out';\n}\n\nreturn [{ json: { errorType, errorMessage, sourceId, rawError: rawError.substring(0, 200) } }];"
+        },
+        "name": "Parse Error Type",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1760,
+          200
+        ],
+        "id": "granola-parse-error-001"
+      },
+      {
+        "parameters": {
+          "select": "channel",
+          "channelId": {
+            "__rl": true,
+            "mode": "id",
+            "value": "C0AE7NPAWDQ"
+          },
+          "text": "={{ '⚠️ *Granola Meeting Processing Failed*\\n\\n📋 Note ID: `' + $json.sourceId + '`\\n❌ Error: ' + $json.errorMessage + '\\n\\n🔄 Retry: `/webhook/meeting-intel-retry?id=' + $json.sourceId + '`' }}",
+          "otherOptions": {}
+        },
+        "name": "Slack: API Error",
+        "type": "n8n-nodes-base.slack",
+        "typeVersion": 2.2,
+        "position": [
+          1980,
+          200
+        ],
+        "id": "granola-slack-error-001",
+        "credentials": {
+          "slackApi": {
+            "id": "wkLpZSqhXl2iesnC",
+            "name": "Chrt Slack App"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "// Handle retry webhook — parse Granola note ID from query params\nconst query = $input.first().json.query || {};\nconst noteId = query.id;\n\nif (!noteId) {\n  throw new Error('Granola note ID required. Use ?id=not_xxxxx');\n}\n\nreturn [{ json: { noteId, eventType: 'Manual retry', isRetry: true } }];"
+        },
+        "name": "Parse Retry Request",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          220,
+          600
+        ],
+        "id": "granola-parse-retry-001"
+      },
+      {
+        "parameters": {
+          "url": "https://api.doppler.com/v3/configs/config/secret",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpHeaderAuth",
+          "sendQuery": true,
+          "queryParameters": {
+            "parameters": [
+              {
+                "name": "project",
+                "value": "developers"
+              },
+              {
+                "name": "config",
+                "value": "hudson"
+              },
+              {
+                "name": "name",
+                "value": "GRANOLA_API_KEY"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "name": "Doppler: Get Key (Retry)",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          440,
+          600
+        ],
+        "credentials": {
+          "httpHeaderAuth": {
+            "id": "dz2vX61Mpayywfq1",
+            "name": "Doppler API"
+          }
+        },
+        "id": "granola-doppler-retry-001"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Prepare retry note item with Granola key\nconst noteId = $('Parse Retry Request').first().json.noteId;\nconst granolaKey = $input.first().json.value.raw;\n\nreturn [{ json: { noteId, granolaKey, isRetry: true } }];"
+        },
+        "name": "Prepare Retry Note",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          660,
+          600
+        ],
+        "id": "granola-prepare-retry-001"
+      }
+    ],
+    "connections": {
+      "Schedule Trigger": {
+        "main": [
+          [
+            {
+              "node": "Doppler: Get Granola Key",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Doppler: Get Granola Key": {
+        "main": [
+          [
+            {
+              "node": "Granola: List Notes",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Granola: List Notes": {
+        "main": [
+          [
+            {
+              "node": "Extract Note IDs",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Extract Note IDs": {
+        "main": [
+          [
+            {
+              "node": "Has New Notes?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Has New Notes?": {
+        "main": [
+          [
+            {
+              "node": "Supabase: Check Existing",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "No New Notes",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Supabase: Check Existing": {
+        "main": [
+          [
+            {
+              "node": "Filter New Notes",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Filter New Notes": {
+        "main": [
+          [
+            {
+              "node": "Granola: Get Note",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Retry Webhook": {
+        "main": [
+          [
+            {
+              "node": "Parse Retry Request",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Parse Retry Request": {
+        "main": [
+          [
+            {
+              "node": "Doppler: Get Key (Retry)",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Doppler: Get Key (Retry)": {
+        "main": [
+          [
+            {
+              "node": "Prepare Retry Note",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Prepare Retry Note": {
+        "main": [
+          [
+            {
+              "node": "Granola: Get Note",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Granola: Get Note": {
+        "main": [
+          [
+            {
+              "node": "Process Transcript",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Parse Error Type",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Process Transcript": {
+        "main": [
+          [
+            {
+              "node": "Supabase: Insert Meeting",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Supabase: Insert Meeting": {
+        "main": [
+          [
+            {
+              "node": "Has Valid Transcript?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Has Valid Transcript?": {
+        "main": [
+          [
+            {
+              "node": "Detect Meeting Type",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Invalid Transcript",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Detect Meeting Type": {
+        "main": [
+          [
+            {
+              "node": "Supabase: Update Detection",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Supabase: Update Detection": {
+        "main": [
+          [
+            {
+              "node": "Extract Participants",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Slack: Intel Form",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Extract Participants": {
+        "main": [
+          [
+            {
+              "node": "Supabase: Insert Participant",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Slack: Intel Form": {
+        "main": [
+          [
+            {
+              "node": "Extract Thread TS",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Extract Thread TS": {
+        "main": [
+          [
+            {
+              "node": "Supabase: Save Thread TS",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Parse Error Type": {
+        "main": [
+          [
+            {
+              "node": "Slack: API Error",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "authors": "Hudson Lorfing",
+    "name": null,
+    "description": null,
+    "autosaved": false
+  },
+  "tags": [],
+  "_folderPath": "",
+  "_fileName": "6.-granola-meeting-processor.json"
+}
