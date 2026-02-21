@@ -1,0 +1,448 @@
+{
+  "updatedAt": "2026-02-21T01:50:20.000Z",
+  "createdAt": "2026-02-21T01:50:19.872Z",
+  "id": "EDkQd5CNiiXchj1x",
+  "name": "HR-2: Reply Router (SDR)",
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "sdr-event",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "sdr-webhook",
+      "name": "SDR Event Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        400
+      ],
+      "webhookId": "sdr-event"
+    },
+    {
+      "parameters": {},
+      "id": "sdr-manual",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normalize webhook payload from HeyReach or Gmail\nconst body = $input.first().json.body || $input.first().json;\nconst headers = $input.first().json.headers || {};\n\nlet normalized = {\n  platform: 'unknown',\n  eventType: 'unknown',\n  leadId: '',\n  leadName: '',\n  leadCompany: '',\n  message: '',\n  conversationId: '',\n  metadata: {}\n};\n\n// HeyReach webhook detection\nif (body.conversationId || body.linkedInAccountId || body.eventType?.includes('connection')) {\n  normalized.platform = 'linkedin';\n  normalized.eventType = body.eventType || 'unknown';\n  normalized.conversationId = body.conversationId || '';\n  normalized.message = body.message || body.messageText || '';\n  normalized.leadName = body.leadName || `${body.firstName || ''} ${body.lastName || ''}`.trim();\n  normalized.leadCompany = body.companyName || '';\n  normalized.leadId = body.leadProfileUrl || body.linkedInProfileUrl || '';\n  normalized.metadata = {\n    linkedInAccountId: body.linkedInAccountId,\n    senderId: body.senderId,\n    conversationId: body.conversationId,\n    campaignId: body.campaignId,\n    leadProfileUrl: body.leadProfileUrl || body.linkedInProfileUrl\n  };\n}\n// Gmail / email reply detection (forwarded from Gmail push or manual input)\nelse if (body.from_email || body.lead_email || body.threadId) {\n  normalized.platform = 'email';\n  normalized.eventType = 'reply_received';\n  normalized.message = body.text || body.snippet || body.message || '';\n  normalized.leadName = body.from_name || body.lead_name || '';\n  normalized.leadCompany = body.lead_company || '';\n  normalized.leadId = body.from_email || body.lead_email || '';\n  normalized.metadata = {\n    threadId: body.threadId,\n    messageId: body.messageId,\n    fromEmail: body.from_email || body.lead_email,\n    subject: body.subject || ''\n  };\n}\n\nreturn [{ json: normalized }];"
+      },
+      "id": "sdr-normalize",
+      "name": "Normalize Event",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        200,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "rules": [
+            {
+              "outputIndex": 0,
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.eventType }}",
+                    "rightValue": "connection_request_accepted",
+                    "operator": {
+                      "type": "string",
+                      "operation": "contains"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputIndex": 1,
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.eventType }}",
+                    "rightValue": "reply_received",
+                    "operator": {
+                      "type": "string",
+                      "operation": "contains"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputIndex": 2,
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.eventType }}",
+                    "rightValue": "reply_received",
+                    "operator": {
+                      "type": "string",
+                      "operation": "notContains"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "sdr-route",
+      "name": "Route by Event",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        400,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.doppler.com/v3/configs/config/secrets",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "project",
+              "value": "developers"
+            },
+            {
+              "name": "config",
+              "value": "hudson"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "sdr-doppler-conn",
+      "name": "Fetch Secrets (Connection)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        600,
+        200
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "dz2vX61Mpayywfq1",
+          "name": "Doppler API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate opener suggestion via Val.town\nconst event = $('Normalize Event').first().json;\nconst secrets = $input.first().json.secrets || {};\nconst anthropicKey = secrets.ANTHROPIC_API_KEY?.raw || '';\nconst valtownToken = secrets.VALTOWN_API_TOKEN?.raw || '';\nconst generateUrl = secrets.VALTOWN_GENERATE_SUGGESTION_URL?.raw || '';\n\nlet aiSuggestion = null;\n\ntry {\n  const resp = await fetch(generateUrl, {\n    method: 'POST',\n    headers: {\n      'Content-Type': 'application/json',\n      'Authorization': `Bearer ${valtownToken}`\n    },\n    body: JSON.stringify({\n      conversationThread: [],\n      leadContext: {\n        firstName: event.leadName.split(' ')[0],\n        lastName: event.leadName.split(' ').slice(1).join(' '),\n        company: event.leadCompany,\n        source: 'conference'\n      },\n      platform: 'linkedin',\n      anthropicKey\n    })\n  });\n\n  if (resp.ok) {\n    aiSuggestion = await resp.json();\n  }\n} catch (err) {\n  // AI suggestion failed — still notify Slack\n}\n\nconst suggestionBlock = aiSuggestion\n  ? `*AI Suggested Opener:*\\n> ${aiSuggestion.suggestedResponse}\\n\\n*Reasoning:* ${aiSuggestion.reasoning}${aiSuggestion.requiresHuman ? '\\n\\n⚠️ *AI flagged for human review:* ' + aiSuggestion.humanReason : ''}`\n  : '_AI suggestion unavailable — respond manually._';\n\nconst slackText = `✅ *New Connection Accepted*\\n*${event.leadName}* — ${event.leadCompany}\\nProfile: ${event.metadata?.leadProfileUrl || 'unknown'}\\n\\n${suggestionBlock}\\n\\n_Copy the suggestion above, edit as needed, and send via LinkedIn. Then react with ✅ when sent._`;\n\nreturn [{ json: { text: slackText, channel: 'C0AGDM7AMRS', ...event, aiSuggestion } }];"
+      },
+      "id": "sdr-connection-handler",
+      "name": "Handle New Connection",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.doppler.com/v3/configs/config/secrets",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "project",
+              "value": "developers"
+            },
+            {
+              "name": "config",
+              "value": "hudson"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "sdr-doppler-reply",
+      "name": "Fetch Secrets (Reply)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        600,
+        500
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "dz2vX61Mpayywfq1",
+          "name": "Doppler API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Classify the reply via Val.town\nconst event = $('Normalize Event').first().json;\nconst secrets = $input.first().json.secrets || {};\nconst anthropicKey = secrets.ANTHROPIC_API_KEY?.raw || '';\nconst valtownToken = secrets.VALTOWN_API_TOKEN?.raw || '';\nconst classifyUrl = secrets.VALTOWN_CLASSIFY_REPLY_URL?.raw || '';\n\nlet classification;\n\ntry {\n  const resp = await fetch(classifyUrl, {\n    method: 'POST',\n    headers: {\n      'Content-Type': 'application/json',\n      'Authorization': `Bearer ${valtownToken}`\n    },\n    body: JSON.stringify({\n      message: event.message,\n      platform: event.platform,\n      leadContext: { leadName: event.leadName, leadCompany: event.leadCompany },\n      anthropicKey\n    })\n  });\n\n  if (resp.ok) {\n    classification = await resp.json();\n  } else {\n    throw new Error(`Val.town returned ${resp.status}`);\n  }\n} catch (err) {\n  // Fallback: keyword-based classification if Val.town is unreachable\n  const lower = event.message.toLowerCase();\n  if (lower.includes('not interested') || lower.includes('stop') || lower.includes('unsubscribe') || lower.includes('remove me')) {\n    classification = { sentiment: 'negative', intent: 'opt_out', urgency: 'high', reasoning: 'Opt-out keywords (fallback)' };\n  } else if (lower.includes('demo') || lower.includes('show me') || lower.includes('schedule') || lower.includes('calendar') || lower.includes('meet') || lower.includes('call')) {\n    classification = { sentiment: 'positive', intent: 'booking_intent', urgency: 'high', reasoning: 'Booking keywords (fallback)' };\n  } else if (lower.includes('how') || lower.includes('what') || lower.includes('price') || lower.includes('cost') || lower.includes('integrate')) {\n    classification = { sentiment: 'neutral', intent: 'question', urgency: 'medium', reasoning: 'Question keywords (fallback)' };\n  } else if (lower.includes('interesting') || lower.includes('great') || lower.includes('love') || lower.includes('sounds good') || lower.includes('tell me more')) {\n    classification = { sentiment: 'positive', intent: 'interested', urgency: 'medium', reasoning: 'Positive sentiment (fallback)' };\n  } else {\n    classification = { sentiment: 'neutral', intent: 'edge_case', urgency: 'medium', reasoning: `Val.town error: ${err.message}` };\n  }\n}\n\nreturn [{ json: { ...event, classification } }];"
+      },
+      "id": "sdr-classify",
+      "name": "Classify Reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate AI response suggestion, then format for Slack\nconst data = $input.first().json;\nconst c = data.classification;\nconst secrets = $('Fetch Secrets (Reply)').first().json.secrets || {};\nconst anthropicKey = secrets.ANTHROPIC_API_KEY?.raw || '';\nconst valtownToken = secrets.VALTOWN_API_TOKEN?.raw || '';\nconst generateUrl = secrets.VALTOWN_GENERATE_SUGGESTION_URL?.raw || '';\n\nlet aiSuggestion = null;\n\n// Skip AI generation for opt-outs\nif (c.intent !== 'opt_out' && anthropicKey) {\n  try {\n    const resp = await fetch(generateUrl, {\n      method: 'POST',\n      headers: {\n        'Content-Type': 'application/json',\n        'Authorization': `Bearer ${valtownToken}`\n      },\n      body: JSON.stringify({\n        conversationThread: [{ direction: 'inbound', senderName: data.leadName, message: data.message }],\n        leadContext: {\n          firstName: data.leadName.split(' ')[0],\n          lastName: data.leadName.split(' ').slice(1).join(' '),\n          company: data.leadCompany,\n          source: 'conference'\n        },\n        classification: c,\n        platform: data.platform,\n        anthropicKey\n      })\n    });\n    if (resp.ok) aiSuggestion = await resp.json();\n  } catch (err) { /* fallback to no suggestion */ }\n}\n\nconst sentimentEmoji = c.sentiment === 'positive' ? '🟢' : c.sentiment === 'negative' ? '🔴' : '🟡';\nconst urgencyEmoji = c.urgency === 'high' ? '🚨' : c.urgency === 'medium' ? '⏳' : '💤';\n\nconst suggestionBlock = aiSuggestion\n  ? `*AI Suggested Reply:*\\n> ${aiSuggestion.suggestedResponse}\\n\\n*Reasoning:* ${aiSuggestion.reasoning}${aiSuggestion.requiresHuman ? '\\n\\n⚠️ *Needs human:* ' + aiSuggestion.humanReason : ''}`\n  : (c.intent === 'opt_out' ? '_Opt-out detected. No AI suggestion generated._' : '_AI suggestion unavailable._');\n\nconst slackText = `💬 *New Reply* ${sentimentEmoji} ${urgencyEmoji}\\n*${data.leadName}* — ${data.leadCompany}\\n*Channel:* ${data.platform} | *Intent:* ${c.intent} | *Sentiment:* ${c.sentiment}\\n\\n*Their Message:*\\n> ${data.message}\\n\\n*Classification:* ${c.reasoning}\\n\\n${suggestionBlock}\\n\\n_Edit and send, or react with ✅ when done._`;\n\nreturn [{ json: { text: slackText, channel: 'C0AGDM7AMRS', ...data, aiSuggestion } }];"
+      },
+      "id": "sdr-format-reply",
+      "name": "Format Reply Notification",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1000,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "post",
+        "channelId": {
+          "mode": "id",
+          "value": "C0AGDM7AMRS"
+        },
+        "text": "={{ $json.text }}",
+        "otherOptions": {}
+      },
+      "id": "sdr-slack-connection",
+      "name": "Slack: Connection Accepted",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        1000,
+        200
+      ],
+      "credentials": {
+        "slackApi": {
+          "id": "wkLpZSqhXl2iesnC",
+          "name": "Chrt Slack App"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "post",
+        "channelId": {
+          "mode": "id",
+          "value": "C0AGDM7AMRS"
+        },
+        "text": "={{ $json.text }}",
+        "otherOptions": {}
+      },
+      "id": "sdr-slack-reply",
+      "name": "Slack: Reply Received",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        1200,
+        500
+      ],
+      "credentials": {
+        "slackApi": {
+          "id": "wkLpZSqhXl2iesnC",
+          "name": "Chrt Slack App"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Log-only events (sent, viewed, etc.)\nconst event = $input.first().json;\nreturn [{ json: { logged: true, eventType: event.eventType, leadName: event.leadName, platform: event.platform } }];"
+      },
+      "id": "sdr-log-only",
+      "name": "Log Event",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        600,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ received: true, eventType: $('Normalize Event').first().json.eventType }) }}",
+        "options": {}
+      },
+      "id": "sdr-respond",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        200,
+        600
+      ]
+    }
+  ],
+  "connections": {
+    "SDR Event Webhook": {
+      "main": [
+        [
+          {
+            "node": "Normalize Event",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Normalize Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Event": {
+      "main": [
+        [
+          {
+            "node": "Route by Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Event": {
+      "main": [
+        [
+          {
+            "node": "Fetch Secrets (Connection)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fetch Secrets (Reply)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Secrets (Connection)": {
+      "main": [
+        [
+          {
+            "node": "Handle New Connection",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle New Connection": {
+      "main": [
+        [
+          {
+            "node": "Slack: Connection Accepted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Secrets (Reply)": {
+      "main": [
+        [
+          {
+            "node": "Classify Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify Reply": {
+      "main": [
+        [
+          {
+            "node": "Format Reply Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Reply Notification": {
+      "main": [
+        [
+          {
+            "node": "Slack: Reply Received",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": null,
+  "versionId": "a108faf6-8e0e-4fe9-b663-cfd1acecd84e",
+  "activeVersionId": null,
+  "triggerCount": 0,
+  "shared": [
+    {
+      "updatedAt": "2026-02-21T01:50:20.536Z",
+      "createdAt": "2026-02-21T01:50:20.536Z",
+      "role": "workflow:owner",
+      "workflowId": "EDkQd5CNiiXchj1x",
+      "projectId": "O7lTivDfRl72aS23"
+    }
+  ],
+  "activeVersion": null,
+  "tags": [],
+  "_folderPath": "",
+  "_fileName": "hr-2:-reply-router-(sdr).json"
+}
