@@ -1,0 +1,269 @@
+{
+  "updatedAt": "2026-02-21T02:03:01.000Z",
+  "createdAt": "2026-02-21T02:03:00.808Z",
+  "id": "ZNwwVOgdh6rIg6Uk",
+  "name": "HR-4: Email Approve & Send (SDR)",
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "sdr-email-approve",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "approve-webhook",
+      "name": "Approval Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        300
+      ],
+      "webhookId": "sdr-email-approve"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.doppler.com/v3/configs/config/secrets",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "project",
+              "value": "developers"
+            },
+            {
+              "name": "config",
+              "value": "hudson"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "approve-fetch-doppler",
+      "name": "Fetch Doppler Secrets",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        200,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "dz2vX61Mpayywfq1",
+          "name": "Doppler API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract query params and fetch draft from Val.town blob store\nconst query = $('Approval Webhook').first().json.query;\nconst secrets = $input.first().json.secrets;\nconst draftId = query.id;\nconst action = query.action || 'approve';\nconst variantIdx = parseInt(query.v || '0');\n\nif (!draftId) {\n  return [{ json: { _error: true, message: 'Missing draft ID' } }];\n}\n\nif (action === 'skip') {\n  return [{ json: { _skip: true, draftId, message: 'Email skipped by operator' } }];\n}\n\n// Fetch stored draft from Val.town\nconst draftStoreUrl = secrets.VALTOWN_EMAIL_DRAFT_STORE_URL?.raw || '';\nconst valtownToken = secrets.VALTOWN_API_TOKEN?.raw || '';\n\ntry {\n  const resp = await fetch(draftStoreUrl, {\n    method: 'POST',\n    headers: {\n      'Content-Type': 'application/json',\n      'Authorization': `Bearer ${valtownToken}`\n    },\n    body: JSON.stringify({ action: 'get', id: draftId })\n  });\n\n  if (!resp.ok) {\n    const errText = await resp.text();\n    return [{ json: { _error: true, message: `Draft not found: ${errText}` } }];\n  }\n\n  const { draft } = await resp.json();\n\n  // Pick the selected variant\n  let emailTo, emailSubject, emailBody, leadName, approach;\n  if (draft.variants && draft.variants[variantIdx]) {\n    const v = draft.variants[variantIdx];\n    emailTo = draft.to;\n    emailSubject = v.subject;\n    emailBody = v.suggestedResponse;\n    leadName = draft.leadName;\n    approach = v.approach;\n  } else {\n    emailTo = draft.to;\n    emailSubject = draft.subject;\n    emailBody = draft.body || draft.suggestedResponse;\n    leadName = draft.leadName;\n    approach = 'single';\n  }\n\n  return [{ json: {\n    _send: true,\n    draftId,\n    variantIdx,\n    approach,\n    emailTo,\n    emailSubject,\n    emailBody,\n    leadName,\n    sendGmailUrl: secrets.VALTOWN_SEND_GMAIL_URL?.raw || '',\n    valtownToken,\n    googleClientId: secrets.GOOGLE_SDR_EMAIL_CLIENT_ID?.raw || '',\n    googleClientSecret: secrets.GOOGLE_SDR_EMAIL_CLIENT_SECRET?.raw || '',\n    googleRefreshToken: secrets.GOOGLE_SDR_EMAIL_REFRESH_TOKEN?.raw || '',\n    slackWebhook: secrets.SLACK_SDR_INBOX_WEBHOOK_URL?.raw || ''\n  }}];\n} catch (err) {\n  return [{ json: { _error: true, message: err.message } }];\n}"
+      },
+      "id": "approve-fetch-draft",
+      "name": "Fetch Draft & Resolve Variant",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        400,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json._send }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "approve-check-send",
+      "name": "Should Send?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        600,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Send the email via Val.town send-gmail endpoint\nconst d = $input.first().json;\n\ntry {\n  const resp = await fetch(d.sendGmailUrl, {\n    method: 'POST',\n    headers: {\n      'Content-Type': 'application/json',\n      'Authorization': `Bearer ${d.valtownToken}`\n    },\n    body: JSON.stringify({\n      to: d.emailTo,\n      subject: d.emailSubject,\n      body: d.emailBody,\n      googleClientId: d.googleClientId,\n      googleClientSecret: d.googleClientSecret,\n      googleRefreshToken: d.googleRefreshToken,\n      fromName: 'Hudson Lorfing',\n      fromEmail: 'hudson@chrt.com'\n    })\n  });\n\n  if (!resp.ok) {\n    const errText = await resp.text();\n    return [{ json: { ...d, sent: false, error: `Gmail API: ${resp.status} ${errText}` } }];\n  }\n\n  const result = await resp.json();\n  return [{ json: { ...d, sent: true, messageId: result.messageId, threadId: result.threadId } }];\n} catch (err) {\n  return [{ json: { ...d, sent: false, error: err.message } }];\n}"
+      },
+      "id": "approve-send-email",
+      "name": "Send Email via Gmail",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Post confirmation to Slack and clean up the draft\nconst d = $input.first().json;\n\nconst statusEmoji = d.sent ? '✅' : '❌';\nconst statusText = d.sent\n  ? `Email sent to *${d.leadName}* (${d.emailTo})\\nApproach: ${d.approach} | Variant: ${d.variantIdx + 1}`\n  : `Failed to send to *${d.leadName}*: ${d.error}`;\n\n// Post to Slack\nif (d.slackWebhook) {\n  try {\n    await fetch(d.slackWebhook, {\n      method: 'POST',\n      headers: { 'Content-Type': 'application/json' },\n      body: JSON.stringify({ text: `${statusEmoji} ${statusText}` })\n    });\n  } catch (e) { /* non-critical */ }\n}\n\n// Clean up draft from blob store\nconst draftStoreUrl = $('Fetch Draft & Resolve Variant').first().json.sendGmailUrl?.replace('sendGmail', 'emailDraftStore') || '';\n\nreturn [{ json: { status: d.sent ? 'sent' : 'failed', leadName: d.leadName, emailTo: d.emailTo, approach: d.approach } }];"
+      },
+      "id": "approve-confirm",
+      "name": "Confirm in Slack",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1000,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.sent ? '✅ Email sent to ' + $json.leadName + ' (' + $json.emailTo + ')\\n\\nYou can close this tab.' : '❌ Failed: ' + $json.error + '\\n\\nTry again or send manually.' }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/plain; charset=utf-8"
+              }
+            ]
+          }
+        }
+      },
+      "id": "approve-respond-sent",
+      "name": "Respond: Sent",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1200,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json._skip ? '⏭️ Email skipped. You can close this tab.' : '❌ Error: ' + ($json.message || 'Unknown error') }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/plain; charset=utf-8"
+              }
+            ]
+          }
+        }
+      },
+      "id": "approve-respond-skip",
+      "name": "Respond: Skip/Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        800,
+        400
+      ]
+    }
+  ],
+  "connections": {
+    "Approval Webhook": {
+      "main": [
+        [
+          {
+            "node": "Fetch Doppler Secrets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Doppler Secrets": {
+      "main": [
+        [
+          {
+            "node": "Fetch Draft & Resolve Variant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Draft & Resolve Variant": {
+      "main": [
+        [
+          {
+            "node": "Should Send?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Should Send?": {
+      "main": [
+        [
+          {
+            "node": "Send Email via Gmail",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond: Skip/Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email via Gmail": {
+      "main": [
+        [
+          {
+            "node": "Confirm in Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Confirm in Slack": {
+      "main": [
+        [
+          {
+            "node": "Respond: Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": null,
+  "versionId": "08aa1896-2541-492f-8ca4-101afbe9306a",
+  "activeVersionId": null,
+  "triggerCount": 0,
+  "shared": [
+    {
+      "updatedAt": "2026-02-21T02:03:01.179Z",
+      "createdAt": "2026-02-21T02:03:01.179Z",
+      "role": "workflow:owner",
+      "workflowId": "ZNwwVOgdh6rIg6Uk",
+      "projectId": "O7lTivDfRl72aS23"
+    }
+  ],
+  "activeVersion": null,
+  "tags": [],
+  "_folderPath": "",
+  "_fileName": "hr-4:-email-approve-&-send-(sdr).json"
+}
