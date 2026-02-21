@@ -1,0 +1,268 @@
+{
+  "updatedAt": "2026-02-21T00:12:47.000Z",
+  "createdAt": "2026-02-21T00:12:46.657Z",
+  "id": "EAjNZ4ntYtUG7AsJ",
+  "name": "HR-1: Outreach Push (SDR)",
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "sdr-manual-trigger",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.doppler.com/v3/configs/config/secrets",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "project",
+              "value": "developers"
+            },
+            {
+              "name": "config",
+              "value": "hudson"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "sdr-fetch-doppler",
+      "name": "Fetch Doppler Secrets",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        200,
+        400
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "dz2vX61Mpayywfq1",
+          "name": "Doppler API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract secrets and load conference leads from enriched-leads.json\nconst secrets = $input.first().json.secrets;\nconst heyreachKey = secrets.HEYREACH_API_KEY?.raw || '';\nconst slackWebhook = secrets.SLACK_SDR_INBOX_WEBHOOK_URL?.raw || secrets.SLACK_AUTOMATIONS_WEBHOOK_URL?.raw || '';\n\n// Conference leads are passed as static data for V1\n// In production, this would read from Google Sheets or HubSpot\nconst leads = [\n  {\"firstName\":\"Kimberly\",\"lastName\":\"Barrish\",\"company\":\"FASTEXACT\",\"title\":\"Business Developer\",\"email\":\"kimberly@fastexact.com\",\"segment\":\"Courier\",\"priority\":\"hot\",\"sequence\":\"A\",\"linkedinUrl\":\"\",\"meetingSummary\":\"Courier company using Macropoint at $500/mo. Interested in Chrt's $100/mo pricing. Tracking has dead zones.\",\"painPoints\":[\"Macropoint tracking has dead zones\",\"High cost at $500/mo\"],\"interestSignals\":[\"Interested in $100/mo pricing vs $500/mo\"],\"followUpCommitments\":[\"Kimberly to email Hudson\"]},\n  {\"firstName\":\"James\",\"lastName\":\"Goebel\",\"company\":\"Cold Chain Technologies\",\"title\":\"\",\"email\":\"jgoebel@coldchaintech.com\",\"segment\":\"Shipper\",\"priority\":\"hot\",\"sequence\":\"A\",\"linkedinUrl\":\"\",\"meetingSummary\":\"Cold chain packaging and logistics company\",\"painPoints\":[],\"interestSignals\":[],\"followUpCommitments\":[]},\n  {\"firstName\":\"Charlie\",\"lastName\":\"Murphy\",\"company\":\"Air Charter Service\",\"title\":\"\",\"email\":\"charlie.murphy@aircharterservice.com\",\"segment\":\"Forwarder\",\"priority\":\"hot\",\"sequence\":\"A\",\"linkedinUrl\":\"\",\"meetingSummary\":\"Air charter and freight forwarding\",\"painPoints\":[],\"interestSignals\":[],\"followUpCommitments\":[]},\n  {\"firstName\":\"Robert\",\"lastName\":\"Alleman\",\"company\":\"ACS Time Critical\",\"title\":\"Group CEO\",\"email\":\"robert.alleman@acstimecritical.com\",\"segment\":\"Forwarder\",\"priority\":\"hot\",\"sequence\":\"A\",\"linkedinUrl\":\"\",\"meetingSummary\":\"ACS Time Critical CEO, major time-critical freight player\",\"painPoints\":[],\"interestSignals\":[],\"followUpCommitments\":[]},\n  {\"firstName\":\"Bob\",\"lastName\":\"Dubois\",\"company\":\"MAF Expedited\",\"title\":\"VP Operations\",\"email\":\"bdubois@mgmair.com\",\"segment\":\"Courier\",\"priority\":\"hot\",\"sequence\":\"A\",\"linkedinUrl\":\"\",\"meetingSummary\":\"VP Ops at MAF Expedited\",\"painPoints\":[],\"interestSignals\":[],\"followUpCommitments\":[]},\n  {\"firstName\":\"Evan\",\"lastName\":\"Rhodes\",\"company\":\"Energy Transport Logistics\",\"title\":\"\",\"email\":\"Evan@energytransportlogistics.com\",\"segment\":\"Courier\",\"priority\":\"warm\",\"sequence\":\"B\",\"linkedinUrl\":\"\",\"meetingSummary\":\"Energy transport and logistics\",\"painPoints\":[],\"interestSignals\":[],\"followUpCommitments\":[]},\n  {\"firstName\":\"John\",\"lastName\":\"Debetta\",\"company\":\"Airtime Express USA\",\"title\":\"\",\"email\":\"john.d.cts@aol.com\",\"segment\":\"Courier\",\"priority\":\"hot\",\"sequence\":\"A\",\"linkedinUrl\":\"\",\"meetingSummary\":\"Airtime Express USA courier operations\",\"painPoints\":[],\"interestSignals\":[],\"followUpCommitments\":[]},\n  {\"firstName\":\"Steve\",\"lastName\":\"Ytkin\",\"company\":\"ETI\",\"title\":\"\",\"email\":\"sytkin1@eticompany.com\",\"segment\":\"Courier\",\"priority\":\"warm\",\"sequence\":\"B\",\"linkedinUrl\":\"\",\"meetingSummary\":\"ETI courier company\",\"painPoints\":[],\"interestSignals\":[],\"followUpCommitments\":[]},\n  {\"firstName\":\"Keaton\",\"lastName\":\"Burcham\",\"company\":\"NTG Freight\",\"title\":\"\",\"email\":\"AOG@NTGFREIGHT.COM\",\"segment\":\"Forwarder\",\"priority\":\"hot\",\"sequence\":\"A\",\"linkedinUrl\":\"\",\"meetingSummary\":\"NTG Freight forwarder\",\"painPoints\":[],\"interestSignals\":[],\"followUpCommitments\":[]},\n  {\"firstName\":\"Eddie\",\"lastName\":\"Nagahashi\",\"company\":\"DHL Aviation - ACS\",\"title\":\"\",\"email\":\"Eddie.Nagahashi@dhl.com\",\"segment\":\"Forwarder\",\"priority\":\"hot\",\"sequence\":\"A\",\"linkedinUrl\":\"\",\"meetingSummary\":\"DHL Aviation / ACS\",\"painPoints\":[],\"interestSignals\":[],\"followUpCommitments\":[]},\n  {\"firstName\":\"Fred\",\"lastName\":\"Gaeding\",\"company\":\"Midwest Express Co.\",\"title\":\"\",\"email\":\"fred.gaeding@midwestexpressco.com\",\"segment\":\"Courier\",\"priority\":\"hot\",\"sequence\":\"A\",\"linkedinUrl\":\"\",\"meetingSummary\":\"Midwest Express courier operations\",\"painPoints\":[],\"interestSignals\":[],\"followUpCommitments\":[]},\n  {\"firstName\":\"Ross\",\"lastName\":\"Misyura\",\"company\":\"Expedite All\",\"title\":\"\",\"email\":\"ross@expediteall.com\",\"segment\":\"Courier\",\"priority\":\"warm\",\"sequence\":\"B\",\"linkedinUrl\":\"\",\"meetingSummary\":\"Expedite All courier\",\"painPoints\":[],\"interestSignals\":[],\"followUpCommitments\":[]},\n  {\"firstName\":\"Howard\",\"lastName\":\"Popeck\",\"company\":\"OBC / Chapman Freeborn\",\"title\":\"\",\"email\":\"howard.popeck@chapmanfreeborn.aero\",\"segment\":\"Forwarder\",\"priority\":\"hot\",\"sequence\":\"A\",\"linkedinUrl\":\"\",\"meetingSummary\":\"OBC / Chapman Freeborn freight forwarding\",\"painPoints\":[],\"interestSignals\":[],\"followUpCommitments\":[]},\n  {\"firstName\":\"Ralph\",\"lastName\":\"Anderson\",\"company\":\"Air Cargo Transfer, Inc.\",\"title\":\"\",\"email\":\"randerson@aircargo-transfer.com\",\"segment\":\"Courier\",\"priority\":\"warm\",\"sequence\":\"B\",\"linkedinUrl\":\"\",\"meetingSummary\":\"Air Cargo Transfer courier\",\"painPoints\":[],\"interestSignals\":[],\"followUpCommitments\":[]},\n  {\"firstName\":\"David\",\"lastName\":\"McAlmond\",\"company\":\"ECL East Coast Logistics\",\"title\":\"\",\"email\":\"dave@goecl.com\",\"segment\":\"Courier\",\"priority\":\"hot\",\"sequence\":\"B\",\"linkedinUrl\":\"\",\"meetingSummary\":\"ECL East Coast Logistics courier operations\",\"painPoints\":[],\"interestSignals\":[],\"followUpCommitments\":[]},\n  {\"firstName\":\"Mark\",\"lastName\":\"Browning\",\"company\":\"ECL East Coast Logistics\",\"title\":\"\",\"email\":\"mark@goecl.com\",\"segment\":\"Courier\",\"priority\":\"hot\",\"sequence\":\"A\",\"linkedinUrl\":\"\",\"meetingSummary\":\"ECL East Coast Logistics\",\"painPoints\":[],\"interestSignals\":[],\"followUpCommitments\":[]},\n  {\"firstName\":\"Dayna\",\"lastName\":\"Harap\",\"company\":\"S.A.A. Logistics, Inc.\",\"title\":\"\",\"email\":\"dayna@saalogisticsinc.com\",\"segment\":\"Forwarder\",\"priority\":\"warm\",\"sequence\":\"C\",\"linkedinUrl\":\"\",\"meetingSummary\":\"S.A.A. Logistics forwarder\",\"painPoints\":[],\"interestSignals\":[],\"followUpCommitments\":[]},\n  {\"firstName\":\"Thomas\",\"lastName\":\"Sitler\",\"company\":\"iB&M / International Bond & Marine\",\"title\":\"\",\"email\":\"tsitler@intlbondmarine.com\",\"segment\":\"Forwarder\",\"priority\":\"warm\",\"sequence\":\"B\",\"linkedinUrl\":\"\",\"meetingSummary\":\"iB&M customs brokerage and freight forwarding\",\"painPoints\":[],\"interestSignals\":[],\"followUpCommitments\":[]},\n  {\"firstName\":\"Dana\",\"lastName\":\"Knight\",\"company\":\"Alaska / Hawaiian Airlines\",\"title\":\"\",\"email\":\"dana.knight@alaskaair.com\",\"segment\":\"Shipper\",\"priority\":\"warm\",\"sequence\":\"C\",\"linkedinUrl\":\"\",\"meetingSummary\":\"Alaska / Hawaiian Airlines cargo\",\"painPoints\":[],\"interestSignals\":[],\"followUpCommitments\":[]},\n  {\"firstName\":\"Jezebel\",\"lastName\":\"Moran\",\"company\":\"Alaska / Hawaiian Airlines\",\"title\":\"\",\"email\":\"jezebel.moran@alaskaair.com\",\"segment\":\"Shipper\",\"priority\":\"warm\",\"sequence\":\"C\",\"linkedinUrl\":\"\",\"meetingSummary\":\"Alaska / Hawaiian Airlines cargo operations\",\"painPoints\":[],\"interestSignals\":[],\"followUpCommitments\":[]},\n  {\"firstName\":\"Jake\",\"lastName\":\"Elliot\",\"company\":\"Expedite All\",\"title\":\"\",\"email\":\"\",\"segment\":\"Courier\",\"priority\":\"warm\",\"sequence\":\"B\",\"linkedinUrl\":\"\",\"meetingSummary\":\"Expedite All courier\",\"painPoints\":[],\"interestSignals\":[],\"followUpCommitments\":[]},\n  {\"firstName\":\"Adam\",\"lastName\":\"McKenna\",\"company\":\"WCA\",\"title\":\"\",\"email\":\"\",\"segment\":\"Forwarder\",\"priority\":\"hot\",\"sequence\":\"A\",\"linkedinUrl\":\"\",\"meetingSummary\":\"WCA freight network\",\"painPoints\":[],\"interestSignals\":[],\"followUpCommitments\":[]}\n];\n\nreturn leads.map(lead => ({\n  json: {\n    ...lead,\n    _secrets: { heyreachKey, slackWebhook },\n    _source: 'aircargo-conference-2026'\n  }\n}));"
+      },
+      "id": "sdr-load-leads",
+      "name": "Load Conference Leads",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        400,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "options": {
+          "reset": false
+        }
+      },
+      "id": "sdr-loop",
+      "name": "Loop Over Leads",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        600,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.heyreach.io/api/public/lists/AddLeadsToList",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ listId: $env.HEYREACH_LIST_ID || 0, leads: [{ firstName: $json.firstName, lastName: $json.lastName, companyName: $json.company, profileUrl: $json.linkedinUrl || '' }] }) }}",
+        "options": {}
+      },
+      "id": "sdr-add-to-heyreach",
+      "name": "Add to HeyReach List",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        800,
+        400
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "sdr-heyreach-auth",
+          "name": "HeyReach API"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format Slack message for each lead\nconst lead = $input.first().json;\nconst secrets = lead._secrets || {};\n\nconst priorityEmoji = lead.priority === 'hot' ? '🔥' : '🟡';\nconst sequenceLabel = `Sequence ${lead.sequence}`;\n\nconst meetingBlock = lead.meetingSummary\n  ? `*Meeting Notes:* ${lead.meetingSummary}\\n${lead.painPoints?.length ? `*Pain Points:* ${lead.painPoints.join(', ')}` : ''}\\n${lead.interestSignals?.length ? `*Interest:* ${lead.interestSignals.join(', ')}` : ''}\\n${lead.followUpCommitments?.length ? `*Commitments:* ${lead.followUpCommitments.join(', ')}` : ''}`\n  : '_No meeting context_';\n\nconst slackText = `${priorityEmoji} *${lead.firstName} ${lead.lastName}* — ${lead.company}\\n*Title:* ${lead.title || 'unknown'} | *Segment:* ${lead.segment} | *${sequenceLabel}*\\n*Email:* ${lead.email || 'none'}\\n\\n${meetingBlock}\\n\\n_Action: Send blank LinkedIn connection request. AI opener will generate after they accept._`;\n\nreturn [{ json: { text: slackText, channel: 'C0AGDM7AMRS', _secrets: secrets, ...lead } }];"
+      },
+      "id": "sdr-format-slack",
+      "name": "Format Slack Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1000,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "post",
+        "channelId": {
+          "mode": "id",
+          "value": "C0AGDM7AMRS"
+        },
+        "text": "={{ $json.text }}",
+        "otherOptions": {}
+      },
+      "id": "sdr-slack-notify",
+      "name": "Post to #sdr-inbox",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        1200,
+        400
+      ],
+      "credentials": {
+        "slackApi": {
+          "id": "wkLpZSqhXl2iesnC",
+          "name": "Chrt Slack App"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Log output and loop back\nconst lead = $input.first().json;\nreturn [{ json: { status: 'notified', firstName: lead.firstName, lastName: lead.lastName, company: lead.company } }];"
+      },
+      "id": "sdr-log",
+      "name": "Log Status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1400,
+        400
+      ]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Doppler Secrets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Doppler Secrets": {
+      "main": [
+        [
+          {
+            "node": "Load Conference Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Conference Leads": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Leads": {
+      "main": [
+        null,
+        [
+          {
+            "node": "Format Slack Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Slack Message": {
+      "main": [
+        [
+          {
+            "node": "Post to #sdr-inbox",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post to #sdr-inbox": {
+      "main": [
+        [
+          {
+            "node": "Log Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Status": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": null,
+  "versionId": "3ad8c8b1-561b-40ed-83de-2a83316594d5",
+  "activeVersionId": null,
+  "triggerCount": 0,
+  "shared": [
+    {
+      "updatedAt": "2026-02-21T00:12:47.331Z",
+      "createdAt": "2026-02-21T00:12:47.331Z",
+      "role": "workflow:owner",
+      "workflowId": "EAjNZ4ntYtUG7AsJ",
+      "projectId": "O7lTivDfRl72aS23"
+    }
+  ],
+  "activeVersion": null,
+  "tags": [],
+  "_folderPath": "",
+  "_fileName": "hr-1:-outreach-push-(sdr).json"
+}
