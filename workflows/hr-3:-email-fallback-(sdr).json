@@ -1,0 +1,314 @@
+{
+  "updatedAt": "2026-02-21T02:03:08.596Z",
+  "createdAt": "2026-02-21T01:50:21.469Z",
+  "id": "gjquw442mJ7Dnjjz",
+  "name": "HR-3: Email Fallback (SDR)",
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "email-manual-trigger",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.doppler.com/v3/configs/config/secrets",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "project",
+              "value": "developers"
+            },
+            {
+              "name": "config",
+              "value": "hudson"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "email-fetch-doppler",
+      "name": "Fetch Doppler Secrets",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        200,
+        400
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "dz2vX61Mpayywfq1",
+          "name": "Doppler API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Load leads for email fallback.\n// For V1: manual list. Production: query HubSpot for leads where\n// connection_sent > 3 days ago AND status != 'connected'.\nconst secrets = $input.first().json.secrets;\n\nconst leads = [\n  // Add leads here when ready to send email fallback.\n  // Format: { firstName, lastName, company, title, email, segment, meetingSummary, painPoints, interestSignals, followUpCommitments }\n];\n\nif (leads.length === 0) {\n  return [{ json: { _skip: true, reason: 'No leads ready for email fallback. Add leads to the array above.' } }];\n}\n\nreturn leads.map(lead => ({\n  json: {\n    ...lead,\n    _secrets: {\n      anthropicKey: secrets.ANTHROPIC_API_KEY?.raw || '',\n      valtownToken: secrets.VALTOWN_API_TOKEN?.raw || '',\n      generateUrl: secrets.VALTOWN_GENERATE_SUGGESTION_URL?.raw || '',\n      draftStoreUrl: secrets.VALTOWN_EMAIL_DRAFT_STORE_URL?.raw || '',\n      slackWebhook: secrets.SLACK_SDR_INBOX_WEBHOOK_URL?.raw || ''\n    },\n    _source: 'email-fallback'\n  }\n}));"
+      },
+      "id": "email-load-leads",
+      "name": "Load Non-Connected Leads",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        400,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json._skip }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "email-check-skip",
+      "name": "Has Leads?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        600,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "options": {
+          "reset": false
+        }
+      },
+      "id": "email-loop",
+      "name": "Loop Over Leads",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        800,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate 3 email variants via Val.town\nconst lead = $input.first().json;\nconst s = lead._secrets;\n\nlet result = null;\n\ntry {\n  const resp = await fetch(s.generateUrl, {\n    method: 'POST',\n    headers: {\n      'Content-Type': 'application/json',\n      'Authorization': `Bearer ${s.valtownToken}`\n    },\n    body: JSON.stringify({\n      conversationThread: [],\n      leadContext: {\n        firstName: lead.firstName,\n        lastName: lead.lastName,\n        company: lead.company,\n        title: lead.title || '',\n        segment: lead.segment || '',\n        source: 'conference',\n        meetingContext: lead.meetingSummary ? {\n          meeting_summary: lead.meetingSummary,\n          pain_points: lead.painPoints || [],\n          interest_signals: lead.interestSignals || [],\n          follow_up_commitments: lead.followUpCommitments || []\n        } : undefined\n      },\n      platform: 'email',\n      anthropicKey: s.anthropicKey,\n      calendlyHudson: 'https://calendly.com/hudson-chrt/25min',\n      variants: 3\n    })\n  });\n\n  if (resp.ok) {\n    result = await resp.json();\n  } else {\n    const errText = await resp.text();\n    throw new Error(`Val.town ${resp.status}: ${errText}`);\n  }\n} catch (err) {\n  // Single-variant fallback\n  result = {\n    variants: [{\n      approach: 'fallback',\n      suggestedResponse: `Hey ${lead.firstName}, great meeting at AirCargo. Let's get on a call this week — here's my Calendly: https://calendly.com/hudson-chrt/25min`,\n      subject: 'AirCargo follow-up',\n      reasoning: 'Fallback template — Val.town was unreachable: ' + err.message,\n      calendlyLink: 'hudson'\n    }],\n    requiresHuman: true,\n    humanReason: err.message\n  };\n}\n\nreturn [{ json: { ...lead, emailVariants: result } }];"
+      },
+      "id": "email-generate",
+      "name": "Generate 3 Email Variants",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1000,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Store all 3 variants in Val.town blob store, then format Slack message with approve links\nconst lead = $input.first().json;\nconst s = lead._secrets;\nconst variants = lead.emailVariants?.variants || [];\nconst draftId = `${lead.firstName}-${lead.lastName}-${Date.now()}`.toLowerCase().replace(/\\s/g, '-');\n\n// Store draft data (all variants + metadata)\ntry {\n  await fetch(s.draftStoreUrl, {\n    method: 'POST',\n    headers: {\n      'Content-Type': 'application/json',\n      'Authorization': `Bearer ${s.valtownToken}`\n    },\n    body: JSON.stringify({\n      action: 'store',\n      id: draftId,\n      draft: {\n        to: lead.email,\n        leadName: `${lead.firstName} ${lead.lastName}`,\n        company: lead.company,\n        variants: variants.map(v => ({\n          approach: v.approach,\n          subject: v.subject,\n          suggestedResponse: v.suggestedResponse,\n          reasoning: v.reasoning,\n          calendlyLink: v.calendlyLink\n        }))\n      }\n    })\n  });\n} catch (e) { /* non-critical — worst case they can't click approve */ }\n\n// Build the webhook base URL (HR-4 must be active)\nconst webhookBase = 'https://chrt.app.n8n.cloud/webhook/sdr-email-approve';\n\n// Format approach labels\nconst labels = { soft_touch: '💬 Soft Touch', direct_ask: '🎯 Direct Ask', value_first: '💡 Value-First', fallback: '🔄 Fallback' };\n\nlet blocks = `📧 *Email Drafts for ${lead.firstName} ${lead.lastName}* — ${lead.company}\\n*To:* ${lead.email}\\n`;\n\nvariants.forEach((v, i) => {\n  const label = labels[v.approach] || `Option ${i + 1}`;\n  const approveUrl = `${webhookBase}?id=${draftId}&action=approve&v=${i}`;\n  blocks += `\\n---\\n*${label}*\\n*Subject:* ${v.subject || '(none)'}\\n\\n> ${v.suggestedResponse.replace(/\\n/g, '\\n> ')}\\n\\n_${v.reasoning}_\\n\\n<${approveUrl}|✅ Send This One>\\n`;\n});\n\nconst skipUrl = `${webhookBase}?id=${draftId}&action=skip`;\nblocks += `\\n---\\n<${skipUrl}|⏭️ Skip This Lead>\\n\\n_Click a link to approve & send, or skip._`;\n\nreturn [{ json: { text: blocks, channel: 'C0AGDM7AMRS', ...lead, draftId } }];"
+      },
+      "id": "email-format-slack",
+      "name": "Store Drafts & Format Slack",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json._secrets?.slackWebhook || '' }}",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "text",
+              "value": "={{ $json.text }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "email-slack-post",
+      "name": "Post to #sdr-inbox",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1400,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const lead = $input.first().json;\nreturn [{ json: { status: 'drafts_posted', firstName: lead.firstName, lastName: lead.lastName, email: lead.email, draftId: lead.draftId } }];"
+      },
+      "id": "email-log",
+      "name": "Log Status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1600,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { skipped: true, reason: $input.first().json.reason || 'No leads' } }];"
+      },
+      "id": "email-no-leads",
+      "name": "No Leads to Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        500
+      ]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Doppler Secrets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Doppler Secrets": {
+      "main": [
+        [
+          {
+            "node": "Load Non-Connected Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Non-Connected Leads": {
+      "main": [
+        [
+          {
+            "node": "Has Leads?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Leads?": {
+      "main": [
+        [
+          {
+            "node": "No Leads to Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop Over Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Leads": {
+      "main": [
+        null,
+        [
+          {
+            "node": "Generate 3 Email Variants",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate 3 Email Variants": {
+      "main": [
+        [
+          {
+            "node": "Store Drafts & Format Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Drafts & Format Slack": {
+      "main": [
+        [
+          {
+            "node": "Post to #sdr-inbox",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post to #sdr-inbox": {
+      "main": [
+        [
+          {
+            "node": "Log Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Status": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": null,
+  "versionId": "e9cec488-e6c9-4bd6-b4f8-628ab6df0a0c",
+  "activeVersionId": null,
+  "triggerCount": 0,
+  "shared": [
+    {
+      "updatedAt": "2026-02-21T01:50:21.840Z",
+      "createdAt": "2026-02-21T01:50:21.840Z",
+      "role": "workflow:owner",
+      "workflowId": "gjquw442mJ7Dnjjz",
+      "projectId": "O7lTivDfRl72aS23"
+    }
+  ],
+  "activeVersion": null,
+  "tags": [],
+  "_folderPath": "",
+  "_fileName": "hr-3:-email-fallback-(sdr).json"
+}
